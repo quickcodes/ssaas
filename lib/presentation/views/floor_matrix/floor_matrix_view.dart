@@ -243,7 +243,12 @@ class FloorMatrixView extends StatelessWidget {
   }
 
   Widget _buildMetricDivider() {
-    return Container(height: 32, width: 1, color: AppColors.cardBorderStroke);
+    return Container(
+      height: 32,
+      width: 1,
+      color: AppColors.cardBorderStroke,
+      margin: const EdgeInsets.symmetric(horizontal: 16),
+    );
   }
 
   Widget _buildMetricPill(
@@ -254,8 +259,8 @@ class FloorMatrixView extends StatelessWidget {
   ) {
     return Row(
       children: [
-        Icon(icon, color: color, size: 20),
-        const SizedBox(width: 8),
+        // Icon(icon, color: color, size: 20),
+        // const SizedBox(width: 8),
         Column(
           crossAxisAlignment: CrossAxisAlignment.start,
           children: [

@@ -1,0 +1,29 @@
+{
+  "project_info": {
+    "project_number": "423461627378",
+    "project_id": "snooker-888",
+    "storage_bucket": "snooker-888.firebasestorage.app"
+  },
+  "client": [
+    {
+      "client_info": {
+        "mobilesdk_app_id": "1:423461627378:android:a6fa63d4ed1847e06ab76b",
+        "android_client_info": {
+          "package_name": "com.example.snooker"
+        }
+      },
+      "oauth_client": [],
+      "api_key": [
+        {
+          "current_key": "AIzaSyA4iIwXafb-fnuL4QuNVO1ap4z-748a28c"
+        }
+      ],
+      "services": {
+        "appinvite_service": {
+          "other_platform_oauth_client": []
+        }
+      }
+    }
+  ],
+  "configuration_version": "1"
+}

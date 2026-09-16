@@ -154,6 +154,9 @@ class _MainDashboardViewState extends State<MainDashboardView> {
                       selectedIndex: _selectedTabIndex,
                       onDestinationSelected: (index) {
                         setState(() => _selectedTabIndex = index);
+                        setState(() {
+                          _isSideMenuVisible = false;
+                        });
                       },
                       labelType: NavigationRailLabelType.all,
                       unselectedIconTheme: const IconThemeData(
@@ -507,12 +510,11 @@ class _MainDashboardViewState extends State<MainDashboardView> {
             ),
             ElevatedButton(
               onPressed: () {
-                if (name.text.trim().isNotEmpty) {
+                if (name.text.trim().isNotEmpty)
                   Navigator.pop(
                     dialogContext,
                     _PendingUser(name.text.trim(), email.text.trim(), role),
                   );
-                }
               },
               child: const Text('Add'),
             ),
@@ -531,147 +533,157 @@ class _MainDashboardViewState extends State<MainDashboardView> {
   ) {
     return AppBar(
       titleSpacing: 20,
-      title: SingleChildScrollView(
-        scrollDirection: Axis.horizontal,
-        child: Row(
-          children: [
-            // Logo & Brand
-            Container(
-              padding: const EdgeInsets.all(8),
-              decoration: BoxDecoration(
-                color: AppColors.brandAccent.withAlpha(40),
-                borderRadius: BorderRadius.circular(10),
-                border: Border.all(color: AppColors.brandAccent),
-              ),
-              child: const Icon(
-                Icons.sports_esports,
-                color: AppColors.brandAccentLight,
-                size: 20,
-              ),
-            ),
-            const SizedBox(width: 12),
-            const Column(
-              crossAxisAlignment: CrossAxisAlignment.start,
-              children: [
-                Text(
-                  'CUECLUB OS',
-                  style: TextStyle(
-                    color: AppColors.primaryText,
-                    fontWeight: FontWeight.w900,
-                    fontSize: 16,
-                    letterSpacing: 1.2,
-                  ),
-                ),
-                Text(
-                  'Snooker & Billiards Management',
-                  style: TextStyle(
-                    color: AppColors.secondaryText,
-                    fontSize: 11,
-                  ),
-                ),
-              ],
-            ),
-            const SizedBox(width: 24),
-
-            // Multi-Branch Selector
-            Container(
-              padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 4),
-              decoration: BoxDecoration(
-                color: AppColors.inputSurface,
-                borderRadius: BorderRadius.circular(10),
-                border: Border.all(color: AppColors.cardBorderStroke),
-              ),
-              child: DropdownButtonHideUnderline(
-                child: DropdownButton<String>(
-                  value: activeBranch.id,
-                  dropdownColor: AppColors.cardSurface,
-                  icon: const Icon(
-                    Icons.keyboard_arrow_down,
-                    color: AppColors.secondaryText,
-                    size: 18,
-                  ),
-                  items: branches.map((b) {
-                    return DropdownMenuItem(
-                      value: b.id,
-                      child: Row(
-                        mainAxisSize: MainAxisSize.min,
-                        children: [
-                          const Icon(
-                            Icons.storefront,
-                            size: 16,
-                            color: AppColors.brandAccentLight,
-                          ),
-                          const SizedBox(width: 8),
-                          Text(
-                            b.name,
-                            style: const TextStyle(
-                              color: AppColors.primaryText,
-                              fontSize: 13,
-                              fontWeight: FontWeight.w600,
-                            ),
-                          ),
-                        ],
-                      ),
-                    );
-                  }).toList(),
-                  onChanged: (newBranchId) {
-                    if (newBranchId != null) {
-                      context.read<AuthBloc>().add(
-                        SwitchBranchEvent(newBranchId),
-                      );
-                    }
-                  },
-                ),
-              ),
-            ),
-            const SizedBox(width: 14),
-
-            // SaaS Subscription Badge
-            Container(
-              padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 6),
-              decoration: BoxDecoration(
-                color: AppColors.brandAccent.withAlpha(20),
-                borderRadius: BorderRadius.circular(8),
-                border: Border.all(color: AppColors.brandAccent.withAlpha(80)),
-              ),
-              child: const Row(
-                mainAxisSize: MainAxisSize.min,
-                children: [
-                  Icon(
-                    Icons.verified,
-                    color: AppColors.brandAccentLight,
-                    size: 14,
-                  ),
-                  SizedBox(width: 6),
-                  Text(
-                    '₹200 / mo Micro-SaaS Active',
-                    style: TextStyle(
-                      color: AppColors.brandAccentLight,
-                      fontSize: 11,
-                      fontWeight: FontWeight.w700,
-                    ),
-                  ),
-                ],
-              ),
-            ),
-          ],
+      title: IconButton(
+        tooltip: _isSideMenuVisible ? 'Hide side menu' : 'Show side menu',
+        onPressed: () => setState(() {
+          _isSideMenuVisible = !_isSideMenuVisible;
+        }),
+        icon: Icon(
+          _isSideMenuVisible ? Icons.menu_open : Icons.menu,
+          color: AppColors.primaryText,
         ),
       ),
+      // title: SingleChildScrollView(
+      //   scrollDirection: Axis.horizontal,
+      //   child: Row(
+      //     children: [
+      //       // Logo & Brand
+      //       Container(
+      //         padding: const EdgeInsets.all(8),
+      //         decoration: BoxDecoration(
+      //           color: AppColors.brandAccent.withAlpha(40),
+      //           borderRadius: BorderRadius.circular(10),
+      //           border: Border.all(color: AppColors.brandAccent),
+      //         ),
+      //         child: const Icon(
+      //           Icons.sports_esports,
+      //           color: AppColors.brandAccentLight,
+      //           size: 20,
+      //         ),
+      //       ),
+      //       const SizedBox(width: 12),
+      //       const Column(
+      //         crossAxisAlignment: CrossAxisAlignment.start,
+      //         children: [
+      //           Text(
+      //             'CUECLUB OS',
+      //             style: TextStyle(
+      //               color: AppColors.primaryText,
+      //               fontWeight: FontWeight.w900,
+      //               fontSize: 16,
+      //               letterSpacing: 1.2,
+      //             ),
+      //           ),
+      //           Text(
+      //             'Snooker & Billiards Management',
+      //             style: TextStyle(
+      //               color: AppColors.secondaryText,
+      //               fontSize: 11,
+      //             ),
+      //           ),
+      //         ],
+      //       ),
+      //       const SizedBox(width: 24),
+
+      //       // Multi-Branch Selector
+      //       Container(
+      //         padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 4),
+      //         decoration: BoxDecoration(
+      //           color: AppColors.inputSurface,
+      //           borderRadius: BorderRadius.circular(10),
+      //           border: Border.all(color: AppColors.cardBorderStroke),
+      //         ),
+      //         child: DropdownButtonHideUnderline(
+      //           child: DropdownButton<String>(
+      //             value: activeBranch.id,
+      //             dropdownColor: AppColors.cardSurface,
+      //             icon: const Icon(
+      //               Icons.keyboard_arrow_down,
+      //               color: AppColors.secondaryText,
+      //               size: 18,
+      //             ),
+      //             items: branches.map((b) {
+      //               return DropdownMenuItem(
+      //                 value: b.id,
+      //                 child: Row(
+      //                   mainAxisSize: MainAxisSize.min,
+      //                   children: [
+      //                     const Icon(
+      //                       Icons.storefront,
+      //                       size: 16,
+      //                       color: AppColors.brandAccentLight,
+      //                     ),
+      //                     const SizedBox(width: 8),
+      //                     Text(
+      //                       b.name,
+      //                       style: const TextStyle(
+      //                         color: AppColors.primaryText,
+      //                         fontSize: 13,
+      //                         fontWeight: FontWeight.w600,
+      //                       ),
+      //                     ),
+      //                   ],
+      //                 ),
+      //               );
+      //             }).toList(),
+      //             onChanged: (newBranchId) {
+      //               if (newBranchId != null) {
+      //                 context.read<AuthBloc>().add(
+      //                   SwitchBranchEvent(newBranchId),
+      //                 );
+      //               }
+      //             },
+      //           ),
+      //         ),
+      //       ),
+      //       const SizedBox(width: 14),
+
+      //       // SaaS Subscription Badge
+      //       Container(
+      //         padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 6),
+      //         decoration: BoxDecoration(
+      //           color: AppColors.brandAccent.withAlpha(20),
+      //           borderRadius: BorderRadius.circular(8),
+      //           border: Border.all(color: AppColors.brandAccent.withAlpha(80)),
+      //         ),
+      //         child: const Row(
+      //           mainAxisSize: MainAxisSize.min,
+      //           children: [
+      //             Icon(
+      //               Icons.verified,
+      //               color: AppColors.brandAccentLight,
+      //               size: 14,
+      //             ),
+      //             SizedBox(width: 6),
+      //             Text(
+      //               '₹200 / mo Micro-SaaS Active',
+      //               style: TextStyle(
+      //                 color: AppColors.brandAccentLight,
+      //                 fontSize: 11,
+      //                 fontWeight: FontWeight.w700,
+      //               ),
+      //             ),
+      //           ],
+      //         ),
+      //       ),
+      //     ],
+      //   ),
+      // ),
       actions: [
-        IconButton(
-          tooltip: _isSideMenuVisible ? 'Hide side menu' : 'Show side menu',
-          onPressed: () => setState(() {
-            _isSideMenuVisible = !_isSideMenuVisible;
-          }),
-          icon: Icon(
-            _isSideMenuVisible ? Icons.menu_open : Icons.menu,
-            color: AppColors.primaryText,
-          ),
-        ),
+        // IconButton(
+        //   tooltip: _isSideMenuVisible ? 'Hide side menu' : 'Show side menu',
+        //   onPressed: () => setState(() {
+        //     _isSideMenuVisible = !_isSideMenuVisible;
+        //   }),
+        //   icon: Icon(
+        //     _isSideMenuVisible ? Icons.menu_open : Icons.menu,
+        //     color: AppColors.primaryText,
+        //   ),
+        // ),
         // Role & Active Operator Switcher for Demo
         Container(
           margin: const EdgeInsets.only(right: 16),
-          padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 4),
+          padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 0),
           decoration: BoxDecoration(
             color: AppColors.inputSurface,
             borderRadius: BorderRadius.circular(10),

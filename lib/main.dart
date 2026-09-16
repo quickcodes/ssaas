@@ -1,5 +1,7 @@
+import 'package:firebase_core/firebase_core.dart';
 import 'package:flutter/material.dart';
 import 'package:flutter_bloc/flutter_bloc.dart';
+import 'package:snooker/firebase_options.dart';
 import 'core/di/service_locator.dart';
 import 'core/theme/app_theme.dart';
 import 'domain/repositories/i_audit_repository.dart';
@@ -18,8 +20,9 @@ import 'presentation/blocs/floor_matrix/floor_matrix_bloc.dart';
 import 'presentation/blocs/shift_audit/shift_audit_bloc.dart';
 import 'presentation/views/dashboard/main_dashboard_view.dart';
 
-void main() {
+void main() async {
   WidgetsFlutterBinding.ensureInitialized();
+  await Firebase.initializeApp(options: DefaultFirebaseOptions.currentPlatform);
   setupServiceLocator();
   runApp(const SnookerClubApp());
 }
