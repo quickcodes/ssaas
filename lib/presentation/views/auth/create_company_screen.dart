@@ -1,0 +1,383 @@
+import 'package:flutter/material.dart';
+import 'package:flutter_bloc/flutter_bloc.dart';
+import 'package:intl/intl.dart';
+import '../../../core/theme/app_colors.dart';
+import '../../blocs/auth/auth_bloc.dart';
+
+class CreateCompanyScreen extends StatefulWidget {
+  const CreateCompanyScreen({super.key});
+
+  @override
+  State<CreateCompanyScreen> createState() => _CreateCompanyScreenState();
+}
+
+class _CreateCompanyScreenState extends State<CreateCompanyScreen> {
+  final _formKey = GlobalKey<FormState>();
+
+  // Company controllers
+  final _companyNameCtrl = TextEditingController();
+  final _companyNumberCtrl = TextEditingController();
+  DateTime _expiryDate = DateTime.now().add(const Duration(days: 365));
+
+  // Initial Admin User controllers
+  final _userNameCtrl = TextEditingController();
+  final _userNumberCtrl = TextEditingController();
+  final _userEmailCtrl = TextEditingController();
+  final _userPasswordCtrl = TextEditingController();
+  bool _obscurePassword = true;
+
+  @override
+  void dispose() {
+    _companyNameCtrl.dispose();
+    _companyNumberCtrl.dispose();
+    _userNameCtrl.dispose();
+    _userNumberCtrl.dispose();
+    _userEmailCtrl.dispose();
+    _userPasswordCtrl.dispose();
+    super.dispose();
+  }
+
+  Future<void> _pickExpiryDate() async {
+    final picked = await showDatePicker(
+      context: context,
+      initialDate: _expiryDate,
+      firstDate: DateTime.now(),
+      lastDate: DateTime.now().add(const Duration(days: 365 * 10)),
+      builder: (context, child) {
+        return Theme(
+          data: Theme.of(context).copyWith(
+            colorScheme: const ColorScheme.dark(
+              primary: AppColors.brandAccent,
+              onPrimary: Colors.white,
+              surface: AppColors.cardSurface,
+              onSurface: AppColors.primaryText,
+            ),
+          ),
+          child: child!,
+        );
+      },
+    );
+    if (picked != null) {
+      setState(() => _expiryDate = picked);
+    }
+  }
+
+  void _submit() {
+    if (!_formKey.currentState!.validate()) return;
+
+    context.read<AuthBloc>().add(
+          CreateCompanyWithAdminEvent(
+            name: _companyNameCtrl.text.trim(),
+            number: _companyNumberCtrl.text.trim(),
+            expiryDate: _expiryDate,
+            initialUserName: _userNameCtrl.text.trim(),
+            initialUserNumber: _userNumberCtrl.text.trim(),
+            initialUserEmail: _userEmailCtrl.text.trim(),
+            initialUserPassword: _userPasswordCtrl.text,
+          ),
+        );
+  }
+
+  @override
+  Widget build(BuildContext context) {
+    return BlocListener<AuthBloc, AuthState>(
+      listener: (context, state) {
+        if (state.errorMessage != null) {
+          ScaffoldMessenger.of(context).showSnackBar(
+            SnackBar(
+              content: Text(state.errorMessage!),
+              backgroundColor: AppColors.tableOccupied,
+            ),
+          );
+        }
+        if (state.successMessage != null) {
+          ScaffoldMessenger.of(context).showSnackBar(
+            SnackBar(
+              content: Text(state.successMessage!),
+              backgroundColor: AppColors.tableAvailable,
+            ),
+          );
+          Navigator.of(context).pop();
+        }
+      },
+      child: Scaffold(
+        backgroundColor: AppColors.backgroundBase,
+        appBar: AppBar(
+          backgroundColor: AppColors.cardSurface,
+          elevation: 0,
+          title: const Text(
+            'Developer: Create New Company',
+            style: TextStyle(fontSize: 18, fontWeight: FontWeight.w700),
+          ),
+        ),
+        body: Center(
+          child: SingleChildScrollView(
+            padding: const EdgeInsets.symmetric(horizontal: 24, vertical: 32),
+            child: Container(
+              constraints: const BoxConstraints(maxWidth: 680),
+              padding: const EdgeInsets.all(32),
+              decoration: BoxDecoration(
+                color: AppColors.cardSurface,
+                borderRadius: BorderRadius.circular(20),
+                border: Border.all(color: AppColors.cardBorderStroke),
+                boxShadow: [
+                  BoxShadow(
+                    color: Colors.black.withAlpha(80),
+                    blurRadius: 30,
+                    offset: const Offset(0, 10),
+                  ),
+                ],
+              ),
+              child: Form(
+                key: _formKey,
+                child: Column(
+                  crossAxisAlignment: CrossAxisAlignment.stretch,
+                  children: [
+                    // Banner Info
+                    Container(
+                      padding: const EdgeInsets.all(14),
+                      decoration: BoxDecoration(
+                        color: AppColors.brandAccent.withAlpha(30),
+                        borderRadius: BorderRadius.circular(12),
+                        border: Border.all(
+                          color: AppColors.brandAccent.withAlpha(100),
+                        ),
+                      ),
+                      child: const Row(
+                        children: [
+                          Icon(
+                            Icons.admin_panel_settings,
+                            color: AppColors.brandAccentLight,
+                            size: 24,
+                          ),
+                          SizedBox(width: 12),
+                          Expanded(
+                            child: Text(
+                              'Dev Mode: Each company created requires an initial administrator user. General users cannot access this screen.',
+                              style: TextStyle(
+                                color: AppColors.brandAccentLight,
+                                fontSize: 12,
+                                fontWeight: FontWeight.w600,
+                              ),
+                            ),
+                          ),
+                        ],
+                      ),
+                    ),
+                    const SizedBox(height: 24),
+
+                    // Section 1: Company Profile
+                    const Text(
+                      '1. COMPANY PROFILE',
+                      style: TextStyle(
+                        color: AppColors.secondaryText,
+                        fontSize: 12,
+                        fontWeight: FontWeight.w800,
+                        letterSpacing: 1.1,
+                      ),
+                    ),
+                    const SizedBox(height: 12),
+                    TextFormField(
+                      controller: _companyNameCtrl,
+                      decoration: const InputDecoration(
+                        labelText: 'Company / Club Name *',
+                        hintText: 'e.g. CCD Snooker Club, Matrix Snooker Club',
+                        prefixIcon: Icon(Icons.business_outlined),
+                      ),
+                      validator: (val) => val == null || val.trim().isEmpty
+                          ? 'Company name is required'
+                          : null,
+                    ),
+                    const SizedBox(height: 16),
+                    TextFormField(
+                      controller: _companyNumberCtrl,
+                      decoration: const InputDecoration(
+                        labelText: 'Company Phone / Contact Number *',
+                        hintText: 'e.g. +91 9876543210',
+                        prefixIcon: Icon(Icons.phone_outlined),
+                      ),
+                      validator: (val) => val == null || val.trim().isEmpty
+                          ? 'Company phone number is required'
+                          : null,
+                    ),
+                    const SizedBox(height: 16),
+
+                    // Expiry Date Field
+                    InkWell(
+                      onTap: _pickExpiryDate,
+                      borderRadius: BorderRadius.circular(12),
+                      child: Container(
+                        padding: const EdgeInsets.symmetric(
+                          horizontal: 16,
+                          vertical: 14,
+                        ),
+                        decoration: BoxDecoration(
+                          color: AppColors.inputSurface,
+                          borderRadius: BorderRadius.circular(12),
+                          border: Border.all(color: AppColors.cardBorderStroke),
+                        ),
+                        child: Row(
+                          children: [
+                            const Icon(
+                              Icons.calendar_today_outlined,
+                              color: AppColors.brandAccentLight,
+                            ),
+                            const SizedBox(width: 14),
+                            Column(
+                              crossAxisAlignment: CrossAxisAlignment.start,
+                              children: [
+                                const Text(
+                                  'Subscription Expiry Date *',
+                                  style: TextStyle(
+                                    color: AppColors.secondaryText,
+                                    fontSize: 11,
+                                  ),
+                                ),
+                                const SizedBox(height: 2),
+                                Text(
+                                  DateFormat('dd MMMM yyyy').format(_expiryDate),
+                                  style: const TextStyle(
+                                    color: AppColors.primaryText,
+                                    fontSize: 15,
+                                    fontWeight: FontWeight.w700,
+                                  ),
+                                ),
+                              ],
+                            ),
+                            const Spacer(),
+                            const Icon(
+                              Icons.edit_calendar,
+                              color: AppColors.secondaryText,
+                              size: 20,
+                            ),
+                          ],
+                        ),
+                      ),
+                    ),
+                    const SizedBox(height: 32),
+
+                    // Section 2: Initial Admin User
+                    const Text(
+                      '2. INITIAL ADMIN USER',
+                      style: TextStyle(
+                        color: AppColors.secondaryText,
+                        fontSize: 12,
+                        fontWeight: FontWeight.w800,
+                        letterSpacing: 1.1,
+                      ),
+                    ),
+                    const SizedBox(height: 6),
+                    const Text(
+                      'This user will be marked as Admin automatically and can add more users and configure tables.',
+                      style: TextStyle(color: AppColors.secondaryText, fontSize: 12),
+                    ),
+                    const SizedBox(height: 12),
+                    TextFormField(
+                      controller: _userNameCtrl,
+                      decoration: const InputDecoration(
+                        labelText: 'Admin Full Name *',
+                        hintText: 'e.g. John Doe',
+                        prefixIcon: Icon(Icons.person_outline),
+                      ),
+                      validator: (val) => val == null || val.trim().isEmpty
+                          ? 'Admin name is required'
+                          : null,
+                    ),
+                    const SizedBox(height: 16),
+                    TextFormField(
+                      controller: _userNumberCtrl,
+                      decoration: const InputDecoration(
+                        labelText: 'Admin Phone Number *',
+                        hintText: 'e.g. 9876543210',
+                        prefixIcon: Icon(Icons.phone_android_outlined),
+                      ),
+                      validator: (val) => val == null || val.trim().isEmpty
+                          ? 'Phone number is required'
+                          : null,
+                    ),
+                    const SizedBox(height: 16),
+                    TextFormField(
+                      controller: _userEmailCtrl,
+                      decoration: const InputDecoration(
+                        labelText: 'Admin Email *',
+                        hintText: 'admin@club.com',
+                        prefixIcon: Icon(Icons.email_outlined),
+                      ),
+                      keyboardType: TextInputType.emailAddress,
+                      validator: (val) {
+                        if (val == null || val.trim().isEmpty) {
+                          return 'Email is required';
+                        }
+                        if (!val.contains('@')) return 'Enter a valid email';
+                        return null;
+                      },
+                    ),
+                    const SizedBox(height: 16),
+                    TextFormField(
+                      controller: _userPasswordCtrl,
+                      obscureText: _obscurePassword,
+                      decoration: InputDecoration(
+                        labelText: 'Admin Password *',
+                        prefixIcon: const Icon(Icons.lock_outline),
+                        suffixIcon: IconButton(
+                          icon: Icon(
+                            _obscurePassword
+                                ? Icons.visibility_off
+                                : Icons.visibility,
+                            color: AppColors.secondaryText,
+                          ),
+                          onPressed: () {
+                            setState(
+                              () => _obscurePassword = !_obscurePassword,
+                            );
+                          },
+                        ),
+                      ),
+                      validator: (val) => val == null || val.length < 4
+                          ? 'Password must be at least 4 characters'
+                          : null,
+                    ),
+                    const SizedBox(height: 32),
+
+                    // Submit Button
+                    BlocBuilder<AuthBloc, AuthState>(
+                      builder: (context, state) {
+                        return ElevatedButton(
+                          onPressed: state.isLoading ? null : _submit,
+                          style: ElevatedButton.styleFrom(
+                            backgroundColor: AppColors.brandAccent,
+                            padding: const EdgeInsets.symmetric(vertical: 16),
+                            shape: RoundedRectangleBorder(
+                              borderRadius: BorderRadius.circular(12),
+                            ),
+                          ),
+                          child: state.isLoading
+                              ? const SizedBox(
+                                  height: 20,
+                                  width: 20,
+                                  child: CircularProgressIndicator(
+                                    strokeWidth: 2,
+                                    color: Colors.white,
+                                  ),
+                                )
+                              : const Text(
+                                  'CREATE COMPANY & ADMIN',
+                                  style: TextStyle(
+                                    fontSize: 14,
+                                    fontWeight: FontWeight.w800,
+                                    letterSpacing: 1.0,
+                                  ),
+                                ),
+                        );
+                      },
+                    ),
+                  ],
+                ),
+              ),
+            ),
+          ),
+        ),
+      ),
+    );
+  }
+}

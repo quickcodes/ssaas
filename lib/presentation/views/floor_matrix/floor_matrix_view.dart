@@ -1,35 +1,176 @@
 import 'package:flutter/material.dart';
 import 'package:flutter_bloc/flutter_bloc.dart';
+import 'package:uuid/uuid.dart';
+import '../../../core/di/service_locator.dart';
 import '../../../core/theme/app_colors.dart';
+import '../../../data/datasources/firestore_service.dart';
 import '../../../domain/entities/club_table.dart';
+import '../../../domain/entities/stock_item.dart';
+import '../../../domain/entities/table_billing_item.dart';
+import '../../../domain/entities/table_history_record.dart';
 import '../../../domain/entities/table_session.dart';
+import '../../../domain/entities/user_account.dart';
 import '../../blocs/auth/auth_bloc.dart';
-import '../../blocs/canteen_pos/canteen_pos_bloc.dart';
 import '../../blocs/floor_matrix/floor_matrix_bloc.dart';
+import 'add_table_item_dialog.dart';
 import 'checkout_session_dialog.dart';
 import 'start_session_dialog.dart';
 import 'table_card.dart';
 import 'table_configuration_dialog.dart';
-import 'table_qr_modal.dart';
 
-class FloorMatrixView extends StatelessWidget {
-  final VoidCallback? onOpenCanteen;
-  const FloorMatrixView({super.key, this.onOpenCanteen});
+class FloorMatrixView extends StatefulWidget {
+  const FloorMatrixView({super.key});
+
+  @override
+  State<FloorMatrixView> createState() => _FloorMatrixViewState();
+}
+
+class _FloorMatrixViewState extends State<FloorMatrixView> {
+  List<StockItem> _canteenItems = [];
+
+  @override
+  void initState() {
+    super.initState();
+    _loadCanteenStock();
+  }
+
+  void _loadCanteenStock() {
+    final companyId = context.read<AuthBloc>().state.activeCompany?.id;
+    if (companyId != null) {
+      sl<FirestoreService>().watchFoodCanteen(companyId).listen((items) {
+        if (mounted) {
+          setState(() => _canteenItems = items);
+        }
+      });
+    }
+  }
+
+  void _showAddTableDialog(BuildContext context, String companyId) {
+    final nameCtrl = TextEditingController();
+    final priceCtrl = TextEditingController(text: '120');
+    final specsCtrl = TextEditingController();
+
+    showDialog(
+      context: context,
+      builder: (dialogCtx) => AlertDialog(
+        backgroundColor: AppColors.cardSurface,
+        shape: RoundedRectangleBorder(
+          borderRadius: BorderRadius.circular(16),
+          side: const BorderSide(color: AppColors.cardBorderStroke),
+        ),
+        title: const Row(
+          children: [
+            Icon(Icons.add_box_outlined, color: AppColors.brandAccentLight),
+            SizedBox(width: 10),
+            Text(
+              'Add Snooker Table',
+              style: TextStyle(
+                color: AppColors.primaryText,
+                fontWeight: FontWeight.w700,
+                fontSize: 18,
+              ),
+            ),
+          ],
+        ),
+        content: SizedBox(
+          width: 440,
+          child: Column(
+            mainAxisSize: MainAxisSize.min,
+            children: [
+              TextField(
+                controller: nameCtrl,
+                decoration: const InputDecoration(
+                  labelText: 'Table Name *',
+                  hintText: 'e.g. Table 1 (Star Tournament)',
+                ),
+              ),
+              const SizedBox(height: 12),
+              TextField(
+                controller: priceCtrl,
+                keyboardType: TextInputType.number,
+                decoration: const InputDecoration(
+                  prefixText: '₹ ',
+                  labelText: 'General Hourly Price *',
+                  hintText: 'e.g. 120',
+                ),
+              ),
+              const SizedBox(height: 12),
+              TextField(
+                controller: specsCtrl,
+                decoration: const InputDecoration(
+                  labelText: 'Specs / Description',
+                  hintText: 'e.g. 12ft Standard Slate Snooker Table',
+                ),
+              ),
+            ],
+          ),
+        ),
+        actions: [
+          TextButton(
+            onPressed: () => Navigator.of(dialogCtx).pop(),
+            child: const Text('Cancel'),
+          ),
+          ElevatedButton(
+            onPressed: () {
+              final general = double.tryParse(priceCtrl.text.trim());
+              if (nameCtrl.text.trim().isEmpty || general == null || general <= 0) {
+                return;
+              }
+
+              final newTable = ClubTable(
+                id: const Uuid().v4(),
+                companyId: companyId,
+                name: nameCtrl.text.trim(),
+                generalPrice: general,
+                specsDescription: specsCtrl.text.trim(),
+                createdAt: DateTime.now(),
+              );
+
+              Navigator.of(dialogCtx).pop();
+              context.read<FloorMatrixBloc>().add(CreateTableEvent(newTable));
+            },
+            style: ElevatedButton.styleFrom(
+              backgroundColor: AppColors.brandAccent,
+            ),
+            child: const Text('Add Table'),
+          ),
+        ],
+      ),
+    );
+  }
 
   @override
   Widget build(BuildContext context) {
     return BlocBuilder<AuthBloc, AuthState>(
       builder: (context, authState) {
         final activeUser = authState.currentUser;
-        final activeBranch = authState.activeBranch;
+        final activeCompany = authState.activeCompany;
 
-        if (activeUser == null || activeBranch == null) {
+        if (activeUser == null || activeCompany == null) {
           return const Center(child: CircularProgressIndicator());
         }
 
-        return BlocBuilder<FloorMatrixBloc, FloorMatrixState>(
+        return BlocConsumer<FloorMatrixBloc, FloorMatrixState>(
+          listener: (context, state) {
+            if (state.successMessage != null) {
+              ScaffoldMessenger.of(context).showSnackBar(
+                SnackBar(
+                  content: Text(state.successMessage!),
+                  backgroundColor: AppColors.tableAvailable,
+                ),
+              );
+            }
+            if (state.errorMessage != null) {
+              ScaffoldMessenger.of(context).showSnackBar(
+                SnackBar(
+                  content: Text(state.errorMessage!),
+                  backgroundColor: AppColors.tableOccupied,
+                ),
+              );
+            }
+          },
           builder: (context, matrixState) {
-            if (matrixState.isLoading) {
+            if (matrixState.isLoading && matrixState.tables.isEmpty) {
               return const Center(child: CircularProgressIndicator());
             }
 
@@ -53,12 +194,37 @@ class FloorMatrixView extends StatelessWidget {
               child: Column(
                 crossAxisAlignment: CrossAxisAlignment.stretch,
                 children: [
-                  // Quick Summary Bar
-                  _buildFloorSummaryBar(
-                    available: availableCount,
-                    occupied: occupiedCount,
-                    maintenance: maintenanceCount,
-                    reserved: reservedCount,
+                  // Top Row: Summary & Admin Add Table
+                  Row(
+                    children: [
+                      Expanded(
+                        child: _buildFloorSummaryBar(
+                          available: availableCount,
+                          occupied: occupiedCount,
+                          maintenance: maintenanceCount,
+                          reserved: reservedCount,
+                        ),
+                      ),
+                      if (activeUser.isAdmin) ...[
+                        const SizedBox(width: 14),
+                        ElevatedButton.icon(
+                          onPressed: () =>
+                              _showAddTableDialog(context, activeCompany.id),
+                          icon: const Icon(Icons.add),
+                          label: const Text('Add Table'),
+                          style: ElevatedButton.styleFrom(
+                            backgroundColor: AppColors.brandAccent,
+                            padding: const EdgeInsets.symmetric(
+                              horizontal: 18,
+                              vertical: 18,
+                            ),
+                            shape: RoundedRectangleBorder(
+                              borderRadius: BorderRadius.circular(14),
+                            ),
+                          ),
+                        ),
+                      ],
+                    ],
                   ),
                   const SizedBox(height: 16),
 
@@ -66,23 +232,42 @@ class FloorMatrixView extends StatelessWidget {
                   _buildFilterRow(context, matrixState.filterStatus),
                   const SizedBox(height: 20),
 
-                  // Table Grid Matrix
+                  // Tables Grid Matrix
                   if (tables.isEmpty)
                     Container(
                       padding: const EdgeInsets.all(48),
                       alignment: Alignment.center,
-                      child: const Column(
+                      decoration: BoxDecoration(
+                        color: AppColors.cardSurface,
+                        borderRadius: BorderRadius.circular(16),
+                        border: Border.all(color: AppColors.cardBorderStroke),
+                      ),
+                      child: Column(
                         children: [
-                          Icon(
+                          const Icon(
                             Icons.sports_esports_outlined,
                             size: 48,
                             color: AppColors.secondaryText,
                           ),
-                          SizedBox(height: 12),
-                          Text(
-                            'No tables found matching filter',
-                            style: TextStyle(color: AppColors.secondaryText),
+                          const SizedBox(height: 12),
+                          const Text(
+                            'No snooker tables found.',
+                            style: TextStyle(
+                              color: AppColors.primaryText,
+                              fontSize: 16,
+                              fontWeight: FontWeight.w700,
+                            ),
                           ),
+                          if (activeUser.isAdmin) ...[
+                            const SizedBox(height: 8),
+                            const Text(
+                              'Click "Add Table" above to create your first snooker table.',
+                              style: TextStyle(
+                                color: AppColors.secondaryText,
+                                fontSize: 13,
+                              ),
+                            ),
+                          ],
                         ],
                       ),
                     )
@@ -99,19 +284,18 @@ class FloorMatrixView extends StatelessWidget {
                         return GridView.builder(
                           shrinkWrap: true,
                           physics: const NeverScrollableScrollPhysics(),
-                          itemCount: tables.length,
                           gridDelegate:
                               SliverGridDelegateWithFixedCrossAxisCount(
-                                crossAxisCount: crossAxisCount,
-                                crossAxisSpacing: 16,
-                                mainAxisSpacing: 16,
-                                childAspectRatio: 1.05,
-                              ),
+                            crossAxisCount: crossAxisCount,
+                            crossAxisSpacing: 16,
+                            mainAxisSpacing: 16,
+                            mainAxisExtent: 360,
+                          ),
+                          itemCount: tables.length,
                           itemBuilder: (context, index) {
                             final table = tables[index];
-                            final session = matrixState.getSessionForTable(
-                              table.id,
-                            );
+                            final session =
+                                matrixState.getSessionForTable(table.id);
 
                             return TableCard(
                               table: table,
@@ -121,63 +305,52 @@ class FloorMatrixView extends StatelessWidget {
                               onStartSession: () => _handleStartSession(
                                 context,
                                 table,
-                                activeBranch,
                                 activeUser,
                               ),
                               onPauseSession: () {
                                 if (session != null) {
                                   context.read<FloorMatrixBloc>().add(
-                                    PauseTableSessionEvent(session.id),
-                                  );
+                                        PauseTableSessionEvent(
+                                          activeCompany.id,
+                                          session.id,
+                                        ),
+                                      );
                                 }
                               },
                               onResumeSession: () {
                                 if (session != null) {
                                   context.read<FloorMatrixBloc>().add(
-                                    ResumeTableSessionEvent(session.id),
-                                  );
+                                        ResumeTableSessionEvent(
+                                          activeCompany.id,
+                                          session.id,
+                                        ),
+                                      );
                                 }
                               },
+                              onAddItem: () => _handleAddItem(
+                                context,
+                                activeCompany.id,
+                                session,
+                              ),
                               onCheckoutSession: () => _handleCheckoutSession(
                                 context,
+                                activeCompany.id,
                                 table,
                                 session,
                                 matrixState.currentTickerTime,
                                 activeUser,
                               ),
-                              onAddFnb: () =>
-                                  _handleAddFnbToTable(context, session),
-                              onOpenQrHub: () {
-                                showDialog(
-                                  context: context,
-                                  builder: (_) => TableQrCustomerHubModal(
-                                    table: table,
-                                    session: session,
-                                    branch: activeBranch,
-                                    now: matrixState.currentTickerTime,
-                                  ),
-                                );
-                              },
                               onUpdateStatus: (newStatus) {
                                 context.read<FloorMatrixBloc>().add(
-                                  UpdateTableStatusDirectEvent(
-                                    table.id,
-                                    newStatus,
-                                  ),
-                                );
+                                      UpdateTableStatusDirectEvent(
+                                        activeCompany.id,
+                                        table.id,
+                                        newStatus,
+                                      ),
+                                    );
                               },
-                              onConfigureRates: () async {
-                                final updated = await showDialog<ClubTable>(
-                                  context: context,
-                                  builder: (_) =>
-                                      TableConfigurationDialog(table: table),
-                                );
-                                if (updated != null && context.mounted) {
-                                  context.read<FloorMatrixBloc>().add(
-                                    SaveTableConfigurationEvent(updated),
-                                  );
-                                }
-                              },
+                              onConfigureRates: () =>
+                                  _handleConfigureRates(context, table),
                             );
                           },
                         );
@@ -210,28 +383,28 @@ class FloorMatrixView extends StatelessWidget {
         child: Row(
           children: [
             _buildMetricPill(
-              'Open Tables',
+              'Available',
               available.toString(),
               AppColors.tableAvailable,
               Icons.check_circle_outline,
             ),
             _buildMetricDivider(),
             _buildMetricPill(
-              'Occupied (Active)',
+              'Running (Occupied)',
               occupied.toString(),
               AppColors.tableOccupied,
               Icons.play_circle_fill,
             ),
             _buildMetricDivider(),
             _buildMetricPill(
-              'Maintenance / Felt',
+              'Maintenance',
               maintenance.toString(),
               AppColors.tableMaintenance,
               Icons.build_circle_outlined,
             ),
             _buildMetricDivider(),
             _buildMetricPill(
-              'Reserved',
+              'Booked',
               reserved.toString(),
               AppColors.tableReserved,
               Icons.bookmark_border,
@@ -244,7 +417,7 @@ class FloorMatrixView extends StatelessWidget {
 
   Widget _buildMetricDivider() {
     return Container(
-      height: 32,
+      height: 28,
       width: 1,
       color: AppColors.cardBorderStroke,
       margin: const EdgeInsets.symmetric(horizontal: 16),
@@ -259,8 +432,8 @@ class FloorMatrixView extends StatelessWidget {
   ) {
     return Row(
       children: [
-        // Icon(icon, color: color, size: 20),
-        // const SizedBox(width: 8),
+        Icon(icon, color: color, size: 20),
+        const SizedBox(width: 8),
         Column(
           crossAxisAlignment: CrossAxisAlignment.start,
           children: [
@@ -290,12 +463,17 @@ class FloorMatrixView extends StatelessWidget {
       scrollDirection: Axis.horizontal,
       child: Row(
         children: [
-          _buildFilterChip(context, null, 'All Tables', currentFilter == null),
+          _buildFilterChip(
+            context,
+            null,
+            'All Tables',
+            currentFilter == null,
+          ),
           const SizedBox(width: 8),
           _buildFilterChip(
             context,
             TableStatus.available,
-            'Available (Open)',
+            'Available',
             currentFilter == TableStatus.available,
             color: AppColors.tableAvailable,
           ),
@@ -303,7 +481,7 @@ class FloorMatrixView extends StatelessWidget {
           _buildFilterChip(
             context,
             TableStatus.occupied,
-            'Occupied (Running)',
+            'Running',
             currentFilter == TableStatus.occupied,
             color: AppColors.tableOccupied,
           ),
@@ -311,7 +489,7 @@ class FloorMatrixView extends StatelessWidget {
           _buildFilterChip(
             context,
             TableStatus.maintenance,
-            'Maintenance & Ironing',
+            'Maintenance',
             currentFilter == TableStatus.maintenance,
             color: AppColors.tableMaintenance,
           ),
@@ -319,7 +497,7 @@ class FloorMatrixView extends StatelessWidget {
           _buildFilterChip(
             context,
             TableStatus.reserved,
-            'Reserved',
+            'Booked',
             currentFilter == TableStatus.reserved,
             color: AppColors.tableReserved,
           ),
@@ -380,86 +558,85 @@ class FloorMatrixView extends StatelessWidget {
   void _handleStartSession(
     BuildContext context,
     ClubTable table,
-    dynamic branch,
-    dynamic activeUser,
+    UserAccount activeUser,
   ) async {
     final session = await showDialog<TableSession>(
       context: context,
       builder: (_) => StartSessionDialog(
         table: table,
-        branch: branch,
         activeOperator: activeUser,
       ),
     );
 
     if (session != null && context.mounted) {
       context.read<FloorMatrixBloc>().add(StartTableSessionEvent(session));
-      ScaffoldMessenger.of(context).showSnackBar(
-        SnackBar(
-          content: Text(
-            'Table "${table.name}" clock started for ${session.playerName}',
-          ),
-          backgroundColor: AppColors.cardSurface,
-        ),
-      );
+    }
+  }
+
+  void _handleAddItem(
+    BuildContext context,
+    String companyId,
+    TableSession? session,
+  ) async {
+    if (session == null) return;
+
+    final item = await showDialog<TableBillingItem>(
+      context: context,
+      builder: (_) => AddTableItemDialog(
+        canteenItems: _canteenItems,
+        tableName: session.tableName,
+      ),
+    );
+
+    if (item != null && context.mounted) {
+      context.read<FloorMatrixBloc>().add(
+            AddBillingItemEvent(
+              companyId: companyId,
+              sessionId: session.id,
+              item: item,
+            ),
+          );
     }
   }
 
   void _handleCheckoutSession(
     BuildContext context,
+    String companyId,
     ClubTable table,
     TableSession? session,
     DateTime now,
-    dynamic activeUser,
+    UserAccount activeUser,
   ) async {
     if (session == null) return;
 
-    final result = await showDialog<Map<String, dynamic>>(
+    final historyRecord = await showDialog<TableHistoryRecord>(
       context: context,
       builder: (_) => CheckoutSessionDialog(
         session: session,
-        tabItems: const [],
         now: now,
-        canOverrideDiscount: activeUser.role.canDeleteBillsOrOverride,
+        activeOperator: activeUser,
       ),
     );
 
-    if (result != null && context.mounted) {
-      final paymentMethod = result['paymentMethod'] as PaymentMethod;
-      final finalTableAmount = result['finalTableAmount'] as double;
-      final finalTotalAmount = result['finalTotalAmount'] as double;
-
+    if (historyRecord != null && context.mounted) {
       context.read<FloorMatrixBloc>().add(
-        CompleteTableSessionEvent(
-          sessionId: session.id,
-          paymentMethod: paymentMethod,
-          finalTableAmount: finalTableAmount,
-          finalTotalAmount: finalTotalAmount,
-        ),
-      );
-
-      ScaffoldMessenger.of(context).showSnackBar(
-        SnackBar(
-          content: Text(
-            'Settled ${table.name}: Received ₹${finalTotalAmount.toStringAsFixed(2)} via ${paymentMethod.displayName}',
-          ),
-          backgroundColor: AppColors.tableAvailable,
-        ),
-      );
+            CloseTableSessionEvent(
+              companyId: companyId,
+              sessionId: session.id,
+              historyRecord: historyRecord,
+            ),
+          );
     }
   }
 
-  void _handleAddFnbToTable(BuildContext context, TableSession? session) {
-    if (session == null) return;
-    context.read<CanteenPosBloc>().add(SetTargetSessionEvent(session.id));
-    onOpenCanteen?.call();
-    ScaffoldMessenger.of(context).showSnackBar(
-      SnackBar(
-        content: Text(
-          'Canteen POS set to add items to Table "${session.tableName}" tab',
-        ),
-        backgroundColor: AppColors.brandAccent,
-      ),
+  void _handleConfigureRates(BuildContext context, ClubTable table) async {
+    final updated = await showDialog<ClubTable>(
+      context: context,
+      builder: (_) => TableConfigurationDialog(table: table),
     );
+
+    if (updated != null && context.mounted) {
+      context.read<FloorMatrixBloc>().add(SaveTableConfigurationEvent(updated));
+    }
   }
 }

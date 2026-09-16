@@ -1,11 +1,16 @@
 import 'dart:async';
 import 'package:equatable/equatable.dart';
 import 'package:flutter_bloc/flutter_bloc.dart';
+import '../../../data/datasources/firestore_service.dart';
 import '../../../domain/entities/club_table.dart';
+import '../../../domain/entities/table_billing_item.dart';
+import '../../../domain/entities/table_history_record.dart';
 import '../../../domain/entities/table_session.dart';
-import '../../../domain/repositories/i_club_repository.dart';
 
-// Events
+// -------------------------------------------------------------
+// EVENTS
+// -------------------------------------------------------------
+
 abstract class FloorMatrixEvent extends Equatable {
   const FloorMatrixEvent();
   @override
@@ -13,10 +18,10 @@ abstract class FloorMatrixEvent extends Equatable {
 }
 
 class LoadFloorMatrixEvent extends FloorMatrixEvent {
-  final String branchId;
-  const LoadFloorMatrixEvent(this.branchId);
+  final String companyId;
+  const LoadFloorMatrixEvent(this.companyId);
   @override
-  List<Object?> get props => [branchId];
+  List<Object?> get props => [companyId];
 }
 
 class _TablesUpdatedEvent extends FloorMatrixEvent {
@@ -54,70 +59,11 @@ class FilterStatusChangedEvent extends FloorMatrixEvent {
   List<Object?> get props => [status];
 }
 
-class StartTableSessionEvent extends FloorMatrixEvent {
-  final TableSession session;
-  const StartTableSessionEvent(this.session);
+class CreateTableEvent extends FloorMatrixEvent {
+  final ClubTable table;
+  const CreateTableEvent(this.table);
   @override
-  List<Object?> get props => [session];
-}
-
-class PauseTableSessionEvent extends FloorMatrixEvent {
-  final String sessionId;
-  const PauseTableSessionEvent(this.sessionId);
-  @override
-  List<Object?> get props => [sessionId];
-}
-
-class ResumeTableSessionEvent extends FloorMatrixEvent {
-  final String sessionId;
-  const ResumeTableSessionEvent(this.sessionId);
-  @override
-  List<Object?> get props => [sessionId];
-}
-
-class CompleteTableSessionEvent extends FloorMatrixEvent {
-  final String sessionId;
-  final PaymentMethod paymentMethod;
-  final double finalTableAmount;
-  final double finalTotalAmount;
-
-  const CompleteTableSessionEvent({
-    required this.sessionId,
-    required this.paymentMethod,
-    required this.finalTableAmount,
-    required this.finalTotalAmount,
-  });
-
-  @override
-  List<Object?> get props => [
-    sessionId,
-    paymentMethod,
-    finalTableAmount,
-    finalTotalAmount,
-  ];
-}
-
-class CancelTableSessionEvent extends FloorMatrixEvent {
-  final String sessionId;
-  final String reason;
-  final String operatorId;
-
-  const CancelTableSessionEvent({
-    required this.sessionId,
-    required this.reason,
-    required this.operatorId,
-  });
-
-  @override
-  List<Object?> get props => [sessionId, reason, operatorId];
-}
-
-class UpdateTableStatusDirectEvent extends FloorMatrixEvent {
-  final String tableId;
-  final TableStatus status;
-  const UpdateTableStatusDirectEvent(this.tableId, this.status);
-  @override
-  List<Object?> get props => [tableId, status];
+  List<Object?> get props => [table];
 }
 
 class SaveTableConfigurationEvent extends FloorMatrixEvent {
@@ -127,7 +73,70 @@ class SaveTableConfigurationEvent extends FloorMatrixEvent {
   List<Object?> get props => [table];
 }
 
-// State
+class StartTableSessionEvent extends FloorMatrixEvent {
+  final TableSession session;
+  const StartTableSessionEvent(this.session);
+  @override
+  List<Object?> get props => [session];
+}
+
+class PauseTableSessionEvent extends FloorMatrixEvent {
+  final String companyId;
+  final String sessionId;
+  const PauseTableSessionEvent(this.companyId, this.sessionId);
+  @override
+  List<Object?> get props => [companyId, sessionId];
+}
+
+class ResumeTableSessionEvent extends FloorMatrixEvent {
+  final String companyId;
+  final String sessionId;
+  const ResumeTableSessionEvent(this.companyId, this.sessionId);
+  @override
+  List<Object?> get props => [companyId, sessionId];
+}
+
+class AddBillingItemEvent extends FloorMatrixEvent {
+  final String companyId;
+  final String sessionId;
+  final TableBillingItem item;
+  const AddBillingItemEvent({
+    required this.companyId,
+    required this.sessionId,
+    required this.item,
+  });
+  @override
+  List<Object?> get props => [companyId, sessionId, item];
+}
+
+class CloseTableSessionEvent extends FloorMatrixEvent {
+  final String companyId;
+  final String sessionId;
+  final TableHistoryRecord historyRecord;
+
+  const CloseTableSessionEvent({
+    required this.companyId,
+    required this.sessionId,
+    required this.historyRecord,
+  });
+
+  @override
+  List<Object?> get props => [companyId, sessionId, historyRecord];
+}
+
+class UpdateTableStatusDirectEvent extends FloorMatrixEvent {
+  final String companyId;
+  final String tableId;
+  final TableStatus status;
+  const UpdateTableStatusDirectEvent(this.companyId, this.tableId, this.status);
+  @override
+  List<Object?> get props => [companyId, tableId, status];
+}
+
+// -------------------------------------------------------------
+// STATE
+// -------------------------------------------------------------
+
 class FloorMatrixState extends Equatable {
   final List<ClubTable> tables;
   final List<TableSession> activeSessions;
@@ -136,6 +145,7 @@ class FloorMatrixState extends Equatable {
   final DateTime currentTickerTime;
   final bool isLoading;
   final String? errorMessage;
+  final String? successMessage;
 
   const FloorMatrixState({
     this.tables = const [],
@@ -145,6 +155,7 @@ class FloorMatrixState extends Equatable {
     required this.currentTickerTime,
     this.isLoading = false,
     this.errorMessage,
+    this.successMessage,
   });
 
   List<ClubTable> get filteredTables {
@@ -168,8 +179,10 @@ class FloorMatrixState extends Equatable {
     DateTime? currentTickerTime,
     bool? isLoading,
     String? errorMessage,
+    String? successMessage,
     bool clearSelectedTable = false,
     bool clearFilter = false,
+    bool clearMessages = false,
   }) {
     return FloorMatrixState(
       tables: tables ?? this.tables,
@@ -180,47 +193,57 @@ class FloorMatrixState extends Equatable {
       filterStatus: clearFilter ? null : (filterStatus ?? this.filterStatus),
       currentTickerTime: currentTickerTime ?? this.currentTickerTime,
       isLoading: isLoading ?? this.isLoading,
-      errorMessage: errorMessage,
+      errorMessage: clearMessages ? null : (errorMessage ?? this.errorMessage),
+      successMessage:
+          clearMessages ? null : (successMessage ?? this.successMessage),
     );
   }
 
   @override
   List<Object?> get props => [
-    tables,
-    activeSessions,
-    selectedTable,
-    filterStatus,
-    currentTickerTime,
-    isLoading,
-    errorMessage,
-  ];
+        tables,
+        activeSessions,
+        selectedTable,
+        filterStatus,
+        currentTickerTime,
+        isLoading,
+        errorMessage,
+        successMessage,
+      ];
 }
 
-// BLoC
+// -------------------------------------------------------------
+// BLOC
+// -------------------------------------------------------------
+
 class FloorMatrixBloc extends Bloc<FloorMatrixEvent, FloorMatrixState> {
-  final IClubRepository _clubRepo;
+  final FirestoreService _firestoreService;
   StreamSubscription<List<ClubTable>>? _tablesSub;
   StreamSubscription<List<TableSession>>? _sessionsSub;
   Timer? _tickerTimer;
 
-  FloorMatrixBloc({required IClubRepository clubRepo})
-    : _clubRepo = clubRepo,
-      super(
-        FloorMatrixState(currentTickerTime: DateTime.now(), isLoading: true),
-      ) {
+  FloorMatrixBloc({required FirestoreService firestoreService})
+      : _firestoreService = firestoreService,
+        super(
+          FloorMatrixState(
+            currentTickerTime: DateTime.now(),
+            isLoading: true,
+          ),
+        ) {
     on<LoadFloorMatrixEvent>(_onLoadFloorMatrix);
     on<_TablesUpdatedEvent>(_onTablesUpdated);
     on<_SessionsUpdatedEvent>(_onSessionsUpdated);
     on<TimerTickEvent>(_onTimerTick);
     on<TableSelectedEvent>(_onTableSelected);
     on<FilterStatusChangedEvent>(_onFilterStatusChanged);
+    on<CreateTableEvent>(_onCreateTable);
+    on<SaveTableConfigurationEvent>(_onSaveTableConfiguration);
     on<StartTableSessionEvent>(_onStartTableSession);
     on<PauseTableSessionEvent>(_onPauseTableSession);
     on<ResumeTableSessionEvent>(_onResumeTableSession);
-    on<CompleteTableSessionEvent>(_onCompleteTableSession);
-    on<CancelTableSessionEvent>(_onCancelTableSession);
+    on<AddBillingItemEvent>(_onAddBillingItem);
+    on<CloseTableSessionEvent>(_onCloseTableSession);
     on<UpdateTableStatusDirectEvent>(_onUpdateTableStatusDirect);
-    on<SaveTableConfigurationEvent>(_onSaveTableConfiguration);
 
     // Periodic 1-second timer tick for live dynamic clocks
     _tickerTimer = Timer.periodic(const Duration(seconds: 1), (timer) {
@@ -232,28 +255,32 @@ class FloorMatrixBloc extends Bloc<FloorMatrixEvent, FloorMatrixState> {
     LoadFloorMatrixEvent event,
     Emitter<FloorMatrixState> emit,
   ) async {
+    emit(state.copyWith(isLoading: true));
     await _tablesSub?.cancel();
     await _sessionsSub?.cancel();
 
-    _tablesSub = _clubRepo.watchTables(event.branchId).listen((tables) {
+    _tablesSub = _firestoreService.watchTables(event.companyId).listen((tables) {
       add(_TablesUpdatedEvent(tables));
     });
 
-    _sessionsSub = _clubRepo.watchActiveSessions(event.branchId).listen((
-      sessions,
-    ) {
+    _sessionsSub =
+        _firestoreService.watchRunningTables(event.companyId).listen((sessions) {
       add(_SessionsUpdatedEvent(sessions));
     });
 
-    final tables = await _clubRepo.getTables(event.branchId);
-    emit(state.copyWith(tables: tables, isLoading: false));
+    try {
+      final tables = await _firestoreService.getTables(event.companyId);
+      emit(state.copyWith(tables: tables, isLoading: false));
+    } catch (e) {
+      emit(state.copyWith(isLoading: false, errorMessage: e.toString()));
+    }
   }
 
   void _onTablesUpdated(
     _TablesUpdatedEvent event,
     Emitter<FloorMatrixState> emit,
   ) {
-    emit(state.copyWith(tables: event.tables));
+    emit(state.copyWith(tables: event.tables, isLoading: false));
   }
 
   void _onSessionsUpdated(
@@ -263,7 +290,10 @@ class FloorMatrixBloc extends Bloc<FloorMatrixEvent, FloorMatrixState> {
     emit(state.copyWith(activeSessions: event.sessions));
   }
 
-  void _onTimerTick(TimerTickEvent event, Emitter<FloorMatrixState> emit) {
+  void _onTimerTick(
+    TimerTickEvent event,
+    Emitter<FloorMatrixState> emit,
+  ) {
     emit(state.copyWith(currentTickerTime: event.now));
   }
 
@@ -278,75 +308,141 @@ class FloorMatrixBloc extends Bloc<FloorMatrixEvent, FloorMatrixState> {
     FilterStatusChangedEvent event,
     Emitter<FloorMatrixState> emit,
   ) {
-    emit(
-      state.copyWith(
-        filterStatus: event.status,
-        clearFilter: event.status == null,
-      ),
-    );
+    emit(state.copyWith(filterStatus: event.status, clearFilter: event.status == null));
+  }
+
+  Future<void> _onCreateTable(
+    CreateTableEvent event,
+    Emitter<FloorMatrixState> emit,
+  ) async {
+    try {
+      await _firestoreService.saveTable(event.table);
+      emit(state.copyWith(successMessage: 'Table "${event.table.name}" created.'));
+    } catch (e) {
+      emit(state.copyWith(errorMessage: e.toString()));
+    }
+  }
+
+  Future<void> _onSaveTableConfiguration(
+    SaveTableConfigurationEvent event,
+    Emitter<FloorMatrixState> emit,
+  ) async {
+    try {
+      await _firestoreService.saveTable(event.table);
+      emit(state.copyWith(successMessage: 'Rates for "${event.table.name}" updated.'));
+    } catch (e) {
+      emit(state.copyWith(errorMessage: e.toString()));
+    }
   }
 
   Future<void> _onStartTableSession(
     StartTableSessionEvent event,
     Emitter<FloorMatrixState> emit,
   ) async {
-    await _clubRepo.startSession(event.session);
+    try {
+      await _firestoreService.startSession(event.session);
+      emit(
+        state.copyWith(
+          successMessage:
+              'Table "${event.session.tableName}" started for ${event.session.customerName}.',
+        ),
+      );
+    } catch (e) {
+      emit(state.copyWith(errorMessage: e.toString()));
+    }
   }
 
   Future<void> _onPauseTableSession(
     PauseTableSessionEvent event,
     Emitter<FloorMatrixState> emit,
   ) async {
-    await _clubRepo.pauseSession(event.sessionId);
+    try {
+      await _firestoreService.pauseSession(event.companyId, event.sessionId);
+    } catch (e) {
+      emit(state.copyWith(errorMessage: e.toString()));
+    }
   }
 
   Future<void> _onResumeTableSession(
     ResumeTableSessionEvent event,
     Emitter<FloorMatrixState> emit,
   ) async {
-    await _clubRepo.resumeSession(event.sessionId);
+    try {
+      await _firestoreService.resumeSession(event.companyId, event.sessionId);
+    } catch (e) {
+      emit(state.copyWith(errorMessage: e.toString()));
+    }
   }
 
-  Future<void> _onCompleteTableSession(
-    CompleteTableSessionEvent event,
+  Future<void> _onAddBillingItem(
+    AddBillingItemEvent event,
     Emitter<FloorMatrixState> emit,
   ) async {
-    await _clubRepo.completeSession(
-      event.sessionId,
-      event.paymentMethod,
-      event.finalTableAmount,
-      event.finalTotalAmount,
-    );
+    try {
+      await _firestoreService.addItemToRunningSession(
+        event.companyId,
+        event.sessionId,
+        event.item,
+      );
+      // If linked to food canteen item, decrement stock
+      if (event.item.stockItemId != null && !event.item.isCustom) {
+        await _firestoreService.decrementFoodStock(
+          event.companyId,
+          event.item.stockItemId!,
+          event.item.quantity,
+        );
+      }
+      emit(
+        state.copyWith(
+          successMessage: 'Added ${event.item.name} to table bill.',
+        ),
+      );
+    } catch (e) {
+      emit(state.copyWith(errorMessage: e.toString()));
+    }
   }
 
-  Future<void> _onCancelTableSession(
-    CancelTableSessionEvent event,
+  Future<void> _onCloseTableSession(
+    CloseTableSessionEvent event,
     Emitter<FloorMatrixState> emit,
   ) async {
-    await _clubRepo.cancelOrDeleteSession(
-      event.sessionId,
-      event.reason,
-      event.operatorId,
-    );
+    try {
+      await _firestoreService.closeSession(
+        companyId: event.companyId,
+        sessionId: event.sessionId,
+        historyRecord: event.historyRecord,
+      );
+      emit(
+        state.copyWith(
+          successMessage:
+              'Table "${event.historyRecord.tableName}" closed. Status: ${event.historyRecord.paymentStatus}.',
+        ),
+      );
+    } catch (e) {
+      emit(state.copyWith(errorMessage: e.toString()));
+    }
   }
 
   Future<void> _onUpdateTableStatusDirect(
     UpdateTableStatusDirectEvent event,
     Emitter<FloorMatrixState> emit,
   ) async {
-    await _clubRepo.updateTableStatus(event.tableId, event.status);
+    try {
+      await _firestoreService.updateTableStatus(
+        event.companyId,
+        event.tableId,
+        event.status,
+      );
+    } catch (e) {
+      emit(state.copyWith(errorMessage: e.toString()));
+    }
   }
-
-  Future<void> _onSaveTableConfiguration(
-    SaveTableConfigurationEvent event,
-    Emitter<FloorMatrixState> emit,
-  ) => _clubRepo.saveTable(event.table);
 
   @override
   Future<void> close() {
-    _tickerTimer?.cancel();
     _tablesSub?.cancel();
     _sessionsSub?.cancel();
+    _tickerTimer?.cancel();
     return super.close();
   }
 }

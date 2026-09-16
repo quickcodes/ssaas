@@ -1,289 +1,247 @@
+import 'package:cloud_firestore/cloud_firestore.dart';
 import 'package:equatable/equatable.dart';
 import 'rate_schedule.dart';
-
-enum BillingMode {
-  perMinute,
-  hourly,
-  fixedFrame,
-  vip;
-
-  String get displayName {
-    switch (this) {
-      case BillingMode.perMinute:
-        return 'Per Minute Dynamic';
-      case BillingMode.hourly:
-        return 'Standard Hourly';
-      case BillingMode.fixedFrame:
-        return 'Fixed Frame Flat';
-      case BillingMode.vip:
-        return 'VIP Tournament Rate';
-    }
-  }
-}
-
-enum PaymentMethod {
-  cash,
-  upi,
-  card;
-
-  String get displayName {
-    switch (this) {
-      case PaymentMethod.cash:
-        return 'Cash';
-      case PaymentMethod.upi:
-        return 'UPI / QR Pay';
-      case PaymentMethod.card:
-        return 'Card';
-    }
-  }
-}
+import 'table_billing_item.dart';
 
 class TableSession extends Equatable {
   final String id;
-  final String branchId;
+  final String companyId;
   final String tableId;
   final String tableName;
-  final String operatorId;
-  final String operatorName;
-  final String playerName;
-  final String playerPhone;
+  final String customerName;
+  final String startedById;
+  final String startedByName;
+  final String closingName;
   final DateTime startTime;
   final DateTime? endTime;
   final int pausedSeconds;
   final bool isPaused;
   final DateTime? lastPauseTime;
-  final BillingMode billingMode;
-  final double standardRatePerHour;
-  final double peakRatePerHour;
-  final int peakStartHour;
-  final int peakEndHour;
-  final double fixedFrameFee;
-  final double tableAmount;
-  final double fnbAmount;
-  final double discountAmount;
-  final double totalAmount;
-  final bool isPaid;
-  final PaymentMethod? paymentMethod;
+  final double generalPrice;
+  final List<RateSchedule> customPricings;
+  final List<TableBillingItem> items;
+  final String paymentStatus; // "Received", "Due", or "" (while active)
+  final String? paymentMethod; // "Cash", "UPI", "Card"
   final String notes;
-  final List<RateSchedule> rateSchedules;
 
   const TableSession({
     required this.id,
-    required this.branchId,
+    required this.companyId,
     required this.tableId,
     required this.tableName,
-    required this.operatorId,
-    required this.operatorName,
-    required this.playerName,
-    this.playerPhone = '',
+    required this.customerName,
+    required this.startedById,
+    required this.startedByName,
+    this.closingName = '',
     required this.startTime,
     this.endTime,
     this.pausedSeconds = 0,
     this.isPaused = false,
     this.lastPauseTime,
-    required this.billingMode,
-    required this.standardRatePerHour,
-    required this.peakRatePerHour,
-    this.peakStartHour = 18,
-    this.peakEndHour = 23,
-    this.fixedFrameFee = 100.0,
-    this.tableAmount = 0.0,
-    this.fnbAmount = 0.0,
-    this.discountAmount = 0.0,
-    this.totalAmount = 0.0,
-    this.isPaid = false,
+    required this.generalPrice,
+    this.customPricings = const [],
+    this.items = const [],
+    this.paymentStatus = '',
     this.paymentMethod,
     this.notes = '',
-    this.rateSchedules = const [],
   });
 
   /// Duration played in seconds up to a given reference time (defaults to now or endTime)
-  int playedSecondsAt(DateTime now) {
-    if (endTime != null) {
-      final total = endTime!.difference(startTime).inSeconds - pausedSeconds;
-      return total > 0 ? total : 0;
-    }
-    int extraPaused = 0;
+  int playedSecondsAt(DateTime referenceTime) {
+    final effectiveEnd = endTime ?? referenceTime;
+    final totalElapsed = effectiveEnd.difference(startTime).inSeconds;
+    int currentPause = 0;
     if (isPaused && lastPauseTime != null) {
-      extraPaused = now.difference(lastPauseTime!).inSeconds;
+      currentPause = effectiveEnd.difference(lastPauseTime!).inSeconds;
     }
-    final diff =
-        now.difference(startTime).inSeconds - pausedSeconds - extraPaused;
-    return diff > 0 ? diff : 0;
+    return (totalElapsed - pausedSeconds - currentPause).clamp(0, 86400 * 7);
   }
 
-  /// Calculates dynamic table charge with peak/off-peak prorating
-  double computeTableChargeAt(DateTime now) {
-    if (billingMode == BillingMode.fixedFrame) {
-      return fixedFrameFee;
-    }
-
-    final seconds = playedSecondsAt(now);
-    if (seconds <= 0) return 0.0;
-
-    // Bill against the actual time range, then proportionally remove any
-    // completed pause time. This keeps rate-boundary calculations exact and
-    // avoids rounding a partial minute up to a full minute.
-    final effectiveEndTime =
-        endTime ?? (isPaused && lastPauseTime != null ? lastPauseTime! : now);
-    double totalCharge = 0.0;
-
-    if (billingMode == BillingMode.vip) {
-      // VIP rate applies uniformly
-      final hours = seconds / 3600.0;
-      totalCharge = hours * peakRatePerHour;
-    } else {
-      DateTime cursor = startTime;
-      while (cursor.isBefore(effectiveEndTime)) {
-        final configuredRate = rateSchedules
-            .where((slot) => slot.appliesAt(cursor))
-            .toList();
-        final currentRate = configuredRate.isNotEmpty
-            ? configuredRate.last.hourlyRate
-            : (cursor.hour >= peakStartHour && cursor.hour < peakEndHour
-                  ? peakRatePerHour
-                  : standardRatePerHour);
-
-        final nextHour = DateTime(
-          cursor.year,
-          cursor.month,
-          cursor.day,
-          cursor.hour + 1,
-        );
-        final boundaries = <DateTime>[nextHour];
-        for (final slot in rateSchedules) {
-          for (final minute in [slot.startMinuteOfDay, slot.endMinuteOfDay]) {
-            var boundary = DateTime(
-              cursor.year,
-              cursor.month,
-              cursor.day,
-              minute ~/ 60,
-              minute % 60,
-            );
-            if (!boundary.isAfter(cursor)) {
-              boundary = boundary.add(const Duration(days: 1));
-            }
-            boundaries.add(boundary);
-          }
-        }
-        final nextBoundary = boundaries.reduce(
-          (first, value) => value.isBefore(first) ? value : first,
-        );
-        final sliceEnd = nextBoundary.isBefore(effectiveEndTime)
-            ? nextBoundary
-            : effectiveEndTime;
-        totalCharge +=
-            (currentRate / 3600.0) *
-            sliceEnd.difference(cursor).inMilliseconds /
-            1000.0;
-        cursor = sliceEnd;
-      }
-
-      final elapsedSeconds =
-          effectiveEndTime.difference(startTime).inMilliseconds / 1000.0;
-      if (elapsedSeconds > 0 && seconds < elapsedSeconds) {
-        totalCharge *= seconds / elapsedSeconds;
+  /// Calculates effective hourly rate at a specific point in time
+  double effectiveRateAt(DateTime time) {
+    for (final schedule in customPricings) {
+      if (schedule.appliesAt(time)) {
+        return schedule.hourlyRate;
       }
     }
-
-    // Round to 2 decimal places
-    return double.parse(totalCharge.toStringAsFixed(2));
+    return generalPrice;
   }
 
-  double computeGrandTotalAt(DateTime now) {
-    final tAmount = computeTableChargeAt(now);
-    final total = tAmount + fnbAmount - discountAmount;
-    return total > 0 ? double.parse(total.toStringAsFixed(2)) : 0.0;
+  /// Computes the table time charge dynamically at the given reference time
+  double computeTableChargeAt(DateTime referenceTime) {
+    final effectiveEnd = endTime ?? referenceTime;
+    if (!effectiveEnd.isAfter(startTime)) return 0.0;
+    final activeSeconds = playedSecondsAt(referenceTime);
+    if (activeSeconds <= 0) return 0.0;
+
+    final totalMinutes = (activeSeconds / 60).ceil();
+    if (customPricings.isEmpty) {
+      return (activeSeconds / 3600.0) * generalPrice;
+    }
+
+    double totalCost = 0.0;
+    const stepMinutes = 5;
+    var cursor = startTime;
+    int processedMinutes = 0;
+
+    while (processedMinutes < totalMinutes) {
+      final chunk = (totalMinutes - processedMinutes) < stepMinutes
+          ? (totalMinutes - processedMinutes)
+          : stepMinutes;
+      final rate = effectiveRateAt(cursor);
+      totalCost += (chunk / 60.0) * rate;
+      processedMinutes += chunk;
+      cursor = cursor.add(Duration(minutes: chunk));
+    }
+
+    return totalCost;
+  }
+
+  /// Total sum of all snacks, drinks, and custom items added to the table
+  double get itemsAmount {
+    return items.fold(0.0, (acc, item) => acc + item.totalAmount);
+  }
+
+  /// Total grand bill (Table dynamic time charge + Items amount)
+  double computeGrandTotalAt(DateTime referenceTime) {
+    return computeTableChargeAt(referenceTime) + itemsAmount;
   }
 
   TableSession copyWith({
     String? id,
-    String? branchId,
+    String? companyId,
     String? tableId,
     String? tableName,
-    String? operatorId,
-    String? operatorName,
-    String? playerName,
-    String? playerPhone,
+    String? customerName,
+    String? startedById,
+    String? startedByName,
+    String? closingName,
     DateTime? startTime,
     DateTime? endTime,
     int? pausedSeconds,
     bool? isPaused,
     DateTime? lastPauseTime,
-    BillingMode? billingMode,
-    double? standardRatePerHour,
-    double? peakRatePerHour,
-    int? peakStartHour,
-    int? peakEndHour,
-    double? fixedFrameFee,
-    double? tableAmount,
-    double? fnbAmount,
-    double? discountAmount,
-    double? totalAmount,
-    bool? isPaid,
-    PaymentMethod? paymentMethod,
+    double? generalPrice,
+    List<RateSchedule>? customPricings,
+    List<TableBillingItem>? items,
+    String? paymentStatus,
+    String? paymentMethod,
     String? notes,
-    List<RateSchedule>? rateSchedules,
   }) {
     return TableSession(
       id: id ?? this.id,
-      branchId: branchId ?? this.branchId,
+      companyId: companyId ?? this.companyId,
       tableId: tableId ?? this.tableId,
       tableName: tableName ?? this.tableName,
-      operatorId: operatorId ?? this.operatorId,
-      operatorName: operatorName ?? this.operatorName,
-      playerName: playerName ?? this.playerName,
-      playerPhone: playerPhone ?? this.playerPhone,
+      customerName: customerName ?? this.customerName,
+      startedById: startedById ?? this.startedById,
+      startedByName: startedByName ?? this.startedByName,
+      closingName: closingName ?? this.closingName,
       startTime: startTime ?? this.startTime,
       endTime: endTime ?? this.endTime,
       pausedSeconds: pausedSeconds ?? this.pausedSeconds,
       isPaused: isPaused ?? this.isPaused,
       lastPauseTime: lastPauseTime ?? this.lastPauseTime,
-      billingMode: billingMode ?? this.billingMode,
-      standardRatePerHour: standardRatePerHour ?? this.standardRatePerHour,
-      peakRatePerHour: peakRatePerHour ?? this.peakRatePerHour,
-      peakStartHour: peakStartHour ?? this.peakStartHour,
-      peakEndHour: peakEndHour ?? this.peakEndHour,
-      fixedFrameFee: fixedFrameFee ?? this.fixedFrameFee,
-      tableAmount: tableAmount ?? this.tableAmount,
-      fnbAmount: fnbAmount ?? this.fnbAmount,
-      discountAmount: discountAmount ?? this.discountAmount,
-      totalAmount: totalAmount ?? this.totalAmount,
-      isPaid: isPaid ?? this.isPaid,
+      generalPrice: generalPrice ?? this.generalPrice,
+      customPricings: customPricings ?? this.customPricings,
+      items: items ?? this.items,
+      paymentStatus: paymentStatus ?? this.paymentStatus,
       paymentMethod: paymentMethod ?? this.paymentMethod,
       notes: notes ?? this.notes,
-      rateSchedules: rateSchedules ?? this.rateSchedules,
+    );
+  }
+
+  Map<String, dynamic> toMap() {
+    return {
+      'id': id,
+      'companyId': companyId,
+      'tableId': tableId,
+      'tableName': tableName,
+      'customerName': customerName,
+      'startedById': startedById,
+      'startedByName': startedByName,
+      'closingName': closingName,
+      'startTime': Timestamp.fromDate(startTime),
+      'endTime': endTime != null ? Timestamp.fromDate(endTime!) : null,
+      'pausedSeconds': pausedSeconds,
+      'isPaused': isPaused,
+      'lastPauseTime': lastPauseTime != null ? Timestamp.fromDate(lastPauseTime!) : null,
+      'generalPrice': generalPrice,
+      'customPricings': customPricings.map((p) => p.toMap()).toList(),
+      'items': items.map((i) => i.toMap()).toList(),
+      'paymentStatus': paymentStatus,
+      'paymentMethod': paymentMethod,
+      'notes': notes,
+    };
+  }
+
+  factory TableSession.fromMap(String id, Map<String, dynamic> map) {
+    DateTime parseDate(dynamic val) {
+      if (val is Timestamp) return val.toDate();
+      if (val is String) return DateTime.tryParse(val) ?? DateTime.now();
+      return DateTime.now();
+    }
+
+    DateTime? parseNullableDate(dynamic val) {
+      if (val == null) return null;
+      if (val is Timestamp) return val.toDate();
+      if (val is String) return DateTime.tryParse(val);
+      return null;
+    }
+
+    final rawPricings = map['customPricings'] as List<dynamic>? ?? [];
+    final customPricings = rawPricings
+        .map((e) => RateSchedule.fromMap(Map<String, dynamic>.from(e as Map)))
+        .toList();
+
+    final rawItems = map['items'] as List<dynamic>? ?? [];
+    final items = rawItems
+        .map((e) => TableBillingItem.fromMap(Map<String, dynamic>.from(e as Map)))
+        .toList();
+
+    return TableSession(
+      id: id,
+      companyId: map['companyId'] as String? ?? '',
+      tableId: map['tableId'] as String? ?? '',
+      tableName: map['tableName'] as String? ?? '',
+      customerName: map['customerName'] as String? ?? '',
+      startedById: map['startedById'] as String? ?? '',
+      startedByName: map['startedByName'] as String? ?? '',
+      closingName: map['closingName'] as String? ?? '',
+      startTime: parseDate(map['startTime']),
+      endTime: parseNullableDate(map['endTime']),
+      pausedSeconds: (map['pausedSeconds'] as num?)?.toInt() ?? 0,
+      isPaused: map['isPaused'] as bool? ?? false,
+      lastPauseTime: parseNullableDate(map['lastPauseTime']),
+      generalPrice: (map['generalPrice'] as num?)?.toDouble() ?? 100.0,
+      customPricings: customPricings,
+      items: items,
+      paymentStatus: map['paymentStatus'] as String? ?? '',
+      paymentMethod: map['paymentMethod'] as String?,
+      notes: map['notes'] as String? ?? '',
     );
   }
 
   @override
   List<Object?> get props => [
-    id,
-    branchId,
-    tableId,
-    tableName,
-    operatorId,
-    operatorName,
-    playerName,
-    playerPhone,
-    startTime,
-    endTime,
-    pausedSeconds,
-    isPaused,
-    lastPauseTime,
-    billingMode,
-    standardRatePerHour,
-    peakRatePerHour,
-    peakStartHour,
-    peakEndHour,
-    fixedFrameFee,
-    tableAmount,
-    fnbAmount,
-    discountAmount,
-    totalAmount,
-    isPaid,
-    paymentMethod,
-    notes,
-    rateSchedules,
-  ];
+        id,
+        companyId,
+        tableId,
+        tableName,
+        customerName,
+        startedById,
+        startedByName,
+        closingName,
+        startTime,
+        endTime,
+        pausedSeconds,
+        isPaused,
+        lastPauseTime,
+        generalPrice,
+        customPricings,
+        items,
+        paymentStatus,
+        paymentMethod,
+        notes,
+      ];
 }
