@@ -143,6 +143,28 @@ class FirestoreService {
     await _usersCol(companyId).doc(userId).update({'isAdmin': isAdmin});
   }
 
+  Future<UserAccount?> getUserById(String companyId, String userId) async {
+    try {
+      final doc = await _usersCol(companyId).doc(userId).get();
+      if (!doc.exists || doc.data() == null) return null;
+      return UserAccount.fromMap(doc.id, doc.data()!);
+    } catch (_) {
+      return null;
+    }
+  }
+
+  Future<void> updateUserSession(
+    String companyId,
+    String userId,
+    DateTime? sessionExpiresAt,
+  ) async {
+    await _usersCol(companyId).doc(userId).set({
+      'sessionExpiresAt': sessionExpiresAt != null
+          ? Timestamp.fromDate(sessionExpiresAt)
+          : null,
+    }, SetOptions(merge: true));
+  }
+
   // -------------------------------------------------------------
   // SNOOKER TABLES SUBCOLLECTION: companies/{companyId}/snookerTables
   // -------------------------------------------------------------
@@ -392,4 +414,11 @@ class FirestoreService {
         .map((doc) => TableHistoryRecord.fromMap(doc.id, doc.data()))
         .toList();
   }
+
+  Future<void> updateTableHistoryRecord(TableHistoryRecord record) async {
+    await _historyCol(record.companyId)
+        .doc(record.id)
+        .set(record.toMap(), SetOptions(merge: true));
+  }
 }
+

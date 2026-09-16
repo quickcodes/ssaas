@@ -10,6 +10,7 @@ class UserAccount extends Equatable {
   final String password;
   final bool isAdmin;
   final DateTime createdAt;
+  final DateTime? sessionExpiresAt;
 
   const UserAccount({
     required this.id,
@@ -20,6 +21,7 @@ class UserAccount extends Equatable {
     required this.password,
     this.isAdmin = false,
     required this.createdAt,
+    this.sessionExpiresAt,
   });
 
   // Role permissions
@@ -27,6 +29,10 @@ class UserAccount extends Equatable {
   bool get canCreateTables => isAdmin;
   bool get canSetTablePrices => isAdmin;
   bool get canManageRates => isAdmin;
+
+  // Session state
+  bool get isSessionValid =>
+      sessionExpiresAt != null && DateTime.now().isBefore(sessionExpiresAt!);
 
   UserAccount copyWith({
     String? id,
@@ -37,6 +43,8 @@ class UserAccount extends Equatable {
     String? password,
     bool? isAdmin,
     DateTime? createdAt,
+    DateTime? sessionExpiresAt,
+    bool clearSession = false,
   }) {
     return UserAccount(
       id: id ?? this.id,
@@ -47,6 +55,9 @@ class UserAccount extends Equatable {
       password: password ?? this.password,
       isAdmin: isAdmin ?? this.isAdmin,
       createdAt: createdAt ?? this.createdAt,
+      sessionExpiresAt: clearSession
+          ? null
+          : (sessionExpiresAt ?? this.sessionExpiresAt),
     );
   }
 
@@ -59,6 +70,9 @@ class UserAccount extends Equatable {
       'password': password,
       'isAdmin': isAdmin,
       'createdAt': Timestamp.fromDate(createdAt),
+      'sessionExpiresAt': sessionExpiresAt != null
+          ? Timestamp.fromDate(sessionExpiresAt!)
+          : null,
     };
   }
 
@@ -67,6 +81,13 @@ class UserAccount extends Equatable {
       if (val is Timestamp) return val.toDate();
       if (val is String) return DateTime.tryParse(val) ?? DateTime.now();
       return DateTime.now();
+    }
+
+    DateTime? parseOptionalDate(dynamic val) {
+      if (val == null) return null;
+      if (val is Timestamp) return val.toDate();
+      if (val is String) return DateTime.tryParse(val);
+      return null;
     }
 
     return UserAccount(
@@ -78,6 +99,7 @@ class UserAccount extends Equatable {
       password: map['password'] as String? ?? '',
       isAdmin: map['isAdmin'] as bool? ?? false,
       createdAt: parseDate(map['createdAt']),
+      sessionExpiresAt: parseOptionalDate(map['sessionExpiresAt']),
     );
   }
 
@@ -91,5 +113,6 @@ class UserAccount extends Equatable {
         password,
         isAdmin,
         createdAt,
+        sessionExpiresAt,
       ];
 }

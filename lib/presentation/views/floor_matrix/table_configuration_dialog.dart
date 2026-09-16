@@ -201,12 +201,14 @@ class _TableConfigurationDialogState extends State<TableConfigurationDialog> {
         children: [
           const Icon(Icons.tune, color: AppColors.brandAccentLight),
           const SizedBox(width: 10),
-          Text(
-            'Configure Table & Dynamic Rates',
-            style: const TextStyle(
-              color: AppColors.primaryText,
-              fontWeight: FontWeight.w700,
-              fontSize: 18,
+          Expanded(
+            child: Text(
+              'Configure Table & Dynamic Rates',
+              style: const TextStyle(
+                color: AppColors.primaryText,
+                fontWeight: FontWeight.w700,
+                fontSize: 18,
+              ),
             ),
           ),
         ],
@@ -241,8 +243,11 @@ class _TableConfigurationDialogState extends State<TableConfigurationDialog> {
                 ),
               ),
               const SizedBox(height: 24),
-              Row(
-                mainAxisAlignment: MainAxisAlignment.spaceBetween,
+              Wrap(
+                alignment: WrapAlignment.spaceBetween,
+                crossAxisAlignment: WrapCrossAlignment.center,
+                spacing: 8,
+                runSpacing: 4,
                 children: [
                   const Text(
                     'CUSTOM PRICINGS (TIME & DAYS)',
@@ -257,6 +262,9 @@ class _TableConfigurationDialogState extends State<TableConfigurationDialog> {
                     onPressed: _addCustomPricing,
                     icon: const Icon(Icons.add, size: 18),
                     label: const Text('Add Custom Pricing'),
+                    style: TextButton.styleFrom(
+                      padding: const EdgeInsets.symmetric(horizontal: 8),
+                    ),
                   ),
                 ],
               ),
@@ -301,12 +309,16 @@ class _TableConfigurationDialogState extends State<TableConfigurationDialog> {
                             children: [
                               Row(
                                 children: [
-                                  Text(
-                                    slot.label,
-                                    style: const TextStyle(
-                                      color: AppColors.primaryText,
-                                      fontWeight: FontWeight.w700,
-                                      fontSize: 13,
+                                  Flexible(
+                                    child: Text(
+                                      slot.label,
+                                      maxLines: 1,
+                                      overflow: TextOverflow.ellipsis,
+                                      style: const TextStyle(
+                                        color: AppColors.primaryText,
+                                        fontWeight: FontWeight.w700,
+                                        fontSize: 13,
+                                      ),
                                     ),
                                   ),
                                   const SizedBox(width: 8),

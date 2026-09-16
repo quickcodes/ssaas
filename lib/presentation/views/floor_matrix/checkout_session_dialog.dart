@@ -1,7 +1,9 @@
 import 'package:flutter/material.dart';
+import 'package:flutter/services.dart';
 import 'package:uuid/uuid.dart';
 import '../../../core/theme/app_colors.dart';
 import '../../../core/utils/formatters.dart';
+import '../../../domain/entities/payment_transaction.dart';
 import '../../../domain/entities/table_history_record.dart';
 import '../../../domain/entities/table_session.dart';
 import '../../../domain/entities/user_account.dart';
@@ -23,23 +25,28 @@ class CheckoutSessionDialog extends StatefulWidget {
 }
 
 class _CheckoutSessionDialogState extends State<CheckoutSessionDialog> {
+  final _closingPersonCtrl = TextEditingController();
   final _closingNameCtrl = TextEditingController();
   final _notesCtrl = TextEditingController();
+  final _partialAmountCtrl = TextEditingController();
   final _formKey = GlobalKey<FormState>();
 
-  String _paymentStatus = 'Received'; // 'Received' or 'Due'
+  String _settlementMode = 'Full'; // 'Full', 'Partial', 'Due'
   String _paymentMethod = 'Cash'; // 'Cash', 'UPI', 'Card'
 
   @override
   void initState() {
     super.initState();
+    _closingPersonCtrl.text = widget.session.customerName;
     _closingNameCtrl.text = widget.activeOperator.name;
   }
 
   @override
   void dispose() {
+    _closingPersonCtrl.dispose();
     _closingNameCtrl.dispose();
     _notesCtrl.dispose();
+    _partialAmountCtrl.dispose();
     super.dispose();
   }
 
@@ -260,21 +267,35 @@ class _CheckoutSessionDialogState extends State<CheckoutSessionDialog> {
                 ),
                 const SizedBox(height: 20),
 
-                // Closing Name Field (Prompted at closing as required)
+                // Closing Person Name Field (On which person the table got closed)
+                TextFormField(
+                  controller: _closingPersonCtrl,
+                  decoration: const InputDecoration(
+                    labelText: 'Closing Person Name *',
+                    hintText: 'Enter player/customer name on whom the table is closing',
+                    prefixIcon: Icon(Icons.person_outline),
+                  ),
+                  validator: (val) => val == null || val.trim().isEmpty
+                      ? 'Closing person name is required'
+                      : null,
+                ),
+                const SizedBox(height: 14),
+
+                // Closing Staff Name Field (Staff closing this table)
                 TextFormField(
                   controller: _closingNameCtrl,
                   decoration: const InputDecoration(
-                    labelText: 'Closing Name (Staff closing this table) *',
+                    labelText: 'Closed By (Staff / Marker) *',
                     hintText: 'Enter staff/marker name closing this match',
-                    prefixIcon: Icon(Icons.person_pin_outlined),
+                    prefixIcon: Icon(Icons.badge_outlined),
                   ),
                   validator: (val) => val == null || val.trim().isEmpty
-                      ? 'Closing name is required'
+                      ? 'Staff name is required'
                       : null,
                 ),
                 const SizedBox(height: 20),
 
-                // Payment Status: Amount Received vs Due
+                // Payment Status: Full Received vs Partial vs Full Due
                 const Text(
                   'PAYMENT SETTLEMENT',
                   style: TextStyle(
@@ -288,99 +309,118 @@ class _CheckoutSessionDialogState extends State<CheckoutSessionDialog> {
 
                 Row(
                   children: [
-                    Expanded(
-                      child: InkWell(
-                        onTap: () => setState(() => _paymentStatus = 'Received'),
-                        borderRadius: BorderRadius.circular(10),
-                        child: Container(
-                          padding: const EdgeInsets.symmetric(vertical: 14),
-                          decoration: BoxDecoration(
-                            color: _paymentStatus == 'Received'
-                                ? AppColors.tableAvailable.withAlpha(35)
-                                : AppColors.inputSurface,
-                            borderRadius: BorderRadius.circular(10),
-                            border: Border.all(
-                              color: _paymentStatus == 'Received'
-                                  ? AppColors.tableAvailable
-                                  : AppColors.cardBorderStroke,
-                              width: _paymentStatus == 'Received' ? 2 : 1,
-                            ),
-                          ),
-                          child: Column(
-                            children: [
-                              Icon(
-                                Icons.check_circle_outline,
-                                color: _paymentStatus == 'Received'
-                                    ? AppColors.tableAvailable
-                                    : AppColors.secondaryText,
-                                size: 24,
-                              ),
-                              const SizedBox(height: 6),
-                              Text(
-                                'Amount Received',
-                                style: TextStyle(
-                                  color: _paymentStatus == 'Received'
-                                      ? AppColors.primaryText
-                                      : AppColors.secondaryText,
-                                  fontWeight: FontWeight.w700,
-                                  fontSize: 13,
-                                ),
-                              ),
-                            ],
-                          ),
-                        ),
-                      ),
+                    _buildSettlementOption(
+                      mode: 'Full',
+                      icon: Icons.check_circle_outline,
+                      title: 'Full Paid',
+                      subtitle: '₹${grandTotal.toStringAsFixed(0)}',
+                      activeColor: AppColors.tableAvailable,
                     ),
-                    const SizedBox(width: 12),
-                    Expanded(
-                      child: InkWell(
-                        onTap: () => setState(() => _paymentStatus = 'Due'),
-                        borderRadius: BorderRadius.circular(10),
-                        child: Container(
-                          padding: const EdgeInsets.symmetric(vertical: 14),
-                          decoration: BoxDecoration(
-                            color: _paymentStatus == 'Due'
-                                ? AppColors.tableOccupied.withAlpha(35)
-                                : AppColors.inputSurface,
-                            borderRadius: BorderRadius.circular(10),
-                            border: Border.all(
-                              color: _paymentStatus == 'Due'
-                                  ? AppColors.tableOccupied
-                                  : AppColors.cardBorderStroke,
-                              width: _paymentStatus == 'Due' ? 2 : 1,
-                            ),
-                          ),
-                          child: Column(
-                            children: [
-                              Icon(
-                                Icons.pending_actions,
-                                color: _paymentStatus == 'Due'
-                                    ? AppColors.tableOccupied
-                                    : AppColors.secondaryText,
-                                size: 24,
-                              ),
-                              const SizedBox(height: 6),
-                              Text(
-                                'Amount Due',
-                                style: TextStyle(
-                                  color: _paymentStatus == 'Due'
-                                      ? AppColors.primaryText
-                                      : AppColors.secondaryText,
-                                  fontWeight: FontWeight.w700,
-                                  fontSize: 13,
-                                ),
-                              ),
-                            ],
-                          ),
-                        ),
-                      ),
+                    const SizedBox(width: 8),
+                    _buildSettlementOption(
+                      mode: 'Partial',
+                      icon: Icons.timelapse,
+                      title: 'Partial Paid',
+                      subtitle: 'Part payment',
+                      activeColor: Colors.orangeAccent,
+                    ),
+                    const SizedBox(width: 8),
+                    _buildSettlementOption(
+                      mode: 'Due',
+                      icon: Icons.pending_actions,
+                      title: 'Full Due',
+                      subtitle: '₹0 now',
+                      activeColor: AppColors.tableOccupied,
                     ),
                   ],
                 ),
 
-                // Payment Method (Only if Received)
-                if (_paymentStatus == 'Received') ...[
+                // If Partial, show amount input with validation & real-time calculation
+                if (_settlementMode == 'Partial') ...[
                   const SizedBox(height: 14),
+                  TextField(
+                    controller: _partialAmountCtrl,
+                    keyboardType:
+                        const TextInputType.numberWithOptions(decimal: true),
+                    inputFormatters: [
+                      FilteringTextInputFormatter.allow(
+                        RegExp(r'^\d*\.?\d{0,2}'),
+                      ),
+                    ],
+                    onChanged: (_) => setState(() {}),
+                    decoration: InputDecoration(
+                      labelText: 'Amount Received Now (₹) *',
+                      prefixText: '₹ ',
+                      helperText:
+                          'Max payable now: ₹${(grandTotal - 0.01).clamp(0.0, grandTotal).toStringAsFixed(2)}',
+                      errorText: () {
+                        final text = _partialAmountCtrl.text.trim();
+                        if (text.isEmpty) return 'Please enter partial amount';
+                        final val = double.tryParse(text);
+                        if (val == null || val <= 0) {
+                          return 'Amount must be greater than ₹0';
+                        }
+                        if (val >= grandTotal) {
+                          return 'Amount cannot equal or exceed total (select Full Paid)';
+                        }
+                        return null;
+                      }(),
+                    ),
+                  ),
+                  if (double.tryParse(_partialAmountCtrl.text.trim()) != null &&
+                      (double.tryParse(_partialAmountCtrl.text.trim())! > 0) &&
+                      (double.tryParse(_partialAmountCtrl.text.trim())! <
+                          grandTotal)) ...[
+                    const SizedBox(height: 8),
+                    Container(
+                      padding: const EdgeInsets.symmetric(
+                        horizontal: 12,
+                        vertical: 8,
+                      ),
+                      decoration: BoxDecoration(
+                        color: Colors.orange.withAlpha(25),
+                        borderRadius: BorderRadius.circular(8),
+                        border: Border.all(
+                          color: Colors.orange.withAlpha(80),
+                        ),
+                      ),
+                      child: Row(
+                        children: [
+                          const Icon(
+                            Icons.info_outline,
+                            size: 16,
+                            color: Colors.orangeAccent,
+                          ),
+                          const SizedBox(width: 8),
+                          Expanded(
+                            child: Text(
+                              'Received: ₹${double.parse(_partialAmountCtrl.text.trim()).toStringAsFixed(2)} • Remaining DUE: ₹${(grandTotal - double.parse(_partialAmountCtrl.text.trim())).toStringAsFixed(2)}',
+                              style: const TextStyle(
+                                color: Colors.orangeAccent,
+                                fontSize: 12,
+                                fontWeight: FontWeight.w700,
+                              ),
+                            ),
+                          ),
+                        ],
+                      ),
+                    ),
+                  ],
+                ],
+
+                // Payment Method (if money received now)
+                if (_settlementMode != 'Due') ...[
+                  const SizedBox(height: 14),
+                  const Text(
+                    'PAYMENT METHOD FOR RECEIVED AMOUNT',
+                    style: TextStyle(
+                      color: AppColors.secondaryText,
+                      fontSize: 10,
+                      fontWeight: FontWeight.w800,
+                      letterSpacing: 0.8,
+                    ),
+                  ),
+                  const SizedBox(height: 6),
                   Row(
                     children: [
                       _buildMethodChip('Cash', Icons.money),
@@ -413,12 +453,77 @@ class _CheckoutSessionDialogState extends State<CheckoutSessionDialog> {
                         onPressed: () {
                           if (!_formKey.currentState!.validate()) return;
 
+                          double paidAmount = 0.0;
+                          final transactions = <PaymentTransaction>[];
+                          String status = 'Due';
+                          String? method;
+
+                          if (_settlementMode == 'Full') {
+                            paidAmount = grandTotal;
+                            status = 'Received';
+                            method = _paymentMethod;
+                            transactions.add(
+                              PaymentTransaction(
+                                id: const Uuid().v4(),
+                                amount: grandTotal,
+                                paymentMethod: _paymentMethod,
+                                receivedAt: widget.now,
+                                receivedBy: _closingNameCtrl.text.trim(),
+                                notes: 'Initial full settlement at checkout',
+                              ),
+                            );
+                          } else if (_settlementMode == 'Partial') {
+                            final entered = double.tryParse(
+                              _partialAmountCtrl.text.trim(),
+                            );
+                            if (entered == null || entered <= 0) {
+                              ScaffoldMessenger.of(context).showSnackBar(
+                                const SnackBar(
+                                  content: Text(
+                                    'Please enter a partial amount greater than ₹0.',
+                                  ),
+                                  backgroundColor: AppColors.tableOccupied,
+                                ),
+                              );
+                              return;
+                            }
+                            if (entered >= grandTotal) {
+                              ScaffoldMessenger.of(context).showSnackBar(
+                                const SnackBar(
+                                  content: Text(
+                                    'Partial amount cannot equal or exceed total bill. Select Full Paid.',
+                                  ),
+                                  backgroundColor: AppColors.tableOccupied,
+                                ),
+                              );
+                              return;
+                            }
+                            paidAmount = entered;
+                            status = 'Due';
+                            method = _paymentMethod;
+                            transactions.add(
+                              PaymentTransaction(
+                                id: const Uuid().v4(),
+                                amount: entered,
+                                paymentMethod: _paymentMethod,
+                                receivedAt: widget.now,
+                                receivedBy: _closingNameCtrl.text.trim(),
+                                notes: 'Initial partial payment at checkout',
+                              ),
+                            );
+                          } else {
+                            // Full Due
+                            paidAmount = 0.0;
+                            status = 'Due';
+                            method = null;
+                          }
+
                           final historyRecord = TableHistoryRecord(
                             id: const Uuid().v4(),
                             companyId: widget.session.companyId,
                             tableId: widget.session.tableId,
                             tableName: widget.session.tableName,
-                            customerName: widget.session.customerName,
+                            customerName: _closingPersonCtrl.text.trim(),
                             startedByName: widget.session.startedByName,
                             closedByName: _closingNameCtrl.text.trim(),
                             startedAt: widget.session.startTime,
@@ -427,27 +532,39 @@ class _CheckoutSessionDialogState extends State<CheckoutSessionDialog> {
                             tableAmount: tableCharge,
                             itemsAmount: itemsCharge,
                             totalAmount: grandTotal,
-                            paymentStatus: _paymentStatus,
-                            paymentMethod: _paymentStatus == 'Received'
-                                ? _paymentMethod
-                                : null,
+                            paidAmount: paidAmount,
+                            paymentStatus: status,
+                            paymentMethod: method,
                             items: widget.session.items,
+                            transactions: transactions,
                             createdAt: DateTime.now(),
                           );
 
                           Navigator.of(context).pop(historyRecord);
                         },
                         style: ElevatedButton.styleFrom(
-                          backgroundColor: _paymentStatus == 'Received'
+                          backgroundColor: _settlementMode == 'Full'
                               ? AppColors.tableAvailable
-                              : AppColors.tableOccupied,
+                              : (_settlementMode == 'Partial'
+                                  ? Colors.orange
+                                  : AppColors.tableOccupied),
                           foregroundColor: Colors.black,
                           padding: const EdgeInsets.symmetric(vertical: 14),
                         ),
                         child: Text(
-                          _paymentStatus == 'Received'
+                          _settlementMode == 'Full'
                               ? 'CONFIRM RECEIVED ₹${grandTotal.toStringAsFixed(0)}'
-                              : 'CONFIRM DUE ₹${grandTotal.toStringAsFixed(0)}',
+                              : (_settlementMode == 'Partial'
+                                  ? () {
+                                      final p = double.tryParse(
+                                            _partialAmountCtrl.text.trim(),
+                                          ) ??
+                                          0.0;
+                                      final due = (grandTotal - p)
+                                          .clamp(0.0, grandTotal);
+                                      return 'CONFIRM (₹${due.toStringAsFixed(0)} DUE)';
+                                    }()
+                                  : 'CONFIRM DUE ₹${grandTotal.toStringAsFixed(0)}'),
                           style: const TextStyle(fontWeight: FontWeight.w800),
                         ),
                       ),
@@ -456,6 +573,66 @@ class _CheckoutSessionDialogState extends State<CheckoutSessionDialog> {
                 ),
               ],
             ),
+          ),
+        ),
+      ),
+    );
+  }
+
+  Widget _buildSettlementOption({
+    required String mode,
+    required IconData icon,
+    required String title,
+    required String subtitle,
+    required Color activeColor,
+  }) {
+    final isSelected = _settlementMode == mode;
+    return Expanded(
+      child: InkWell(
+        onTap: () => setState(() => _settlementMode = mode),
+        borderRadius: BorderRadius.circular(10),
+        child: Container(
+          padding: const EdgeInsets.symmetric(vertical: 12, horizontal: 4),
+          decoration: BoxDecoration(
+            color: isSelected
+                ? activeColor.withAlpha(35)
+                : AppColors.inputSurface,
+            borderRadius: BorderRadius.circular(10),
+            border: Border.all(
+              color: isSelected ? activeColor : AppColors.cardBorderStroke,
+              width: isSelected ? 2 : 1,
+            ),
+          ),
+          child: Column(
+            children: [
+              Icon(
+                icon,
+                color: isSelected ? activeColor : AppColors.secondaryText,
+                size: 22,
+              ),
+              const SizedBox(height: 5),
+              Text(
+                title,
+                textAlign: TextAlign.center,
+                style: TextStyle(
+                  color: isSelected
+                      ? AppColors.primaryText
+                      : AppColors.secondaryText,
+                  fontWeight: FontWeight.w700,
+                  fontSize: 12,
+                ),
+              ),
+              const SizedBox(height: 2),
+              Text(
+                subtitle,
+                textAlign: TextAlign.center,
+                style: TextStyle(
+                  color: isSelected ? activeColor : AppColors.secondaryText,
+                  fontWeight: FontWeight.w600,
+                  fontSize: 10,
+                ),
+              ),
+            ],
           ),
         ),
       ),

@@ -101,23 +101,78 @@ class _AddTableItemDialogState extends State<AddTableItemDialog>
             ),
             const SizedBox(height: 16),
 
-            // Tabs
+            // Modern Segmented Tabs
             Container(
+              height: 44,
+              padding: const EdgeInsets.all(4),
               decoration: BoxDecoration(
                 color: AppColors.inputSurface,
-                borderRadius: BorderRadius.circular(10),
+                borderRadius: BorderRadius.circular(12),
+                border: Border.all(color: AppColors.cardBorderStroke),
               ),
               child: TabBar(
                 controller: _tabController,
+                indicatorSize: TabBarIndicatorSize.tab,
+                dividerHeight: 0,
                 indicator: BoxDecoration(
-                  borderRadius: BorderRadius.circular(10),
-                  color: AppColors.brandAccent,
+                  borderRadius: BorderRadius.circular(8),
+                  gradient: const LinearGradient(
+                    colors: [AppColors.brandAccent, Color(0xFF0F9D58)],
+                  ),
+                  boxShadow: [
+                    BoxShadow(
+                      color: AppColors.brandAccent.withAlpha(70),
+                      blurRadius: 8,
+                      offset: const Offset(0, 2),
+                    ),
+                  ],
                 ),
                 labelColor: Colors.white,
                 unselectedLabelColor: AppColors.secondaryText,
+                labelStyle: const TextStyle(
+                  fontSize: 13,
+                  fontWeight: FontWeight.w700,
+                  letterSpacing: 0.2,
+                ),
+                unselectedLabelStyle: const TextStyle(
+                  fontSize: 13,
+                  fontWeight: FontWeight.w600,
+                ),
                 tabs: const [
-                  Tab(text: 'Snacks / Drinks Stock'),
-                  Tab(text: 'Custom Item'),
+                  Tab(
+                    child: Row(
+                      mainAxisAlignment: MainAxisAlignment.center,
+                      mainAxisSize: MainAxisSize.min,
+                      children: [
+                        Icon(Icons.fastfood_outlined, size: 16),
+                        SizedBox(width: 6),
+                        Flexible(
+                          child: Text(
+                            'Snacks & Drinks',
+                            maxLines: 1,
+                            overflow: TextOverflow.ellipsis,
+                          ),
+                        ),
+                      ],
+                    ),
+                  ),
+                  Tab(
+                    child: Row(
+                      mainAxisAlignment: MainAxisAlignment.center,
+                      mainAxisSize: MainAxisSize.min,
+                      children: [
+                        Icon(Icons.edit_note, size: 18),
+                        SizedBox(width: 6),
+                        Flexible(
+                          child: Text(
+                            'Custom Item',
+                            maxLines: 1,
+                            overflow: TextOverflow.ellipsis,
+                          ),
+                        ),
+                      ],
+                    ),
+                  ),
                 ],
               ),
             ),
@@ -170,6 +225,7 @@ class _AddTableItemDialogState extends State<AddTableItemDialog>
     return Column(
       crossAxisAlignment: CrossAxisAlignment.stretch,
       children: [
+        SizedBox(height: 3),
         DropdownButtonFormField<StockItem>(
           initialValue: _selectedStockItem,
           isExpanded: true,

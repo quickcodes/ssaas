@@ -1,7 +1,9 @@
 import 'dart:async';
 import 'package:equatable/equatable.dart';
+import 'package:flutter/foundation.dart';
 import 'package:flutter_bloc/flutter_bloc.dart';
 import '../../../data/datasources/firestore_service.dart';
+import '../../../data/datasources/session_local_storage.dart';
 import '../../../domain/entities/company.dart';
 import '../../../domain/entities/user_account.dart';
 
@@ -186,11 +188,15 @@ class AuthState extends Equatable {
 
 class AuthBloc extends Bloc<AuthEvent, AuthState> {
   final FirestoreService _firestoreService;
+  final SessionLocalStorage _sessionLocalStorage;
   StreamSubscription<Company?>? _companySub;
   StreamSubscription<List<UserAccount>>? _usersSub;
 
-  AuthBloc({required FirestoreService firestoreService})
-      : _firestoreService = firestoreService,
+  AuthBloc({
+    required FirestoreService firestoreService,
+    required SessionLocalStorage sessionLocalStorage,
+  })  : _firestoreService = firestoreService,
+        _sessionLocalStorage = sessionLocalStorage,
         super(const AuthState(isLoading: true)) {
     on<InitAuthEvent>(_onInitAuth);
     on<LoadCompaniesEvent>(_onLoadCompanies);
@@ -203,6 +209,9 @@ class AuthBloc extends Bloc<AuthEvent, AuthState> {
     on<ClearAuthErrorEvent>(_onClearAuthError);
     on<_CompanyUpdatedInternalEvent>(_onCompanyUpdatedInternal);
     on<_UsersUpdatedInternalEvent>(_onUsersUpdatedInternal);
+
+    // Automatically trigger auth verification upon bloc creation
+    add(InitAuthEvent());
   }
 
   Future<void> _onInitAuth(
@@ -211,6 +220,79 @@ class AuthBloc extends Bloc<AuthEvent, AuthState> {
   ) async {
     emit(state.copyWith(isLoading: true));
     try {
+      // 1. Check if there is an active local session
+      final session = await _sessionLocalStorage.getSession();
+      if (session != null &&
+          !session.isExpired &&
+          session.companyId.isNotEmpty &&
+          session.userId.isNotEmpty) {
+        // 2. Fetch company and check subscription
+        final company =
+            await _firestoreService.getCompanyById(session.companyId);
+        if (company != null && !company.isExpired) {
+          // 3. Verify user and check 10-day session expiry stored in Firebase DB
+          final user = await _firestoreService.getUserById(
+            session.companyId,
+            session.userId,
+          );
+          if (user != null && user.isSessionValid) {
+            debugPrint(
+              '[AuthBloc] Valid session found for ${user.name}. Auto-logging in...',
+            );
+            // Active session verified in Firebase DB! Auto-login
+            _companySub?.cancel();
+            _companySub =
+                _firestoreService.watchCompany(company.id).listen((updated) {
+              add(_CompanyUpdatedInternalEvent(updated));
+            });
+
+            _usersSub?.cancel();
+            _usersSub = _firestoreService
+                .watchCompanyUsers(company.id)
+                .listen((users) {
+              add(_UsersUpdatedInternalEvent(users));
+            });
+
+            emit(
+              state.copyWith(
+                currentUser: user,
+                activeCompany: company,
+                isLoading: false,
+                isSubscriptionExpired: false,
+                clearErrorMessage: true,
+              ),
+            );
+            return;
+          } else {
+            debugPrint(
+              '[AuthBloc] User session invalid or expired in DB. Clearing local session.',
+            );
+            await _sessionLocalStorage.clearSession();
+          }
+        } else {
+          debugPrint(
+            '[AuthBloc] Company not found or subscription expired. Clearing local session.',
+          );
+          await _sessionLocalStorage.clearSession();
+          if (company != null && company.isExpired) {
+            final companies = await _firestoreService.getCompanies();
+            emit(
+              state.copyWith(
+                companies: companies,
+                isLoading: false,
+                isSubscriptionExpired: true,
+                errorMessage:
+                    'Subscription for "${company.name}" has expired. Direct app access is disabled. Please contact developers to extend your subscription.',
+              ),
+            );
+            return;
+          }
+        }
+      } else if (session != null && session.isExpired) {
+        await _sessionLocalStorage.clearSession();
+      }
+
+      // If no valid session exists, load companies for login screen
       final companies = await _firestoreService.getCompanies();
       emit(state.copyWith(companies: companies, isLoading: false));
     } catch (e) {
@@ -284,6 +366,21 @@ class AuthBloc extends Bloc<AuthEvent, AuthState> {
         return;
       }
 
+      // Configure 10-day session: Store in Firebase DB on that user doc & locally
+      final sessionExpiresAt = DateTime.now().add(const Duration(days: 10));
+      await _firestoreService.updateUserSession(
+        company.id,
+        user.id,
+        sessionExpiresAt,
+      );
+      await _sessionLocalStorage.saveSession(
+        companyId: company.id,
+        userId: user.id,
+        expiresAt: sessionExpiresAt,
+      );
+
+      final userWithSession = user.copyWith(sessionExpiresAt: sessionExpiresAt);
+
       // Subscribe to active company to monitor expiry in real-time
       _companySub?.cancel();
       _companySub = _firestoreService.watchCompany(company.id).listen((updated) {
@@ -299,7 +396,7 @@ class AuthBloc extends Bloc<AuthEvent, AuthState> {
 
       emit(
         state.copyWith(
-          currentUser: user,
+          currentUser: userWithSession,
           activeCompany: company,
           isLoading: false,
           isSubscriptionExpired: false,
@@ -321,6 +418,7 @@ class AuthBloc extends Bloc<AuthEvent, AuthState> {
       // Auto-logout user immediately if expiry date has passed
       _companySub?.cancel();
       _usersSub?.cancel();
+      _sessionLocalStorage.clearSession();
       emit(
         state.copyWith(
           clearCurrentUser: true,
@@ -345,10 +443,26 @@ class AuthBloc extends Bloc<AuthEvent, AuthState> {
   Future<void> _onLogout(LogoutEvent event, Emitter<AuthState> emit) async {
     await _companySub?.cancel();
     await _usersSub?.cancel();
+
+    // Invalidate session in Firebase DB and locally
+    if (state.activeCompany != null && state.currentUser != null) {
+      try {
+        await _firestoreService.updateUserSession(
+          state.activeCompany!.id,
+          state.currentUser!.id,
+          null,
+        );
+      } catch (_) {}
+    }
+    await _sessionLocalStorage.clearSession();
+
+    final companies = await _firestoreService.getCompanies();
+
     emit(
       state.copyWith(
         clearCurrentUser: true,
         clearActiveCompany: true,
+        companies: companies,
         isSubscriptionExpired: false,
         clearErrorMessage: true,
       ),

@@ -151,6 +151,11 @@ class _FloorMatrixViewState extends State<FloorMatrixView> {
         }
 
         return BlocConsumer<FloorMatrixBloc, FloorMatrixState>(
+          listenWhen: (previous, current) =>
+              (current.successMessage != null &&
+                  current.successMessage != previous.successMessage) ||
+              (current.errorMessage != null &&
+                  current.errorMessage != previous.errorMessage),
           listener: (context, state) {
             if (state.successMessage != null) {
               ScaffoldMessenger.of(context).showSnackBar(
@@ -159,6 +164,9 @@ class _FloorMatrixViewState extends State<FloorMatrixView> {
                   backgroundColor: AppColors.tableAvailable,
                 ),
               );
+              context
+                  .read<FloorMatrixBloc>()
+                  .add(const ClearFloorMatrixMessagesEvent());
             }
             if (state.errorMessage != null) {
               ScaffoldMessenger.of(context).showSnackBar(
@@ -167,6 +175,9 @@ class _FloorMatrixViewState extends State<FloorMatrixView> {
                   backgroundColor: AppColors.tableOccupied,
                 ),
               );
+              context
+                  .read<FloorMatrixBloc>()
+                  .add(const ClearFloorMatrixMessagesEvent());
             }
           },
           builder: (context, matrixState) {

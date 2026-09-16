@@ -1,5 +1,6 @@
 import 'package:flutter/material.dart';
 import 'package:flutter_bloc/flutter_bloc.dart';
+import 'package:intl/intl.dart';
 import '../../../core/theme/app_colors.dart';
 import '../../../domain/entities/user_account.dart';
 import '../../blocs/auth/auth_bloc.dart';
@@ -183,8 +184,10 @@ class CompanyUsersView extends StatelessWidget {
               crossAxisAlignment: CrossAxisAlignment.stretch,
               children: [
                 // Top Header
-                Row(
-                  mainAxisAlignment: MainAxisAlignment.spaceBetween,
+                Wrap(
+                  // mainAxisAlignment: MainAxisAlignment.spaceBetween,
+                  runSpacing: 10,
+                  spacing: 10,
                   children: [
                     Column(
                       crossAxisAlignment: CrossAxisAlignment.start,
@@ -278,12 +281,16 @@ class CompanyUsersView extends StatelessWidget {
                                       children: [
                                         Row(
                                           children: [
-                                            Text(
-                                              user.name,
-                                              style: const TextStyle(
-                                                color: AppColors.primaryText,
-                                                fontSize: 16,
-                                                fontWeight: FontWeight.w700,
+                                            Flexible(
+                                              child: Text(
+                                                user.name,
+                                                style: const TextStyle(
+                                                  color: AppColors.primaryText,
+                                                  fontSize: 16,
+                                                  fontWeight: FontWeight.w700,
+                                                ),
+                                                maxLines: 1,
+                                                overflow: TextOverflow.ellipsis,
                                               ),
                                             ),
                                             if (isSelf) ...[
@@ -319,7 +326,42 @@ class CompanyUsersView extends StatelessWidget {
                                             color: AppColors.secondaryText,
                                             fontSize: 12,
                                           ),
+                                          maxLines: 1,
+                                          overflow: TextOverflow.ellipsis,
                                         ),
+                                        if (user.sessionExpiresAt != null) ...[
+                                          const SizedBox(height: 4),
+                                          Row(
+                                            children: [
+                                              Icon(
+                                                user.isSessionValid
+                                                    ? Icons.check_circle_outline
+                                                    : Icons.timer_off_outlined,
+                                                size: 13,
+                                                color: user.isSessionValid
+                                                    ? AppColors.tableAvailable
+                                                    : AppColors.secondaryText,
+                                              ),
+                                              const SizedBox(width: 4),
+                                              Expanded(
+                                                child: Text(
+                                                  user.isSessionValid
+                                                      ? 'Session active until ${DateFormat('dd MMM yyyy, hh:mm a').format(user.sessionExpiresAt!)}'
+                                                      : 'Session expired',
+                                                  style: TextStyle(
+                                                    color: user.isSessionValid
+                                                        ? AppColors.tableAvailable
+                                                        : AppColors.secondaryText,
+                                                    fontSize: 11,
+                                                    fontWeight: FontWeight.w600,
+                                                  ),
+                                                  maxLines: 1,
+                                                  overflow: TextOverflow.ellipsis,
+                                                ),
+                                              ),
+                                            ],
+                                          ),
+                                        ],
                                       ],
                                     ),
                                   ),

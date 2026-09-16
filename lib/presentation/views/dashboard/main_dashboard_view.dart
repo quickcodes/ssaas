@@ -22,7 +22,7 @@ class MainDashboardView extends StatefulWidget {
 
 class _MainDashboardViewState extends State<MainDashboardView> {
   int _selectedTabIndex = 0;
-  bool _isSideMenuVisible = true;
+  bool _isSideMenuVisible = false;
 
   @override
   void initState() {
@@ -45,7 +45,7 @@ class _MainDashboardViewState extends State<MainDashboardView> {
       builder: (context, authState) {
         // If not authenticated or subscription expired, show LoginScreen
         if (!authState.isAuthenticated) {
-          if (authState.isLoading && authState.companies.isEmpty) {
+          if (authState.isLoading) {
             return const Scaffold(
               backgroundColor: AppColors.backgroundBase,
               body: Center(
@@ -55,7 +55,7 @@ class _MainDashboardViewState extends State<MainDashboardView> {
                     CircularProgressIndicator(color: AppColors.brandAccent),
                     SizedBox(height: 16),
                     Text(
-                      'Connecting to Firebase Firestore...',
+                      'Verifying active session...',
                       style: TextStyle(color: AppColors.secondaryText),
                     ),
                   ],
@@ -119,6 +119,14 @@ class _MainDashboardViewState extends State<MainDashboardView> {
             children: [
               Positioned.fill(child: screens[_selectedTabIndex]),
               if (_isSideMenuVisible) ...[
+                // Dismiss barrier: clicking anywhere outside closes the drawer
+                Positioned.fill(
+                  child: GestureDetector(
+                    onTap: () => setState(() => _isSideMenuVisible = false),
+                    behavior: HitTestBehavior.opaque,
+                    child: Container(color: Colors.black.withAlpha(90)),
+                  ),
+                ),
                 Positioned(
                   top: 16,
                   left: 16,
@@ -156,66 +164,26 @@ class _MainDashboardViewState extends State<MainDashboardView> {
             setState(() => _isSideMenuVisible = !_isSideMenuVisible),
         tooltip: 'Toggle Navigation',
       ),
-      title: Row(
-        children: [
-          Container(
-            width: 34,
-            height: 34,
-            decoration: BoxDecoration(
-              gradient: const LinearGradient(
-                colors: [AppColors.brandAccent, Color(0xFF0F9D58)],
-              ),
-              borderRadius: BorderRadius.circular(10),
-            ),
-            child: const Icon(
-              Icons.sports_esports,
-              color: Colors.white,
-              size: 20,
-            ),
-          ),
-          const SizedBox(width: 12),
-          Column(
-            crossAxisAlignment: CrossAxisAlignment.start,
-            children: [
-              Text(
-                activeCompany.name,
-                style: const TextStyle(
-                  color: AppColors.primaryText,
-                  fontSize: 16,
-                  fontWeight: FontWeight.w800,
-                  letterSpacing: 0.3,
-                ),
-              ),
-              Row(
-                children: [
-                  const Text(
-                    'Subscription Expiry: ',
-                    style: TextStyle(
-                      color: AppColors.secondaryText,
-                      fontSize: 11,
-                    ),
-                  ),
-                  Text(
-                    DateFormat('dd MMM yyyy').format(activeCompany.expiryDate),
-                    style: TextStyle(
-                      color: activeCompany.isExpired
-                          ? AppColors.tableOccupied
-                          : AppColors.tableAvailable,
-                      fontSize: 11,
-                      fontWeight: FontWeight.w700,
-                    ),
-                  ),
-                ],
-              ),
-            ],
-          ),
-        ],
+      titleSpacing: 0,
+      title: Text(
+        activeCompany.name,
+        maxLines: 1,
+        overflow: TextOverflow.ellipsis,
+        style: const TextStyle(
+          color: AppColors.primaryText,
+          fontSize: 16,
+          fontWeight: FontWeight.w800,
+          letterSpacing: 0.3,
+        ),
       ),
       actions: [
         // User Profile Tag
         Container(
           margin: const EdgeInsets.symmetric(vertical: 10, horizontal: 8),
-          padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 4),
+          padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 4),
+          constraints: BoxConstraints(
+            maxWidth: MediaQuery.of(context).size.width * 0.5,
+          ),
           decoration: BoxDecoration(
             color: AppColors.inputSurface,
             borderRadius: BorderRadius.circular(20),
@@ -238,12 +206,16 @@ class _MainDashboardViewState extends State<MainDashboardView> {
                 ),
               ),
               const SizedBox(width: 8),
-              Text(
-                currentUser.name,
-                style: const TextStyle(
-                  color: AppColors.primaryText,
-                  fontSize: 13,
-                  fontWeight: FontWeight.w600,
+              Flexible(
+                child: Text(
+                  currentUser.name,
+                  maxLines: 1,
+                  overflow: TextOverflow.ellipsis,
+                  style: const TextStyle(
+                    color: AppColors.primaryText,
+                    fontSize: 13,
+                    fontWeight: FontWeight.w600,
+                  ),
                 ),
               ),
               const SizedBox(width: 6),
@@ -321,7 +293,7 @@ class _MainDashboardViewState extends State<MainDashboardView> {
     return Container(
       width: 230,
       decoration: BoxDecoration(
-        color: AppColors.cardSurface.withAlpha(245),
+        color: AppColors.cardSurface.withValues(alpha: 0.95),
         borderRadius: BorderRadius.circular(20),
         border: Border.all(color: AppColors.cardBorderStroke),
         boxShadow: [
@@ -382,7 +354,10 @@ class _MainDashboardViewState extends State<MainDashboardView> {
                     vertical: 3,
                   ),
                   child: InkWell(
-                    onTap: () => setState(() => _selectedTabIndex = index),
+                    onTap: () {
+                      setState(() => _selectedTabIndex = index);
+                      setState(() => _isSideMenuVisible = false);
+                    },
                     borderRadius: BorderRadius.circular(12),
                     child: Container(
                       padding: const EdgeInsets.symmetric(
@@ -455,13 +430,67 @@ class _MainDashboardViewState extends State<MainDashboardView> {
                   maxLines: 1,
                   overflow: TextOverflow.ellipsis,
                 ),
-                const SizedBox(height: 2),
-                Text(
-                  'Ph: ${activeCompany.number}',
-                  style: const TextStyle(
-                    color: AppColors.secondaryText,
-                    fontSize: 11,
-                  ),
+                const SizedBox(height: 4),
+                Row(
+                  children: [
+                    const Icon(
+                      Icons.phone_outlined,
+                      size: 13,
+                      color: AppColors.secondaryText,
+                    ),
+                    const SizedBox(width: 5),
+                    Expanded(
+                      child: Text(
+                        activeCompany.number,
+                        style: const TextStyle(
+                          color: AppColors.secondaryText,
+                          fontSize: 11,
+                        ),
+                        maxLines: 1,
+                        overflow: TextOverflow.ellipsis,
+                      ),
+                    ),
+                  ],
+                ),
+                const SizedBox(height: 4),
+                Row(
+                  children: [
+                    Icon(
+                      Icons.event_outlined,
+                      size: 13,
+                      color: activeCompany.isExpired
+                          ? AppColors.tableOccupied
+                          : AppColors.tableAvailable,
+                    ),
+                    const SizedBox(width: 5),
+                    Expanded(
+                      child: Text.rich(
+                        TextSpan(
+                          text: 'Expires: ',
+                          style: const TextStyle(
+                            color: AppColors.secondaryText,
+                            fontSize: 11,
+                          ),
+                          children: [
+                            TextSpan(
+                              text: DateFormat(
+                                'dd MMM yyyy',
+                              ).format(activeCompany.expiryDate),
+                              style: TextStyle(
+                                color: activeCompany.isExpired
+                                    ? AppColors.tableOccupied
+                                    : AppColors.tableAvailable,
+                                fontWeight: FontWeight.w700,
+                                fontSize: 11,
+                              ),
+                            ),
+                          ],
+                        ),
+                        maxLines: 1,
+                        overflow: TextOverflow.ellipsis,
+                      ),
+                    ),
+                  ],
                 ),
               ],
             ),

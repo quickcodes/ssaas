@@ -5,6 +5,7 @@ import 'package:snooker/firebase_options.dart';
 import 'core/di/service_locator.dart';
 import 'core/theme/app_theme.dart';
 import 'data/datasources/firestore_service.dart';
+import 'data/datasources/session_local_storage.dart';
 import 'presentation/blocs/auth/auth_bloc.dart';
 import 'presentation/blocs/floor_matrix/floor_matrix_bloc.dart';
 import 'presentation/views/dashboard/main_dashboard_view.dart';
@@ -26,6 +27,7 @@ class SnookerClubApp extends StatelessWidget {
         BlocProvider<AuthBloc>(
           create: (_) => AuthBloc(
             firestoreService: sl<FirestoreService>(),
+            sessionLocalStorage: sl<SessionLocalStorage>(),
           ),
         ),
         BlocProvider<FloorMatrixBloc>(

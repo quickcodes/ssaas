@@ -133,6 +133,10 @@ class UpdateTableStatusDirectEvent extends FloorMatrixEvent {
   List<Object?> get props => [companyId, tableId, status];
 }
 
+class ClearFloorMatrixMessagesEvent extends FloorMatrixEvent {
+  const ClearFloorMatrixMessagesEvent();
+}
+
 // -------------------------------------------------------------
 // STATE
 // -------------------------------------------------------------
@@ -244,6 +248,7 @@ class FloorMatrixBloc extends Bloc<FloorMatrixEvent, FloorMatrixState> {
     on<AddBillingItemEvent>(_onAddBillingItem);
     on<CloseTableSessionEvent>(_onCloseTableSession);
     on<UpdateTableStatusDirectEvent>(_onUpdateTableStatusDirect);
+    on<ClearFloorMatrixMessagesEvent>(_onClearMessages);
 
     // Periodic 1-second timer tick for live dynamic clocks
     _tickerTimer = Timer.periodic(const Duration(seconds: 1), (timer) {
@@ -436,6 +441,13 @@ class FloorMatrixBloc extends Bloc<FloorMatrixEvent, FloorMatrixState> {
     } catch (e) {
       emit(state.copyWith(errorMessage: e.toString()));
     }
+  }
+
+  void _onClearMessages(
+    ClearFloorMatrixMessagesEvent event,
+    Emitter<FloorMatrixState> emit,
+  ) {
+    emit(state.copyWith(clearMessages: true));
   }
 
   @override

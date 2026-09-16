@@ -18,13 +18,19 @@ class FoodCanteenView extends StatefulWidget {
 class _FoodCanteenViewState extends State<FoodCanteenView> {
   String _searchQuery = '';
 
-  void _showItemDialog(BuildContext context, String companyId, {StockItem? existing}) {
+  void _showItemDialog(
+    BuildContext context,
+    String companyId, {
+    StockItem? existing,
+  }) {
     final nameCtrl = TextEditingController(text: existing?.name ?? '');
     final stockCtrl = TextEditingController(
       text: existing != null ? existing.stock.toString() : '10',
     );
     final priceCtrl = TextEditingController(
-      text: existing?.price != null ? existing!.price!.toStringAsFixed(0) : '20',
+      text: existing?.price != null
+          ? existing!.price!.toStringAsFixed(0)
+          : '20',
     );
     final descCtrl = TextEditingController(text: existing?.desc ?? '');
     DateTime? expiryDate = existing?.expiryDate;
@@ -46,7 +52,9 @@ class _FoodCanteenViewState extends State<FoodCanteenView> {
               ),
               const SizedBox(width: 10),
               Text(
-                existing == null ? 'Add Food / Drink Item' : 'Edit Food / Drink Item',
+                existing == null
+                    ? 'Add Food / Drink Item'
+                    : 'Edit Food / Drink Item',
                 style: const TextStyle(
                   color: AppColors.primaryText,
                   fontWeight: FontWeight.w700,
@@ -146,8 +154,11 @@ class _FoodCanteenViewState extends State<FoodCanteenView> {
                             onPressed: () async {
                               final picked = await showDatePicker(
                                 context: context,
-                                initialDate: expiryDate ??
-                                    DateTime.now().add(const Duration(days: 90)),
+                                initialDate:
+                                    expiryDate ??
+                                    DateTime.now().add(
+                                      const Duration(days: 90),
+                                    ),
                                 firstDate: DateTime.now().subtract(
                                   const Duration(days: 30),
                                 ),
@@ -276,8 +287,10 @@ class _FoodCanteenViewState extends State<FoodCanteenView> {
               i.desc.toLowerCase().contains(_searchQuery.toLowerCase());
         }).toList();
 
-        final totalStockCount =
-            allItems.fold<int>(0, (sum, i) => sum + i.stock);
+        final totalStockCount = allItems.fold<int>(
+          0,
+          (sum, i) => sum + i.stock,
+        );
         final lowStockCount = allItems.where((i) => i.stock <= 5).length;
 
         return Scaffold(
@@ -288,8 +301,10 @@ class _FoodCanteenViewState extends State<FoodCanteenView> {
               crossAxisAlignment: CrossAxisAlignment.stretch,
               children: [
                 // Top Header Row
-                Row(
-                  mainAxisAlignment: MainAxisAlignment.spaceBetween,
+                Wrap(
+                  // mainAxisAlignment: MainAxisAlignment.spaceBetween,
+                  runSpacing: 10,
+                  spacing: 10,
                   children: [
                     const Column(
                       crossAxisAlignment: CrossAxisAlignment.start,
@@ -331,31 +346,34 @@ class _FoodCanteenViewState extends State<FoodCanteenView> {
                 const SizedBox(height: 16),
 
                 // Quick Metric Bar
-                Row(
-                  children: [
-                    _buildPill(
-                      'Total Items',
-                      allItems.length.toString(),
-                      AppColors.brandAccentLight,
-                      Icons.fastfood,
-                    ),
-                    const SizedBox(width: 12),
-                    _buildPill(
-                      'Total Stock Units',
-                      totalStockCount.toString(),
-                      AppColors.tableAvailable,
-                      Icons.inventory,
-                    ),
-                    const SizedBox(width: 12),
-                    _buildPill(
-                      'Low Stock (<5)',
-                      lowStockCount.toString(),
-                      lowStockCount > 0
-                          ? AppColors.tableOccupied
-                          : AppColors.secondaryText,
-                      Icons.warning_amber_rounded,
-                    ),
-                  ],
+                SingleChildScrollView(
+                  scrollDirection: Axis.horizontal,
+                  child: Row(
+                    children: [
+                      _buildPill(
+                        'Total Items',
+                        allItems.length.toString(),
+                        AppColors.brandAccentLight,
+                        Icons.fastfood,
+                      ),
+                      const SizedBox(width: 12),
+                      _buildPill(
+                        'Total Stock Units',
+                        totalStockCount.toString(),
+                        AppColors.tableAvailable,
+                        Icons.inventory,
+                      ),
+                      const SizedBox(width: 12),
+                      _buildPill(
+                        'Low Stock (<5)',
+                        lowStockCount.toString(),
+                        lowStockCount > 0
+                            ? AppColors.tableOccupied
+                            : AppColors.secondaryText,
+                        Icons.warning_amber_rounded,
+                      ),
+                    ],
+                  ),
                 ),
                 const SizedBox(height: 16),
 
@@ -385,11 +403,11 @@ class _FoodCanteenViewState extends State<FoodCanteenView> {
                       : GridView.builder(
                           gridDelegate:
                               const SliverGridDelegateWithMaxCrossAxisExtent(
-                            maxCrossAxisExtent: 340,
-                            mainAxisExtent: 170,
-                            crossAxisSpacing: 14,
-                            mainAxisSpacing: 14,
-                          ),
+                                maxCrossAxisExtent: 340,
+                                mainAxisExtent: 170,
+                                crossAxisSpacing: 14,
+                                mainAxisSpacing: 14,
+                              ),
                           itemCount: filtered.length,
                           itemBuilder: (context, index) {
                             final item = filtered[index];
@@ -450,14 +468,15 @@ class _FoodCanteenViewState extends State<FoodCanteenView> {
                                                 Icon(
                                                   Icons.edit,
                                                   size: 16,
-                                                  color:
-                                                      AppColors.brandAccentLight,
+                                                  color: AppColors
+                                                      .brandAccentLight,
                                                 ),
                                                 SizedBox(width: 8),
                                                 Text(
                                                   'Edit',
                                                   style: TextStyle(
-                                                    color: AppColors.primaryText,
+                                                    color:
+                                                        AppColors.primaryText,
                                                   ),
                                                 ),
                                               ],
@@ -470,7 +489,8 @@ class _FoodCanteenViewState extends State<FoodCanteenView> {
                                                 Icon(
                                                   Icons.delete,
                                                   size: 16,
-                                                  color: AppColors.tableOccupied,
+                                                  color:
+                                                      AppColors.tableOccupied,
                                                 ),
                                                 SizedBox(width: 8),
                                                 Text(
@@ -533,10 +553,11 @@ class _FoodCanteenViewState extends State<FoodCanteenView> {
                                         decoration: BoxDecoration(
                                           color: isLowStock
                                               ? AppColors.tableOccupied
-                                                  .withAlpha(30)
+                                                    .withAlpha(30)
                                               : AppColors.inputSurface,
-                                          borderRadius:
-                                              BorderRadius.circular(8),
+                                          borderRadius: BorderRadius.circular(
+                                            8,
+                                          ),
                                           border: Border.all(
                                             color: isLowStock
                                                 ? AppColors.tableOccupied
@@ -585,12 +606,7 @@ class _FoodCanteenViewState extends State<FoodCanteenView> {
     );
   }
 
-  Widget _buildPill(
-    String title,
-    String value,
-    Color color,
-    IconData icon,
-  ) {
+  Widget _buildPill(String title, String value, Color color, IconData icon) {
     return Container(
       padding: const EdgeInsets.symmetric(horizontal: 14, vertical: 10),
       decoration: BoxDecoration(

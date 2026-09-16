@@ -50,12 +50,14 @@ class TableCard extends StatelessWidget {
   Widget build(BuildContext context) {
     final hasActiveSession = session != null;
     final playedSeconds = hasActiveSession ? session!.playedSecondsAt(now) : 0;
-    final liveTableFee =
-        hasActiveSession ? session!.computeTableChargeAt(now) : 0.0;
+    final liveTableFee = hasActiveSession
+        ? session!.computeTableChargeAt(now)
+        : 0.0;
     final liveItemsFee = hasActiveSession ? session!.itemsAmount : 0.0;
     final liveGrandTotal = liveTableFee + liveItemsFee;
-    final currentHourlyRate =
-        hasActiveSession ? session!.effectiveRateAt(now) : table.effectiveRateAt(now);
+    final currentHourlyRate = hasActiveSession
+        ? session!.effectiveRateAt(now)
+        : table.effectiveRateAt(now);
 
     return Container(
       decoration: BoxDecoration(
@@ -85,7 +87,9 @@ class TableCard extends StatelessWidget {
             padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 12),
             decoration: BoxDecoration(
               color: AppColors.inputSurface.withAlpha(160),
-              borderRadius: const BorderRadius.vertical(top: Radius.circular(15)),
+              borderRadius: const BorderRadius.vertical(
+                top: Radius.circular(15),
+              ),
               border: const Border(
                 bottom: BorderSide(color: AppColors.cardBorderStroke),
               ),
@@ -152,19 +156,32 @@ class TableCard extends StatelessWidget {
                           ),
                         ),
                         const SizedBox(width: 4),
-                        Icon(Icons.arrow_drop_down, color: _statusColor, size: 16),
+                        Icon(
+                          Icons.arrow_drop_down,
+                          color: _statusColor,
+                          size: 16,
+                        ),
                       ],
                     ),
                   ),
-                  itemBuilder: (context) => TableStatus.values.map((s) {
-                    return PopupMenuItem<TableStatus>(
-                      value: s,
-                      child: Text(
-                        s.displayName,
-                        style: const TextStyle(color: AppColors.primaryText),
-                      ),
-                    );
-                  }).toList(),
+                  itemBuilder: (context) => TableStatus.values
+                      .where(
+                        (e) =>
+                            e.displayName != "Running" &&
+                            e.displayName != "Booked",
+                      )
+                      .map((s) {
+                        return PopupMenuItem<TableStatus>(
+                          value: s,
+                          child: Text(
+                            s.displayName,
+                            style: const TextStyle(
+                              color: AppColors.primaryText,
+                            ),
+                          ),
+                        );
+                      })
+                      .toList(),
                 ),
               ],
             ),
@@ -320,11 +337,11 @@ class TableCard extends StatelessWidget {
                         onPressed: session!.isPaused
                             ? onResumeSession
                             : onPauseSession,
-                        tooltip: session!.isPaused ? 'Resume Clock' : 'Pause Clock',
+                        tooltip: session!.isPaused
+                            ? 'Resume Clock'
+                            : 'Pause Clock',
                         icon: Icon(
-                          session!.isPaused
-                              ? Icons.play_arrow
-                              : Icons.pause,
+                          session!.isPaused ? Icons.play_arrow : Icons.pause,
                           color: session!.isPaused
                               ? AppColors.tableAvailable
                               : AppColors.tableOccupied,
@@ -341,7 +358,10 @@ class TableCard extends StatelessWidget {
                     icon: const Icon(Icons.check_circle_outline, size: 18),
                     label: const Text(
                       'CLOSE TABLE & SETTLE',
-                      style: TextStyle(fontWeight: FontWeight.w800, fontSize: 12),
+                      style: TextStyle(
+                        fontWeight: FontWeight.w800,
+                        fontSize: 12,
+                      ),
                     ),
                     style: ElevatedButton.styleFrom(
                       backgroundColor: AppColors.brandAccent,
@@ -407,19 +427,22 @@ class TableCard extends StatelessWidget {
                   const SizedBox(height: 18),
 
                   // Start Match Button
-                  ElevatedButton.icon(
-                    onPressed: onStartSession,
-                    icon: const Icon(Icons.play_arrow, size: 20),
-                    label: const Text(
-                      'START TABLE',
-                      style: TextStyle(fontWeight: FontWeight.w800),
+                  if (table.status != TableStatus.maintenance &&
+                      table.status != TableStatus.occupied &&
+                      table.status != TableStatus.reserved)
+                    ElevatedButton.icon(
+                      onPressed: onStartSession,
+                      icon: const Icon(Icons.play_arrow, size: 20),
+                      label: const Text(
+                        'START TABLE',
+                        style: TextStyle(fontWeight: FontWeight.w800),
+                      ),
+                      style: ElevatedButton.styleFrom(
+                        backgroundColor: AppColors.tableAvailable,
+                        foregroundColor: Colors.black,
+                        padding: const EdgeInsets.symmetric(vertical: 12),
+                      ),
                     ),
-                    style: ElevatedButton.styleFrom(
-                      backgroundColor: AppColors.tableAvailable,
-                      foregroundColor: Colors.black,
-                      padding: const EdgeInsets.symmetric(vertical: 12),
-                    ),
-                  ),
 
                   // Admin Only: Configure Rates Button
                   if (activeOperator.isAdmin) ...[

@@ -47,7 +47,9 @@ class _EquipmentStockViewState extends State<EquipmentStockView> {
               ),
               const SizedBox(width: 10),
               Text(
-                existing == null ? 'Add Equipment Stock' : 'Edit Equipment Item',
+                existing == null
+                    ? 'Add Equipment Stock'
+                    : 'Edit Equipment Item',
                 style: const TextStyle(
                   color: AppColors.primaryText,
                   fontWeight: FontWeight.w700,
@@ -96,7 +98,7 @@ class _EquipmentStockViewState extends State<EquipmentStockView> {
                         crossAxisAlignment: CrossAxisAlignment.start,
                         children: [
                           const Text(
-                            'Expiry Date / Maintenance Due (Optional)',
+                            'Expiry Date or\nMaintenance Due (Optional)',
                             style: TextStyle(
                               color: AppColors.secondaryText,
                               fontSize: 12,
@@ -130,8 +132,11 @@ class _EquipmentStockViewState extends State<EquipmentStockView> {
                             onPressed: () async {
                               final picked = await showDatePicker(
                                 context: context,
-                                initialDate: expiryDate ??
-                                    DateTime.now().add(const Duration(days: 180)),
+                                initialDate:
+                                    expiryDate ??
+                                    DateTime.now().add(
+                                      const Duration(days: 180),
+                                    ),
                                 firstDate: DateTime.now().subtract(
                                   const Duration(days: 30),
                                 ),
@@ -225,7 +230,10 @@ class _EquipmentStockViewState extends State<EquipmentStockView> {
           ElevatedButton(
             onPressed: () async {
               Navigator.of(ctx).pop();
-              await sl<FirestoreService>().deleteEquipmentItem(companyId, item.id);
+              await sl<FirestoreService>().deleteEquipmentItem(
+                companyId,
+                item.id,
+              );
             },
             style: ElevatedButton.styleFrom(
               backgroundColor: AppColors.tableOccupied,
@@ -269,8 +277,10 @@ class _EquipmentStockViewState extends State<EquipmentStockView> {
               crossAxisAlignment: CrossAxisAlignment.stretch,
               children: [
                 // Top Header Row
-                Row(
-                  mainAxisAlignment: MainAxisAlignment.spaceBetween,
+                Wrap(
+                  // mainAxisAlignment: MainAxisAlignment.spaceBetween,
+                  runSpacing: 10,
+                  spacing: 10,
                   children: [
                     const Column(
                       crossAxisAlignment: CrossAxisAlignment.start,
@@ -312,31 +322,34 @@ class _EquipmentStockViewState extends State<EquipmentStockView> {
                 const SizedBox(height: 16),
 
                 // Metrics Bar
-                Row(
-                  children: [
-                    _buildPill(
-                      'Unique Items',
-                      allItems.length.toString(),
-                      AppColors.brandAccentLight,
-                      Icons.inventory_2,
-                    ),
-                    const SizedBox(width: 12),
-                    _buildPill(
-                      'Total Units In Club',
-                      totalUnits.toString(),
-                      AppColors.tableAvailable,
-                      Icons.sports_esports,
-                    ),
-                    const SizedBox(width: 12),
-                    _buildPill(
-                      'Low Stock (<3)',
-                      lowStock.toString(),
-                      lowStock > 0
-                          ? AppColors.tableOccupied
-                          : AppColors.secondaryText,
-                      Icons.warning_amber_rounded,
-                    ),
-                  ],
+                SingleChildScrollView(
+                  scrollDirection: Axis.horizontal,
+                  child: Row(
+                    children: [
+                      _buildPill(
+                        'Unique Items',
+                        allItems.length.toString(),
+                        AppColors.brandAccentLight,
+                        Icons.inventory_2,
+                      ),
+                      const SizedBox(width: 12),
+                      _buildPill(
+                        'Total Units In Club',
+                        totalUnits.toString(),
+                        AppColors.tableAvailable,
+                        Icons.sports_esports,
+                      ),
+                      const SizedBox(width: 12),
+                      _buildPill(
+                        'Low Stock (<3)',
+                        lowStock.toString(),
+                        lowStock > 0
+                            ? AppColors.tableOccupied
+                            : AppColors.secondaryText,
+                        Icons.warning_amber_rounded,
+                      ),
+                    ],
+                  ),
                 ),
                 const SizedBox(height: 16),
 
@@ -344,7 +357,8 @@ class _EquipmentStockViewState extends State<EquipmentStockView> {
                 TextField(
                   onChanged: (val) => setState(() => _searchQuery = val.trim()),
                   decoration: const InputDecoration(
-                    hintText: 'Search equipment (sticks, chalks, cloths, etc)...',
+                    hintText:
+                        'Search equipment (sticks, chalks, cloths, etc)...',
                     prefixIcon: Icon(Icons.search),
                   ),
                 ),
@@ -366,11 +380,11 @@ class _EquipmentStockViewState extends State<EquipmentStockView> {
                       : GridView.builder(
                           gridDelegate:
                               const SliverGridDelegateWithMaxCrossAxisExtent(
-                            maxCrossAxisExtent: 340,
-                            mainAxisExtent: 160,
-                            crossAxisSpacing: 14,
-                            mainAxisSpacing: 14,
-                          ),
+                                maxCrossAxisExtent: 340,
+                                mainAxisExtent: 160,
+                                crossAxisSpacing: 14,
+                                mainAxisSpacing: 14,
+                              ),
                           itemCount: filtered.length,
                           itemBuilder: (context, index) {
                             final item = filtered[index];
@@ -431,14 +445,15 @@ class _EquipmentStockViewState extends State<EquipmentStockView> {
                                                 Icon(
                                                   Icons.edit,
                                                   size: 16,
-                                                  color:
-                                                      AppColors.brandAccentLight,
+                                                  color: AppColors
+                                                      .brandAccentLight,
                                                 ),
                                                 SizedBox(width: 8),
                                                 Text(
                                                   'Edit',
                                                   style: TextStyle(
-                                                    color: AppColors.primaryText,
+                                                    color:
+                                                        AppColors.primaryText,
                                                   ),
                                                 ),
                                               ],
@@ -451,7 +466,8 @@ class _EquipmentStockViewState extends State<EquipmentStockView> {
                                                 Icon(
                                                   Icons.delete,
                                                   size: 16,
-                                                  color: AppColors.tableOccupied,
+                                                  color:
+                                                      AppColors.tableOccupied,
                                                 ),
                                                 SizedBox(width: 8),
                                                 Text(
@@ -493,11 +509,13 @@ class _EquipmentStockViewState extends State<EquipmentStockView> {
                                         decoration: BoxDecoration(
                                           color: isLowStock
                                               ? AppColors.tableOccupied
-                                                  .withAlpha(30)
-                                              : AppColors.brandAccent
-                                                  .withAlpha(30),
-                                          borderRadius:
-                                              BorderRadius.circular(8),
+                                                    .withAlpha(30)
+                                              : AppColors.brandAccent.withAlpha(
+                                                  30,
+                                                ),
+                                          borderRadius: BorderRadius.circular(
+                                            8,
+                                          ),
                                           border: Border.all(
                                             color: isLowStock
                                                 ? AppColors.tableOccupied
@@ -544,12 +562,7 @@ class _EquipmentStockViewState extends State<EquipmentStockView> {
     );
   }
 
-  Widget _buildPill(
-    String title,
-    String value,
-    Color color,
-    IconData icon,
-  ) {
+  Widget _buildPill(String title, String value, Color color, IconData icon) {
     return Container(
       padding: const EdgeInsets.symmetric(horizontal: 14, vertical: 10),
       decoration: BoxDecoration(
