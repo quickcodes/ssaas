@@ -36,4 +36,33 @@ class AppFormatters {
   static String timeOnly(DateTime dt) {
     return _timeFormat.format(dt);
   }
+
+  /// Natural alphanumeric string comparison for sorting names like "Table 1", "Table 2", "Table 10".
+  static int naturalCompare(String a, String b) {
+    final regex = RegExp(r'(\d+|\D+)');
+    final matchesA = regex.allMatches(a).map((m) => m.group(0)!).toList();
+    final matchesB = regex.allMatches(b).map((m) => m.group(0)!).toList();
+
+    final minLength =
+        matchesA.length < matchesB.length ? matchesA.length : matchesB.length;
+    for (int i = 0; i < minLength; i++) {
+      final partA = matchesA[i];
+      final partB = matchesB[i];
+
+      final numA = BigInt.tryParse(partA);
+      final numB = BigInt.tryParse(partB);
+
+      if (numA != null && numB != null) {
+        final diff = numA.compareTo(numB);
+        if (diff != 0) return diff;
+      } else {
+        final diff = partA.toLowerCase().compareTo(partB.toLowerCase());
+        if (diff != 0) return diff;
+      }
+    }
+
+    final lengthDiff = matchesA.length.compareTo(matchesB.length);
+    if (lengthDiff != 0) return lengthDiff;
+    return a.compareTo(b);
+  }
 }

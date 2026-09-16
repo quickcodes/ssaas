@@ -47,7 +47,23 @@ int durationMinutes = (playedSeconds / 60).ceil();
 
 ---
 
-## 3. Adding Items to Live Tables
+---
+
+## 3. Starting a Table Session & Retroactive Start Time
+
+Handled via `StartSessionDialog` (`lib/presentation/views/floor_matrix/start_session_dialog.dart`):
+- **Customer Name**: Mandatory player/customer name.
+- **Start Time Options**:
+  - **Now** (Default): Starts immediately at current timestamp.
+  - **Quick Presets**: `-5 min`, `-10 min`, `-15 min`, `-30 min`, `-45 min`, `-1 hr`.
+  - **Custom Time**: Clock time picker (`showTimePicker`) or direct "Minutes ago" numeric input.
+  - Validated: Start time cannot be set to a future timestamp.
+  - Live Preview: Real-time calculation of elapsed timer and already accrued table charges based on the table's hourly rate and rate schedules.
+  - Audit Trail: Appends `[Started at HH:mm]` to session notes when backdated.
+
+---
+
+## 4. Adding Items to Live Tables
 
 Use `AddTableItemDialog` (`lib/presentation/views/floor_matrix/add_table_item_dialog.dart`):
 - Staff can add items from Canteen stock (`CanteenItem`) or Custom ad-hoc items.

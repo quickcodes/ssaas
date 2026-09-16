@@ -1,6 +1,7 @@
 import 'dart:async';
 import 'package:equatable/equatable.dart';
 import 'package:flutter_bloc/flutter_bloc.dart';
+import '../../../core/utils/formatters.dart';
 import '../../../data/datasources/firestore_service.dart';
 import '../../../domain/entities/club_table.dart';
 import '../../../domain/entities/table_billing_item.dart';
@@ -163,8 +164,10 @@ class FloorMatrixState extends Equatable {
   });
 
   List<ClubTable> get filteredTables {
-    if (filterStatus == null) return tables;
-    return tables.where((t) => t.status == filterStatus).toList();
+    final sorted = List<ClubTable>.from(tables)
+      ..sort((a, b) => AppFormatters.naturalCompare(a.name, b.name));
+    if (filterStatus == null) return sorted;
+    return sorted.where((t) => t.status == filterStatus).toList();
   }
 
   TableSession? getSessionForTable(String tableId) {
@@ -275,7 +278,9 @@ class FloorMatrixBloc extends Bloc<FloorMatrixEvent, FloorMatrixState> {
 
     try {
       final tables = await _firestoreService.getTables(event.companyId);
-      emit(state.copyWith(tables: tables, isLoading: false));
+      final sortedTables = List<ClubTable>.from(tables)
+        ..sort((a, b) => AppFormatters.naturalCompare(a.name, b.name));
+      emit(state.copyWith(tables: sortedTables, isLoading: false));
     } catch (e) {
       emit(state.copyWith(isLoading: false, errorMessage: e.toString()));
     }
@@ -285,7 +290,9 @@ class FloorMatrixBloc extends Bloc<FloorMatrixEvent, FloorMatrixState> {
     _TablesUpdatedEvent event,
     Emitter<FloorMatrixState> emit,
   ) {
-    emit(state.copyWith(tables: event.tables, isLoading: false));
+    final sortedTables = List<ClubTable>.from(event.tables)
+      ..sort((a, b) => AppFormatters.naturalCompare(a.name, b.name));
+    emit(state.copyWith(tables: sortedTables, isLoading: false));
   }
 
   void _onSessionsUpdated(
