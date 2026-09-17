@@ -84,3 +84,26 @@ To prevent Flutter layout exceptions:
   )
   ```
 - **Horizontal RenderFlex Overflows**: Match item headers and status badges must use `Wrap` with `runSpacing: 4` or `Flexible` widgets rather than rigid `Row`s.
+
+---
+
+## 5. Detailed Spreadsheet Export & Sharing
+
+Handled via `HistoryReportExporter` (`lib/core/utils/history_report_exporter.dart`) and `ShareHistoryReportDialog` (`lib/presentation/views/history/share_history_report_dialog.dart`):
+
+### Presets Supported:
+- **This Month (Till Now)** (1st of month to now)
+- **Last 30 Days (Daily)**
+- **This Week** (Monday to now)
+- **Last 7 Days**
+- **Today (Daily)**
+- **This Year (Yearly)**
+- **All Time**
+- **Custom Range...** (via `showDateRangePicker`)
+
+### Spreadsheet Format (.CSV):
+- **Universal RFC-4180 Format**: Instantly opens in Excel, Google Sheets, Apple Numbers.
+- **Header Summary**: Club Name, Report Range, Generated Timestamp, Total Matches, Total Duration, Table Revenue, Canteen Revenue, Grand Total, Total Paid Received, Total Due Pending.
+- **Detailed Data Columns**: Match #, Date, Table Name, Closing Person, Started By, Closed By, Start Time, End Time, Duration, Table Amount, Items Amount, Grand Total, Paid Amount, Due Amount, Payment Status, Payment Method, Itemized Canteen Purchases, and Payment Transactions Audit Log.
+- **Totals Row**: Computes column sums for all duration and financial metrics.
+- **Native Sharing**: Dispatches through `SharePlus.instance.share(ShareParams(...))` with `sharePositionOrigin` anchoring, allowing immediate dispatch via WhatsApp, Mail, AirDrop, Telegram, Google Drive, or local file save.

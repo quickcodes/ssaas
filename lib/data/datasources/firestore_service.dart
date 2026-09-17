@@ -44,9 +44,39 @@ class FirestoreService {
     return Company.fromMap(doc.id, doc.data()!);
   }
 
+  /// Checks if a unique company code already exists
+  Future<bool> isCompanyCodeTaken(String code) async {
+    final clean = code.trim().toUpperCase();
+    final query =
+        await _companiesCol.where('code', isEqualTo: clean).limit(1).get();
+    return query.docs.isNotEmpty;
+  }
+
+  /// Retrieves a company by its unique code (with doc ID fallback)
+  Future<Company?> getCompanyByCode(String code) async {
+    final clean = code.trim().toUpperCase();
+    final query =
+        await _companiesCol.where('code', isEqualTo: clean).limit(1).get();
+    if (query.docs.isNotEmpty) {
+      final doc = query.docs.first;
+      return Company.fromMap(doc.id, doc.data());
+    }
+
+    // Fallback: check by doc ID for existing companies created prior to unique codes
+    try {
+      final directDoc = await _companiesCol.doc(code.trim()).get();
+      if (directDoc.exists && directDoc.data() != null) {
+        return Company.fromMap(directDoc.id, directDoc.data()!);
+      }
+    } catch (_) {}
+
+    return null;
+  }
+
   /// Dev-only company creation with initial admin user
   Future<Company> createCompanyWithInitialAdmin({
     required String name,
+    required String code,
     required String number,
     required DateTime expiryDate,
     required String initialUserName,
@@ -54,6 +84,14 @@ class FirestoreService {
     required String initialUserEmail,
     required String initialUserPassword,
   }) async {
+    final cleanCode = code.trim().toUpperCase();
+    final isTaken = await isCompanyCodeTaken(cleanCode);
+    if (isTaken) {
+      throw Exception(
+        'Company code "$cleanCode" is already in use. Please enter a different unique code.',
+      );
+    }
+
     final companyDoc = _companiesCol.doc();
     final companyId = companyDoc.id;
     final now = DateTime.now();
@@ -61,6 +99,7 @@ class FirestoreService {
     final company = Company(
       id: companyId,
       name: name.trim(),
+      code: cleanCode,
       number: number.trim(),
       expiryDate: expiryDate,
       createdAt: now,

@@ -9,6 +9,7 @@ import '../../../data/datasources/firestore_service.dart';
 import '../../../domain/entities/payment_transaction.dart';
 import '../../../domain/entities/table_history_record.dart';
 import '../../blocs/auth/auth_bloc.dart';
+import 'share_history_report_dialog.dart';
 
 class TablesHistoryView extends StatefulWidget {
   const TablesHistoryView({super.key});
@@ -20,6 +21,20 @@ class TablesHistoryView extends StatefulWidget {
 class _TablesHistoryViewState extends State<TablesHistoryView> {
   String _filterStatus = 'All'; // 'All', 'Received', 'Due'
   String _searchQuery = '';
+
+  void _showShareReportDialog(
+    BuildContext context,
+    List<TableHistoryRecord> allHistory,
+    String companyName,
+  ) {
+    showDialog(
+      context: context,
+      builder: (_) => ShareHistoryReportDialog(
+        companyName: companyName,
+        allRecords: allHistory,
+      ),
+    );
+  }
 
   void _showMatchDetailsModal(BuildContext context, TableHistoryRecord record) {
     showDialog(
@@ -1013,10 +1028,12 @@ class _TablesHistoryViewState extends State<TablesHistoryView> {
 
   @override
   Widget build(BuildContext context) {
-    final companyId = context.watch<AuthBloc>().state.activeCompany?.id;
-    if (companyId == null) {
+    final activeCompany = context.watch<AuthBloc>().state.activeCompany;
+    if (activeCompany == null) {
       return const Center(child: CircularProgressIndicator());
     }
+    final companyId = activeCompany.id;
+    final companyName = activeCompany.name;
 
     return StreamBuilder<List<TableHistoryRecord>>(
       stream: sl<FirestoreService>().watchTablesHistory(companyId),
@@ -1056,11 +1073,14 @@ class _TablesHistoryViewState extends State<TablesHistoryView> {
             child: Column(
               crossAxisAlignment: CrossAxisAlignment.stretch,
               children: [
-                // Top Header Row
-                const Row(
-                  mainAxisAlignment: MainAxisAlignment.spaceBetween,
+                // Top Header Row with Share Report Button
+                Wrap(
+                  alignment: WrapAlignment.spaceBetween,
+                  crossAxisAlignment: WrapCrossAlignment.center,
+                  spacing: 12,
+                  runSpacing: 10,
                   children: [
-                    Column(
+                    const Column(
                       crossAxisAlignment: CrossAxisAlignment.start,
                       children: [
                         Text(
@@ -1082,6 +1102,32 @@ class _TablesHistoryViewState extends State<TablesHistoryView> {
                           ),
                         ),
                       ],
+                    ),
+                    ElevatedButton.icon(
+                      onPressed: () => _showShareReportDialog(
+                        context,
+                        allHistory,
+                        companyName,
+                      ),
+                      icon: const Icon(Icons.share_outlined, size: 18),
+                      label: const Text(
+                        'Share Report',
+                        style: TextStyle(
+                          fontWeight: FontWeight.w800,
+                          fontSize: 13,
+                        ),
+                      ),
+                      style: ElevatedButton.styleFrom(
+                        backgroundColor: AppColors.brandAccent,
+                        foregroundColor: Colors.white,
+                        padding: const EdgeInsets.symmetric(
+                          horizontal: 16,
+                          vertical: 13,
+                        ),
+                        shape: RoundedRectangleBorder(
+                          borderRadius: BorderRadius.circular(12),
+                        ),
+                      ),
                     ),
                   ],
                 ),

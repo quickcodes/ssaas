@@ -29,24 +29,25 @@ class SelectCompanyEvent extends AuthEvent {
 }
 
 class LoginCompanyUserEvent extends AuthEvent {
-  final String companyId;
+  final String companyCode;
   final String emailOrNumber;
   final String password;
 
   const LoginCompanyUserEvent({
-    required this.companyId,
+    required this.companyCode,
     required this.emailOrNumber,
     required this.password,
   });
 
   @override
-  List<Object?> get props => [companyId, emailOrNumber, password];
+  List<Object?> get props => [companyCode, emailOrNumber, password];
 }
 
 class LogoutEvent extends AuthEvent {}
 
 class CreateCompanyWithAdminEvent extends AuthEvent {
   final String name;
+  final String code;
   final String number;
   final DateTime expiryDate;
   final String initialUserName;
@@ -56,6 +57,7 @@ class CreateCompanyWithAdminEvent extends AuthEvent {
 
   const CreateCompanyWithAdminEvent({
     required this.name,
+    required this.code,
     required this.number,
     required this.expiryDate,
     required this.initialUserName,
@@ -67,6 +69,7 @@ class CreateCompanyWithAdminEvent extends AuthEvent {
   @override
   List<Object?> get props => [
         name,
+        code,
         number,
         expiryDate,
         initialUserName,
@@ -325,12 +328,14 @@ class AuthBloc extends Bloc<AuthEvent, AuthState> {
   ) async {
     emit(state.copyWith(isLoading: true, clearErrorMessage: true));
     try {
-      final company = await _firestoreService.getCompanyById(event.companyId);
+      final cleanCode = event.companyCode.trim().toUpperCase();
+      final company = await _firestoreService.getCompanyByCode(cleanCode);
       if (company == null) {
         emit(
           state.copyWith(
             isLoading: false,
-            errorMessage: 'Selected company was not found.',
+            errorMessage:
+                'Invalid company code. No club found with code "$cleanCode".',
           ),
         );
         return;
@@ -477,6 +482,7 @@ class AuthBloc extends Bloc<AuthEvent, AuthState> {
     try {
       final newCompany = await _firestoreService.createCompanyWithInitialAdmin(
         name: event.name,
+        code: event.code,
         number: event.number,
         expiryDate: event.expiryDate,
         initialUserName: event.initialUserName,

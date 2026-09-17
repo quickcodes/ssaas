@@ -192,14 +192,41 @@ class CompanyUsersView extends StatelessWidget {
                     Column(
                       crossAxisAlignment: CrossAxisAlignment.start,
                       children: [
-                        Text(
-                          '${activeCompany.name.toUpperCase()} • USERS',
-                          style: const TextStyle(
-                            color: AppColors.brandAccentLight,
-                            fontSize: 12,
-                            fontWeight: FontWeight.w800,
-                            letterSpacing: 1.1,
-                          ),
+                        Row(
+                          children: [
+                            Text(
+                              '${activeCompany.name.toUpperCase()} • USERS',
+                              style: const TextStyle(
+                                color: AppColors.brandAccentLight,
+                                fontSize: 12,
+                                fontWeight: FontWeight.w800,
+                                letterSpacing: 1.1,
+                              ),
+                            ),
+                            const SizedBox(width: 8),
+                            Container(
+                              padding: const EdgeInsets.symmetric(
+                                horizontal: 8,
+                                vertical: 2,
+                              ),
+                              decoration: BoxDecoration(
+                                color: AppColors.brandAccent.withAlpha(40),
+                                borderRadius: BorderRadius.circular(6),
+                                border: Border.all(
+                                  color: AppColors.brandAccentLight.withAlpha(100),
+                                ),
+                              ),
+                              child: Text(
+                                'CODE: ${activeCompany.code}',
+                                style: const TextStyle(
+                                  color: AppColors.brandAccentLight,
+                                  fontSize: 11,
+                                  fontWeight: FontWeight.w800,
+                                  letterSpacing: 0.5,
+                                ),
+                              ),
+                            ),
+                          ],
                         ),
                         const SizedBox(height: 4),
                         const Text(

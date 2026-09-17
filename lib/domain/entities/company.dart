@@ -4,6 +4,7 @@ import 'package:equatable/equatable.dart';
 class Company extends Equatable {
   final String id;
   final String name;
+  final String code;
   final String number;
   final DateTime expiryDate;
   final DateTime createdAt;
@@ -11,6 +12,7 @@ class Company extends Equatable {
   const Company({
     required this.id,
     required this.name,
+    required this.code,
     required this.number,
     required this.expiryDate,
     required this.createdAt,
@@ -21,6 +23,7 @@ class Company extends Equatable {
   Company copyWith({
     String? id,
     String? name,
+    String? code,
     String? number,
     DateTime? expiryDate,
     DateTime? createdAt,
@@ -28,6 +31,7 @@ class Company extends Equatable {
     return Company(
       id: id ?? this.id,
       name: name ?? this.name,
+      code: code ?? this.code,
       number: number ?? this.number,
       expiryDate: expiryDate ?? this.expiryDate,
       createdAt: createdAt ?? this.createdAt,
@@ -37,6 +41,7 @@ class Company extends Equatable {
   Map<String, dynamic> toMap() {
     return {
       'name': name,
+      'code': code.trim().toUpperCase(),
       'number': number,
       'expiryDate': Timestamp.fromDate(expiryDate),
       'createdAt': Timestamp.fromDate(createdAt),
@@ -50,9 +55,15 @@ class Company extends Equatable {
       return DateTime.now();
     }
 
+    final rawCode = map['code'] as String?;
+    final code = (rawCode != null && rawCode.trim().isNotEmpty)
+        ? rawCode.trim().toUpperCase()
+        : id;
+
     return Company(
       id: id,
       name: map['name'] as String? ?? '',
+      code: code,
       number: map['number'] as String? ?? '',
       expiryDate: parseDate(map['expiryDate']),
       createdAt: parseDate(map['createdAt']),
@@ -60,5 +71,5 @@ class Company extends Equatable {
   }
 
   @override
-  List<Object?> get props => [id, name, number, expiryDate, createdAt];
+  List<Object?> get props => [id, name, code, number, expiryDate, createdAt];
 }

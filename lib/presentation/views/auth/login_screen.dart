@@ -1,9 +1,7 @@
 import 'package:flutter/material.dart';
 import 'package:flutter_bloc/flutter_bloc.dart';
-import 'package:intl/intl.dart';
 import '../../../core/constants/constants.dart';
 import '../../../core/theme/app_colors.dart';
-import '../../../domain/entities/company.dart';
 import '../../blocs/auth/auth_bloc.dart';
 import 'create_company_screen.dart';
 
@@ -16,43 +14,29 @@ class LoginScreen extends StatefulWidget {
 
 class _LoginScreenState extends State<LoginScreen> {
   final _formKey = GlobalKey<FormState>();
-  String? _selectedCompanyId;
+  final _companyCodeCtrl = TextEditingController();
   final _identifierCtrl = TextEditingController();
   final _passwordCtrl = TextEditingController();
   bool _obscurePassword = true;
 
   @override
-  void initState() {
-    super.initState();
-    context.read<AuthBloc>().add(LoadCompaniesEvent());
-  }
-
-  @override
   void dispose() {
+    _companyCodeCtrl.dispose();
     _identifierCtrl.dispose();
     _passwordCtrl.dispose();
     super.dispose();
   }
 
   void _submitLogin() {
-    if (_selectedCompanyId == null) {
-      ScaffoldMessenger.of(context).showSnackBar(
-        const SnackBar(
-          content: Text('Please select your club / company.'),
-          backgroundColor: AppColors.tableOccupied,
-        ),
-      );
-      return;
-    }
     if (!_formKey.currentState!.validate()) return;
 
     context.read<AuthBloc>().add(
-          LoginCompanyUserEvent(
-            companyId: _selectedCompanyId!,
-            emailOrNumber: _identifierCtrl.text.trim(),
-            password: _passwordCtrl.text,
-          ),
-        );
+      LoginCompanyUserEvent(
+        companyCode: _companyCodeCtrl.text.trim().toUpperCase(),
+        emailOrNumber: _identifierCtrl.text.trim(),
+        password: _passwordCtrl.text,
+      ),
+    );
   }
 
   @override
@@ -60,23 +44,14 @@ class _LoginScreenState extends State<LoginScreen> {
     return BlocConsumer<AuthBloc, AuthState>(
       listener: (context, state) {
         if (state.errorMessage != null) {
-          _showErrorDialog(context, state.errorMessage!, state.isSubscriptionExpired);
+          _showErrorDialog(
+            context,
+            state.errorMessage!,
+            state.isSubscriptionExpired,
+          );
         }
       },
       builder: (context, state) {
-        final companies = state.companies;
-        if (_selectedCompanyId == null && companies.isNotEmpty) {
-          _selectedCompanyId = companies.first.id;
-        }
-
-        Company? selectedCompany;
-        if (_selectedCompanyId != null) {
-          try {
-            selectedCompany =
-                companies.firstWhere((c) => c.id == _selectedCompanyId);
-          } catch (_) {}
-        }
-
         return Scaffold(
           backgroundColor: AppColors.backgroundBase,
           body: Center(
@@ -104,35 +79,45 @@ class _LoginScreenState extends State<LoginScreen> {
                     crossAxisAlignment: CrossAxisAlignment.stretch,
                     children: [
                       // Header Logo & Title
+                      // Center(
+                      //   child: Container(
+                      //     width: 68,
+                      //     height: 68,
+                      //     decoration: BoxDecoration(
+                      //       gradient: const LinearGradient(
+                      //         colors: [AppColors.brandAccent, Color(0xFF0F9D58)],
+                      //         begin: Alignment.topLeft,
+                      //         end: Alignment.bottomRight,
+                      //       ),
+                      //       borderRadius: BorderRadius.circular(20),
+                      //       boxShadow: [
+                      //         BoxShadow(
+                      //           color: AppColors.brandAccent.withAlpha(100),
+                      //           blurRadius: 20,
+                      //           offset: const Offset(0, 6),
+                      //         ),
+                      //       ],
+                      //     ),
+                      //     child: const Icon(
+                      //       Icons.sports_esports,
+                      //       color: Colors.white,
+                      //       size: 34,
+                      //     ),
+                      //   ),
+                      // ),
                       Center(
-                        child: Container(
-                          width: 68,
-                          height: 68,
-                          decoration: BoxDecoration(
-                            gradient: const LinearGradient(
-                              colors: [AppColors.brandAccent, Color(0xFF0F9D58)],
-                              begin: Alignment.topLeft,
-                              end: Alignment.bottomRight,
-                            ),
-                            borderRadius: BorderRadius.circular(20),
-                            boxShadow: [
-                              BoxShadow(
-                                color: AppColors.brandAccent.withAlpha(100),
-                                blurRadius: 20,
-                                offset: const Offset(0, 6),
-                              ),
-                            ],
-                          ),
-                          child: const Icon(
-                            Icons.sports_esports,
-                            color: Colors.white,
-                            size: 34,
+                        child: ClipRRect(
+                          borderRadius: BorderRadius.circular(100),
+                          child: Image.asset(
+                            "assets/logo.png",
+                            height: 68,
+                            width: 68,
                           ),
                         ),
                       ),
                       const SizedBox(height: 20),
                       const Text(
-                        'CueClub OS',
+                        'Snooker',
                         textAlign: TextAlign.center,
                         style: TextStyle(
                           color: AppColors.primaryText,
@@ -153,8 +138,9 @@ class _LoginScreenState extends State<LoginScreen> {
                       const SizedBox(height: 30),
 
                       // Company Selector
+                      // Company Code
                       const Text(
-                        'SELECT YOUR CLUB / COMPANY',
+                        'ENTER YOUR CLUB CODE',
                         style: TextStyle(
                           color: AppColors.secondaryText,
                           fontSize: 11,
@@ -163,132 +149,18 @@ class _LoginScreenState extends State<LoginScreen> {
                         ),
                       ),
                       const SizedBox(height: 8),
-
-                      if (companies.isEmpty && !state.isLoading)
-                        Container(
-                          padding: const EdgeInsets.all(16),
-                          decoration: BoxDecoration(
-                            color: AppColors.inputSurface,
-                            borderRadius: BorderRadius.circular(12),
-                            border: Border.all(color: AppColors.cardBorderStroke),
-                          ),
-                          child: Column(
-                            children: [
-                              const Text(
-                                'No companies found in database.',
-                                style: TextStyle(
-                                  color: AppColors.secondaryText,
-                                  fontSize: 13,
-                                ),
-                              ),
-                              if (Constants.isAdmin) ...[
-                                const SizedBox(height: 12),
-                                ElevatedButton.icon(
-                                  onPressed: () {
-                                    Navigator.of(context).push(
-                                      MaterialPageRoute(
-                                        builder: (_) =>
-                                            const CreateCompanyScreen(),
-                                      ),
-                                    );
-                                  },
-                                  icon: const Icon(Icons.add_business),
-                                  label: const Text('Create First Company'),
-                                  style: ElevatedButton.styleFrom(
-                                    backgroundColor: AppColors.brandAccent,
-                                  ),
-                                ),
-                              ],
-                            ],
-                          ),
-                        )
-                      else
-                        DropdownButtonFormField<String>(
-                          initialValue: _selectedCompanyId,
-                          isExpanded: true,
-                          decoration: const InputDecoration(
-                            prefixIcon: Icon(Icons.apartment_outlined),
-                            labelText: 'Club Name',
-                          ),
-                          dropdownColor: AppColors.cardSurface,
-                          items: companies.map((c) {
-                            return DropdownMenuItem<String>(
-                              value: c.id,
-                              child: Row(
-                                children: [
-                                  Expanded(
-                                    child: Text(
-                                      c.name,
-                                      style: TextStyle(
-                                        color: c.isExpired
-                                            ? AppColors.tableOccupied
-                                            : AppColors.primaryText,
-                                        fontWeight: FontWeight.w600,
-                                      ),
-                                    ),
-                                  ),
-                                  if (c.isExpired)
-                                    Container(
-                                      padding: const EdgeInsets.symmetric(
-                                        horizontal: 6,
-                                        vertical: 2,
-                                      ),
-                                      decoration: BoxDecoration(
-                                        color:
-                                            AppColors.tableOccupied.withAlpha(30),
-                                        borderRadius: BorderRadius.circular(6),
-                                        border: Border.all(
-                                          color: AppColors.tableOccupied,
-                                        ),
-                                      ),
-                                      child: const Text(
-                                        'EXPIRED',
-                                        style: TextStyle(
-                                          color: AppColors.tableOccupied,
-                                          fontSize: 10,
-                                          fontWeight: FontWeight.w800,
-                                        ),
-                                      ),
-                                    ),
-                                ],
-                              ),
-                            );
-                          }).toList(),
-                          onChanged: (val) {
-                            setState(() => _selectedCompanyId = val);
-                          },
+                      TextFormField(
+                        controller: _companyCodeCtrl,
+                        textCapitalization: TextCapitalization.characters,
+                        decoration: const InputDecoration(
+                          labelText: 'Unique Company / Club Code *',
+                          hintText: 'e.g. CCD01, MATRIX',
+                          prefixIcon: Icon(Icons.apartment_outlined),
                         ),
-
-                      if (selectedCompany != null) ...[
-                        const SizedBox(height: 8),
-                        Row(
-                          mainAxisAlignment: MainAxisAlignment.spaceBetween,
-                          children: [
-                            Text(
-                              'Expiry: ${DateFormat('dd MMM yyyy').format(selectedCompany.expiryDate)}',
-                              style: TextStyle(
-                                color: selectedCompany.isExpired
-                                    ? AppColors.tableOccupied
-                                    : AppColors.secondaryText,
-                                fontSize: 11,
-                                fontWeight: selectedCompany.isExpired
-                                    ? FontWeight.w700
-                                    : FontWeight.normal,
-                              ),
-                            ),
-                            if (selectedCompany.isExpired)
-                              const Text(
-                                'Subscription Expired',
-                                style: TextStyle(
-                                  color: AppColors.tableOccupied,
-                                  fontSize: 11,
-                                  fontWeight: FontWeight.w700,
-                                ),
-                              ),
-                          ],
-                        ),
-                      ],
-
+                        validator: (val) => val == null || val.trim().isEmpty
+                            ? 'Please enter your company / club code'
+                            : null,
+                      ),
                       const SizedBox(height: 20),
 
                       // User Identifier (Email or Phone)

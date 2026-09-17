@@ -12,6 +12,7 @@ This skill documents the multi-tenant architecture, user roles, subscription enf
 
 - **Companies Collection**: `companies/{companyId}`
   - `name`: Club name.
+  - `code`: Unique company code (uppercase, e.g., `CCD01`, `MATRIX`). Entered during login to identify the club without revealing other clubs' names.
   - `number`: Contact phone.
   - `expiryDate`: `DateTime` representing the SaaS subscription expiration.
   - `isExpired`: Getter comparing `DateTime.now().isAfter(expiryDate)`. When expired, all app access is blocked and users are redirected to the subscription screen.

@@ -16,6 +16,7 @@ class _CreateCompanyScreenState extends State<CreateCompanyScreen> {
 
   // Company controllers
   final _companyNameCtrl = TextEditingController();
+  final _companyCodeCtrl = TextEditingController();
   final _companyNumberCtrl = TextEditingController();
   DateTime _expiryDate = DateTime.now().add(const Duration(days: 365));
 
@@ -29,6 +30,7 @@ class _CreateCompanyScreenState extends State<CreateCompanyScreen> {
   @override
   void dispose() {
     _companyNameCtrl.dispose();
+    _companyCodeCtrl.dispose();
     _companyNumberCtrl.dispose();
     _userNameCtrl.dispose();
     _userNumberCtrl.dispose();
@@ -68,6 +70,7 @@ class _CreateCompanyScreenState extends State<CreateCompanyScreen> {
     context.read<AuthBloc>().add(
           CreateCompanyWithAdminEvent(
             name: _companyNameCtrl.text.trim(),
+            code: _companyCodeCtrl.text.trim().toUpperCase(),
             number: _companyNumberCtrl.text.trim(),
             expiryDate: _expiryDate,
             initialUserName: _userNameCtrl.text.trim(),
@@ -187,6 +190,31 @@ class _CreateCompanyScreenState extends State<CreateCompanyScreen> {
                       validator: (val) => val == null || val.trim().isEmpty
                           ? 'Company name is required'
                           : null,
+                    ),
+                    const SizedBox(height: 16),
+                    TextFormField(
+                      controller: _companyCodeCtrl,
+                      textCapitalization: TextCapitalization.characters,
+                      decoration: const InputDecoration(
+                        labelText: 'Unique Company Code *',
+                        hintText: 'e.g. CCD01, MATRIX, SNOOKER101',
+                        prefixIcon: Icon(Icons.pin_outlined),
+                        helperText:
+                            'Short unique ID used by staff & admins to login',
+                      ),
+                      validator: (val) {
+                        if (val == null || val.trim().isEmpty) {
+                          return 'Unique company code is required';
+                        }
+                        final clean = val.trim().toUpperCase();
+                        if (clean.length < 3) {
+                          return 'Code must be at least 3 characters long';
+                        }
+                        if (!RegExp(r'^[A-Z0-9_-]+$').hasMatch(clean)) {
+                          return 'Only letters, numbers, hyphens, and underscores allowed';
+                        }
+                        return null;
+                      },
                     ),
                     const SizedBox(height: 16),
                     TextFormField(
