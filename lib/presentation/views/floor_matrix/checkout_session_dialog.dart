@@ -29,10 +29,15 @@ class _CheckoutSessionDialogState extends State<CheckoutSessionDialog> {
   final _closingNameCtrl = TextEditingController();
   final _notesCtrl = TextEditingController();
   final _partialAmountCtrl = TextEditingController();
+  final _minutesAgoController = TextEditingController();
   final _formKey = GlobalKey<FormState>();
 
   String _settlementMode = 'Full'; // 'Full', 'Partial', 'Due'
   String _paymentMethod = 'Cash'; // 'Cash', 'UPI', 'Card'
+
+  int? _selectedPresetMinutes = 0; // 0 = Now
+  bool _isCustomTime = false;
+  DateTime? _customDateTime;
 
   @override
   void initState() {
@@ -47,16 +52,157 @@ class _CheckoutSessionDialogState extends State<CheckoutSessionDialog> {
     _closingNameCtrl.dispose();
     _notesCtrl.dispose();
     _partialAmountCtrl.dispose();
+    _minutesAgoController.dispose();
     super.dispose();
+  }
+
+  DateTime get _effectiveCloseTime {
+    final now = DateTime.now();
+    if (_isCustomTime && _customDateTime != null) {
+      return _customDateTime!;
+    }
+    if (_selectedPresetMinutes != null && _selectedPresetMinutes! > 0) {
+      return now.subtract(Duration(minutes: _selectedPresetMinutes!));
+    }
+    return now;
+  }
+
+  bool get _isRetroactive {
+    return DateTime.now().difference(_effectiveCloseTime).inSeconds >= 60;
+  }
+
+  Future<void> _pickCustomTime() async {
+    final now = DateTime.now();
+    final initial = TimeOfDay.fromDateTime(
+      _customDateTime ?? now.subtract(const Duration(minutes: 5)),
+    );
+
+    final picked = await showTimePicker(
+      context: context,
+      initialTime: initial,
+      builder: (pickerCtx, child) {
+        return Theme(
+          data: ThemeData.dark().copyWith(
+            colorScheme: const ColorScheme.dark(
+              primary: AppColors.brandAccent,
+              onPrimary: Colors.white,
+              surface: AppColors.cardSurface,
+              onSurface: AppColors.primaryText,
+            ),
+            dialogTheme: const DialogThemeData(
+              backgroundColor: AppColors.cardSurface,
+            ),
+          ),
+          child: child!,
+        );
+      },
+    );
+
+    if (picked != null) {
+      final nowTime = DateTime.now();
+      var candidate = DateTime(
+        nowTime.year,
+        nowTime.month,
+        nowTime.day,
+        picked.hour,
+        picked.minute,
+      );
+
+      // Future time validation
+      if (candidate.isAfter(nowTime)) {
+        if (candidate.difference(nowTime).inMinutes <= 1) {
+          candidate = nowTime;
+        } else {
+          if (mounted) {
+            ScaffoldMessenger.of(context).showSnackBar(
+              const SnackBar(
+                content: Text('Cannot pick a future close time.'),
+                backgroundColor: AppColors.error,
+              ),
+            );
+          }
+          return;
+        }
+      }
+
+      // Starting table time validation
+      if (!candidate.isAfter(widget.session.startTime)) {
+        if (mounted) {
+          ScaffoldMessenger.of(context).showSnackBar(
+            SnackBar(
+              content: Text(
+                'Close time cannot be earlier than table start time (${AppFormatters.timeOnly(widget.session.startTime)}).',
+              ),
+              backgroundColor: AppColors.error,
+            ),
+          );
+        }
+        return;
+      }
+
+      setState(() {
+        _isCustomTime = true;
+        _selectedPresetMinutes = null;
+        _customDateTime = candidate;
+        final mins = nowTime.difference(candidate).inMinutes;
+        _minutesAgoController.text = mins > 0 ? mins.toString() : '0';
+      });
+    }
+  }
+
+  void _onMinutesAgoChanged(String value) {
+    final mins = int.tryParse(value.trim());
+    if (mins == null) return;
+    final now = DateTime.now();
+    final elapsedSinceStart = now
+        .difference(widget.session.startTime)
+        .inMinutes;
+    if (mins >= elapsedSinceStart) {
+      ScaffoldMessenger.of(context).showSnackBar(
+        SnackBar(
+          content: Text(
+            'Table has been running for ${elapsedSinceStart}m. Minutes ago must be less than $elapsedSinceStart.',
+          ),
+          backgroundColor: AppColors.warning,
+          duration: const Duration(seconds: 2),
+        ),
+      );
+      return;
+    }
+    if (mins >= 0 && mins <= 1440) {
+      setState(() {
+        _isCustomTime = true;
+        _selectedPresetMinutes = null;
+        _customDateTime = now.subtract(Duration(minutes: mins));
+      });
+    }
   }
 
   @override
   Widget build(BuildContext context) {
-    final playedSeconds = widget.session.playedSecondsAt(widget.now);
+    final effectiveClose = _effectiveCloseTime;
+    final playedSeconds = widget.session.playedSecondsAt(effectiveClose);
     final durationMinutes = (playedSeconds / 60).ceil();
-    final tableCharge = widget.session.computeTableChargeAt(widget.now);
+    final tableCharge = widget.session.computeTableChargeAt(effectiveClose);
     final itemsCharge = widget.session.itemsAmount;
     final grandTotal = tableCharge + itemsCharge;
+
+    final now = DateTime.now();
+    final totalRunningMins = now.difference(widget.session.startTime).inMinutes;
+    final isRetroactive = _isRetroactive;
+    final elapsedRetroMins = isRetroactive
+        ? now.difference(effectiveClose).inMinutes
+        : 0;
+
+    final presets = [
+      {'label': 'Now', 'minutes': 0},
+      {'label': '-5 min', 'minutes': 5},
+      {'label': '-10 min', 'minutes': 10},
+      {'label': '-15 min', 'minutes': 15},
+      {'label': '-30 min', 'minutes': 30},
+      {'label': '-45 min', 'minutes': 45},
+      {'label': '-1 hr', 'minutes': 60},
+    ];
 
     return Dialog(
       backgroundColor: AppColors.cardSurface,
@@ -103,7 +249,10 @@ class _CheckoutSessionDialogState extends State<CheckoutSessionDialog> {
                     ),
                     IconButton(
                       onPressed: () => Navigator.of(context).pop(),
-                      icon: const Icon(Icons.close, color: AppColors.secondaryText),
+                      icon: const Icon(
+                        Icons.close,
+                        color: AppColors.secondaryText,
+                      ),
                     ),
                   ],
                 ),
@@ -165,6 +314,327 @@ class _CheckoutSessionDialogState extends State<CheckoutSessionDialog> {
                           ),
                         ],
                       ),
+                    ],
+                  ),
+                ),
+                const SizedBox(height: 16),
+
+                // Table Close Time Selection Card
+                Container(
+                  padding: const EdgeInsets.all(14),
+                  decoration: BoxDecoration(
+                    color: AppColors.inputSurface.withAlpha(140),
+                    borderRadius: BorderRadius.circular(12),
+                    border: Border.all(
+                      color: isRetroactive
+                          ? AppColors.warning.withAlpha(150)
+                          : AppColors.cardBorderStroke,
+                      width: isRetroactive ? 1.4 : 1.0,
+                    ),
+                  ),
+                  child: Column(
+                    crossAxisAlignment: CrossAxisAlignment.start,
+                    children: [
+                      Wrap(
+                        alignment: WrapAlignment.spaceBetween,
+                        crossAxisAlignment: WrapCrossAlignment.center,
+                        spacing: 8,
+                        runSpacing: 6,
+                        children: [
+                          Row(
+                            mainAxisSize: MainAxisSize.min,
+                            children: [
+                              Icon(
+                                isRetroactive
+                                    ? Icons.history
+                                    : Icons.timer_off_outlined,
+                                size: 16,
+                                color: isRetroactive
+                                    ? AppColors.warning
+                                    : AppColors.brandAccentLight,
+                              ),
+                              const SizedBox(width: 8),
+                              const Text(
+                                'Table Close Time',
+                                style: TextStyle(
+                                  color: AppColors.primaryText,
+                                  fontWeight: FontWeight.w700,
+                                  fontSize: 13,
+                                ),
+                              ),
+                            ],
+                          ),
+                          if (isRetroactive)
+                            Container(
+                              padding: const EdgeInsets.symmetric(
+                                horizontal: 8,
+                                vertical: 3,
+                              ),
+                              decoration: BoxDecoration(
+                                color: AppColors.warning.withAlpha(30),
+                                borderRadius: BorderRadius.circular(6),
+                                border: Border.all(
+                                  color: AppColors.warning.withAlpha(120),
+                                ),
+                              ),
+                              child: Text(
+                                'CLOSED AT PREVIOUS TIME (${elapsedRetroMins}m ago)',
+                                style: const TextStyle(
+                                  color: AppColors.warning,
+                                  fontSize: 10,
+                                  fontWeight: FontWeight.w800,
+                                  letterSpacing: 0.5,
+                                ),
+                              ),
+                            ),
+                        ],
+                      ),
+                      const SizedBox(height: 10),
+
+                      // Presets wrap
+                      Wrap(
+                        spacing: 8,
+                        runSpacing: 8,
+                        children: [
+                          ...presets.map((p) {
+                            final pMins = p['minutes'] as int;
+                            final isAvailable =
+                                pMins == 0 || pMins < totalRunningMins;
+                            final isSelected =
+                                !_isCustomTime &&
+                                _selectedPresetMinutes == pMins;
+
+                            return Opacity(
+                              opacity: isAvailable ? 1.0 : 0.38,
+                              child: InkWell(
+                                onTap: () {
+                                  if (!isAvailable) {
+                                    ScaffoldMessenger.of(context).showSnackBar(
+                                      SnackBar(
+                                        content: Text(
+                                          'Table only started ${totalRunningMins}m ago (${AppFormatters.timeOnly(widget.session.startTime)}). Cannot close before start time.',
+                                        ),
+                                        backgroundColor: AppColors.warning,
+                                        duration: const Duration(seconds: 2),
+                                      ),
+                                    );
+                                    return;
+                                  }
+                                  setState(() {
+                                    _selectedPresetMinutes = pMins;
+                                    _isCustomTime = false;
+                                    _customDateTime = null;
+                                    _minutesAgoController.clear();
+                                  });
+                                },
+                                borderRadius: BorderRadius.circular(8),
+                                child: AnimatedContainer(
+                                  duration: const Duration(milliseconds: 150),
+                                  padding: const EdgeInsets.symmetric(
+                                    horizontal: 10,
+                                    vertical: 6,
+                                  ),
+                                  decoration: BoxDecoration(
+                                    color: isSelected
+                                        ? (pMins == 0
+                                              ? AppColors.tableAvailable
+                                                    .withAlpha(40)
+                                              : AppColors.warning.withAlpha(40))
+                                        : AppColors.cardSurface,
+                                    borderRadius: BorderRadius.circular(8),
+                                    border: Border.all(
+                                      color: isSelected
+                                          ? (pMins == 0
+                                                ? AppColors.tableAvailable
+                                                : AppColors.warning)
+                                          : AppColors.cardBorderStroke,
+                                      width: isSelected ? 1.5 : 1.0,
+                                    ),
+                                  ),
+                                  child: Text(
+                                    p['label'] as String,
+                                    style: TextStyle(
+                                      color: isSelected
+                                          ? (pMins == 0
+                                                ? AppColors.tableAvailable
+                                                : AppColors.warning)
+                                          : AppColors.secondaryText,
+                                      fontSize: 11,
+                                      fontWeight: isSelected
+                                          ? FontWeight.w800
+                                          : FontWeight.w500,
+                                    ),
+                                  ),
+                                ),
+                              ),
+                            );
+                          }),
+
+                          // Custom Time Chip
+                          InkWell(
+                            onTap: () {
+                              if (!_isCustomTime) {
+                                setState(() {
+                                  _isCustomTime = true;
+                                  _selectedPresetMinutes = null;
+                                  _customDateTime ??= DateTime.now().subtract(
+                                    const Duration(minutes: 5),
+                                  );
+                                  if (!_customDateTime!.isAfter(
+                                    widget.session.startTime,
+                                  )) {
+                                    _customDateTime = widget.session.startTime
+                                        .add(const Duration(minutes: 1));
+                                  }
+                                  _minutesAgoController.text = DateTime.now()
+                                      .difference(_customDateTime!)
+                                      .inMinutes
+                                      .toString();
+                                });
+                              }
+                              _pickCustomTime();
+                            },
+                            borderRadius: BorderRadius.circular(8),
+                            child: AnimatedContainer(
+                              duration: const Duration(milliseconds: 150),
+                              padding: const EdgeInsets.symmetric(
+                                horizontal: 10,
+                                vertical: 6,
+                              ),
+                              decoration: BoxDecoration(
+                                color: _isCustomTime
+                                    ? AppColors.brandAccent.withAlpha(40)
+                                    : AppColors.cardSurface,
+                                borderRadius: BorderRadius.circular(8),
+                                border: Border.all(
+                                  color: _isCustomTime
+                                      ? AppColors.brandAccentLight
+                                      : AppColors.cardBorderStroke,
+                                  width: _isCustomTime ? 1.5 : 1.0,
+                                ),
+                              ),
+                              child: Row(
+                                mainAxisSize: MainAxisSize.min,
+                                children: [
+                                  Icon(
+                                    Icons.edit_calendar_outlined,
+                                    size: 13,
+                                    color: _isCustomTime
+                                        ? AppColors.brandAccentLight
+                                        : AppColors.secondaryText,
+                                  ),
+                                  const SizedBox(width: 4),
+                                  Text(
+                                    'Custom Time...',
+                                    style: TextStyle(
+                                      color: _isCustomTime
+                                          ? AppColors.brandAccentLight
+                                          : AppColors.secondaryText,
+                                      fontSize: 11,
+                                      fontWeight: _isCustomTime
+                                          ? FontWeight.w800
+                                          : FontWeight.w500,
+                                    ),
+                                  ),
+                                ],
+                              ),
+                            ),
+                          ),
+                        ],
+                      ),
+
+                      // If Custom is selected: Clock picker button + Minutes Ago input
+                      if (_isCustomTime) ...[
+                        const SizedBox(height: 12),
+                        Row(
+                          children: [
+                            Expanded(
+                              flex: 3,
+                              child: OutlinedButton.icon(
+                                onPressed: _pickCustomTime,
+                                icon: const Icon(Icons.access_time, size: 16),
+                                label: Text(
+                                  _customDateTime != null
+                                      ? AppFormatters.timeOnly(_customDateTime!)
+                                      : 'Pick Time',
+                                  style: const TextStyle(fontSize: 12),
+                                  overflow: TextOverflow.ellipsis,
+                                ),
+                                style: OutlinedButton.styleFrom(
+                                  foregroundColor: AppColors.brandAccentLight,
+                                  side: const BorderSide(
+                                    color: AppColors.brandAccent,
+                                  ),
+                                  padding: const EdgeInsets.symmetric(
+                                    vertical: 10,
+                                    horizontal: 8,
+                                  ),
+                                  shape: RoundedRectangleBorder(
+                                    borderRadius: BorderRadius.circular(8),
+                                  ),
+                                ),
+                              ),
+                            ),
+                            const SizedBox(width: 8),
+                            Expanded(
+                              flex: 2,
+                              child: TextFormField(
+                                controller: _minutesAgoController,
+                                keyboardType: TextInputType.number,
+                                inputFormatters: [
+                                  FilteringTextInputFormatter.digitsOnly,
+                                ],
+                                onChanged: _onMinutesAgoChanged,
+                                decoration: const InputDecoration(
+                                  labelText: 'Mins Ago',
+                                  suffixText: 'm',
+                                  contentPadding: EdgeInsets.symmetric(
+                                    horizontal: 10,
+                                    vertical: 8,
+                                  ),
+                                  isDense: true,
+                                ),
+                                style: const TextStyle(fontSize: 12),
+                              ),
+                            ),
+                          ],
+                        ),
+                      ],
+
+                      // Retroactive info note
+                      if (isRetroactive) ...[
+                        const SizedBox(height: 10),
+                        Container(
+                          padding: const EdgeInsets.all(10),
+                          decoration: BoxDecoration(
+                            color: AppColors.warning.withAlpha(20),
+                            borderRadius: BorderRadius.circular(8),
+                            border: Border.all(
+                              color: AppColors.warning.withAlpha(80),
+                            ),
+                          ),
+                          child: Row(
+                            children: [
+                              const Icon(
+                                Icons.info_outline,
+                                size: 15,
+                                color: AppColors.warning,
+                              ),
+                              const SizedBox(width: 8),
+                              Expanded(
+                                child: Text(
+                                  'Table will be closed at ${AppFormatters.timeOnly(effectiveClose)} ($elapsedRetroMins mins ago). Table rental and total bill have been recalculated for this duration.',
+                                  style: const TextStyle(
+                                    color: AppColors.warning,
+                                    fontSize: 11,
+                                    fontWeight: FontWeight.w600,
+                                  ),
+                                ),
+                              ),
+                            ],
+                          ),
+                        ),
+                      ],
                     ],
                   ),
                 ),
@@ -241,7 +711,9 @@ class _CheckoutSessionDialogState extends State<CheckoutSessionDialog> {
                   decoration: BoxDecoration(
                     color: AppColors.brandAccent.withAlpha(35),
                     borderRadius: BorderRadius.circular(10),
-                    border: Border.all(color: AppColors.brandAccent.withAlpha(120)),
+                    border: Border.all(
+                      color: AppColors.brandAccent.withAlpha(120),
+                    ),
                   ),
                   child: Row(
                     mainAxisAlignment: MainAxisAlignment.spaceBetween,
@@ -272,7 +744,8 @@ class _CheckoutSessionDialogState extends State<CheckoutSessionDialog> {
                   controller: _closingPersonCtrl,
                   decoration: const InputDecoration(
                     labelText: 'Closing Person Name *',
-                    hintText: 'Enter player/customer name on whom the table is closing',
+                    hintText:
+                        'Enter player/customer name on whom the table is closing',
                     prefixIcon: Icon(Icons.person_outline),
                   ),
                   validator: (val) => val == null || val.trim().isEmpty
@@ -340,8 +813,9 @@ class _CheckoutSessionDialogState extends State<CheckoutSessionDialog> {
                   const SizedBox(height: 14),
                   TextField(
                     controller: _partialAmountCtrl,
-                    keyboardType:
-                        const TextInputType.numberWithOptions(decimal: true),
+                    keyboardType: const TextInputType.numberWithOptions(
+                      decimal: true,
+                    ),
                     inputFormatters: [
                       FilteringTextInputFormatter.allow(
                         RegExp(r'^\d*\.?\d{0,2}'),
@@ -380,9 +854,7 @@ class _CheckoutSessionDialogState extends State<CheckoutSessionDialog> {
                       decoration: BoxDecoration(
                         color: Colors.orange.withAlpha(25),
                         borderRadius: BorderRadius.circular(8),
-                        border: Border.all(
-                          color: Colors.orange.withAlpha(80),
-                        ),
+                        border: Border.all(color: Colors.orange.withAlpha(80)),
                       ),
                       child: Row(
                         children: [
@@ -453,6 +925,33 @@ class _CheckoutSessionDialogState extends State<CheckoutSessionDialog> {
                         onPressed: () {
                           if (!_formKey.currentState!.validate()) return;
 
+                          if (!effectiveClose.isAfter(
+                            widget.session.startTime,
+                          )) {
+                            ScaffoldMessenger.of(context).showSnackBar(
+                              SnackBar(
+                                content: Text(
+                                  'Invalid close time. Table close time must be after table start time (${AppFormatters.timeOnly(widget.session.startTime)}).',
+                                ),
+                                backgroundColor: AppColors.error,
+                              ),
+                            );
+                            return;
+                          }
+                          if (effectiveClose.isAfter(
+                            DateTime.now().add(const Duration(minutes: 1)),
+                          )) {
+                            ScaffoldMessenger.of(context).showSnackBar(
+                              const SnackBar(
+                                content: Text(
+                                  'Cannot close table at a future time.',
+                                ),
+                                backgroundColor: AppColors.error,
+                              ),
+                            );
+                            return;
+                          }
+
                           double paidAmount = 0.0;
                           final transactions = <PaymentTransaction>[];
                           String status = 'Due';
@@ -467,7 +966,7 @@ class _CheckoutSessionDialogState extends State<CheckoutSessionDialog> {
                                 id: const Uuid().v4(),
                                 amount: grandTotal,
                                 paymentMethod: _paymentMethod,
-                                receivedAt: widget.now,
+                                receivedAt: effectiveClose,
                                 receivedBy: _closingNameCtrl.text.trim(),
                                 notes: 'Initial full settlement at checkout',
                               ),
@@ -506,7 +1005,7 @@ class _CheckoutSessionDialogState extends State<CheckoutSessionDialog> {
                                 id: const Uuid().v4(),
                                 amount: entered,
                                 paymentMethod: _paymentMethod,
-                                receivedAt: widget.now,
+                                receivedAt: effectiveClose,
                                 receivedBy: _closingNameCtrl.text.trim(),
                                 notes: 'Initial partial payment at checkout',
                               ),
@@ -527,7 +1026,7 @@ class _CheckoutSessionDialogState extends State<CheckoutSessionDialog> {
                             startedByName: widget.session.startedByName,
                             closedByName: _closingNameCtrl.text.trim(),
                             startedAt: widget.session.startTime,
-                            closedAt: widget.now,
+                            closedAt: effectiveClose,
                             durationMinutes: durationMinutes,
                             tableAmount: tableCharge,
                             itemsAmount: itemsCharge,
@@ -546,25 +1045,28 @@ class _CheckoutSessionDialogState extends State<CheckoutSessionDialog> {
                           backgroundColor: _settlementMode == 'Full'
                               ? AppColors.tableAvailable
                               : (_settlementMode == 'Partial'
-                                  ? Colors.orange
-                                  : AppColors.tableOccupied),
+                                    ? Colors.orange
+                                    : AppColors.tableOccupied),
                           foregroundColor: Colors.black,
                           padding: const EdgeInsets.symmetric(vertical: 14),
                         ),
                         child: Text(
                           _settlementMode == 'Full'
-                              ? 'CONFIRM RECEIVED ₹${grandTotal.toStringAsFixed(0)}'
+                              ? 'RECEIVED ₹${grandTotal.toStringAsFixed(0)}'
                               : (_settlementMode == 'Partial'
-                                  ? () {
-                                      final p = double.tryParse(
-                                            _partialAmountCtrl.text.trim(),
-                                          ) ??
-                                          0.0;
-                                      final due = (grandTotal - p)
-                                          .clamp(0.0, grandTotal);
-                                      return 'CONFIRM (₹${due.toStringAsFixed(0)} DUE)';
-                                    }()
-                                  : 'CONFIRM DUE ₹${grandTotal.toStringAsFixed(0)}'),
+                                    ? () {
+                                        final p =
+                                            double.tryParse(
+                                              _partialAmountCtrl.text.trim(),
+                                            ) ??
+                                            0.0;
+                                        final due = (grandTotal - p).clamp(
+                                          0.0,
+                                          grandTotal,
+                                        );
+                                        return '(₹${due.toStringAsFixed(0)} DUE)';
+                                      }()
+                                    : 'DUE ₹${grandTotal.toStringAsFixed(0)}'),
                           style: const TextStyle(fontWeight: FontWeight.w800),
                         ),
                       ),

@@ -9,6 +9,7 @@ import 'data/datasources/session_local_storage.dart';
 import 'presentation/blocs/auth/auth_bloc.dart';
 import 'presentation/blocs/floor_matrix/floor_matrix_bloc.dart';
 import 'presentation/views/dashboard/main_dashboard_view.dart';
+import 'presentation/widgets/network_aware_overlay.dart';
 
 void main() async {
   WidgetsFlutterBinding.ensureInitialized();
@@ -41,6 +42,9 @@ class SnookerClubApp extends StatelessWidget {
         debugShowCheckedModeBanner: false,
         theme: AppTheme.darkTheme,
         home: const MainDashboardView(),
+        builder: (context, child) => NetworkAwareOverlay(
+          child: child ?? const SizedBox.shrink(),
+        ),
       ),
     );
   }

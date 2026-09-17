@@ -72,9 +72,20 @@ Use `AddTableItemDialog` (`lib/presentation/views/floor_matrix/add_table_item_di
 
 ---
 
-## 4. Checkout & Table Closing Procedure
+## 5. Checkout & Table Closing Procedure
 
 Closing a table is handled via `CheckoutSessionDialog` (`lib/presentation/views/floor_matrix/checkout_session_dialog.dart`):
+
+### Table Close Time & Retroactive Close Options:
+- **Now** (Default): Ends session at the current moment.
+- **Quick Presets**: `-5 min`, `-10 min`, `-15 min`, `-30 min`, `-45 min`, `-1 hr`.
+  - Presets that would fall before the table's actual start time are automatically disabled/clamped.
+- **Custom Time**: Clock time picker (`showTimePicker`) or "Mins ago" numeric input.
+- **Strict Validations**:
+  - Close time cannot be in the future.
+  - Close time cannot be earlier than or equal to the session start time (`widget.session.startTime`).
+- **Dynamic Recalculation**: Duration played, dynamic hourly/frame table charges, items total, and settlement amounts recalculate in real-time based on the chosen effective close time.
+- **Audit Badge**: Displays a yellow/amber retroactive badge (`CLOSED AT PREVIOUS TIME (Xm ago)`) and explicit end timestamp.
 
 ### Required Input Fields:
 1. **Closing Person Name (`customerName`)**:

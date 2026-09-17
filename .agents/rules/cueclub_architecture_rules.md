@@ -42,3 +42,11 @@ These guidelines are mandatory for all AI agents working on CueClub OS.
 - **10-Day Duration**: User sessions last 10 days from login.
 - **Dual Verification**: Sessions are stored locally via `SharedPreferences` in `SessionLocalStorage` and remotely on `users/{userId}.sessionExpiresAt` as a Firestore `Timestamp`.
 - **Auto-Login**: On launch, verify that the local session has not expired and that the user's remote `sessionExpiresAt` timestamp in Firestore is valid before opening the dashboard.
+
+## 6. Tooling & Flutter Version Management (FVM)
+- **FVM Enforcement**: This project strictly uses FVM (Flutter Version Management). All Flutter and Dart commands executed via CLI must use `fvm`:
+  - Builds: `fvm flutter build apk --release`, `fvm flutter build web`, etc.
+  - Package Management: `fvm flutter pub get`, `fvm flutter pub add <pkg>`
+  - Static Analysis & Testing: `fvm flutter analyze`, `fvm flutter test`
+  - Code Generation / Dart Tools: `fvm dart run build_runner build`
+- **Global Tooling Prohibition**: Never execute global `flutter` or `dart` directly to prevent SDK version mismatches.
