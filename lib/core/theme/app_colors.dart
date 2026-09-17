@@ -30,4 +30,29 @@ class AppColors {
   static const Color error = Color(0xFFFF355E);
   static const Color warning = Color(0xFFFFC107);
   static const Color info = Color(0xFF29B6F6);
+
+  // Modern UI Glass & Elevation Accents
+  static const Color cardSurfaceElevated = Color(0xFF1C222B);
+  static const Color glassOverlay = Color(0x1AFFFFFF);
+  static const Color glassBorder = Color(0x33FFFFFF);
+
+  // Premium Gradients
+  static const LinearGradient brandGradient = LinearGradient(
+    colors: [Color(0xFF7C4DFF), Color(0xFF5E35B1)],
+    begin: Alignment.topLeft,
+    end: Alignment.bottomRight,
+  );
+
+  static const LinearGradient runningMatchGradient = LinearGradient(
+    colors: [Color(0xFFFF355E), Color(0xFFD50032)],
+    begin: Alignment.topLeft,
+    end: Alignment.bottomRight,
+  );
+
+  static const LinearGradient availableMatchGradient = LinearGradient(
+    colors: [Color(0xFF00E676), Color(0xFF00B0FF)],
+    begin: Alignment.topLeft,
+    end: Alignment.bottomRight,
+  );
 }
+

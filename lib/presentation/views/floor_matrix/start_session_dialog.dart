@@ -3,6 +3,7 @@ import 'package:flutter/services.dart';
 import 'package:uuid/uuid.dart';
 import '../../../core/theme/app_colors.dart';
 import '../../../core/utils/formatters.dart';
+import '../../../core/utils/responsive.dart';
 import '../../../domain/entities/club_table.dart';
 import '../../../domain/entities/table_session.dart';
 import '../../../domain/entities/user_account.dart';
@@ -167,26 +168,47 @@ class _StartSessionDialogState extends State<StartSessionDialog> {
     final elapsedMins = elapsedSec ~/ 60;
     final accruedCharge = isRetroactive ? _calculateInitialCharge(effectiveStart) : 0.0;
 
-    return Dialog(
-      backgroundColor: AppColors.cardSurface,
-      shape: RoundedRectangleBorder(
-        borderRadius: BorderRadius.circular(20),
-        side: const BorderSide(color: AppColors.cardBorderStroke),
+    final isMobile = Responsive.isMobile(context);
+
+    final content = Container(
+      constraints: BoxConstraints(
+        maxWidth: 480,
+        maxHeight: isMobile
+            ? MediaQuery.sizeOf(context).height * 0.88
+            : MediaQuery.sizeOf(context).height * 0.9,
       ),
-      child: ConstrainedBox(
-        constraints: BoxConstraints(
-          maxWidth: 480,
-          maxHeight: MediaQuery.of(context).size.height * 0.9,
+      decoration: BoxDecoration(
+        color: AppColors.cardSurface,
+        borderRadius: isMobile
+            ? const BorderRadius.vertical(top: Radius.circular(24))
+            : BorderRadius.circular(20),
+        border: Border.all(color: AppColors.cardBorderStroke),
+      ),
+      child: SingleChildScrollView(
+        keyboardDismissBehavior: ScrollViewKeyboardDismissBehavior.onDrag,
+        padding: EdgeInsets.symmetric(
+          horizontal: isMobile ? 20 : 26,
+          vertical: isMobile ? 16 : 24,
         ),
-        child: SingleChildScrollView(
-          padding: const EdgeInsets.all(24),
-          child: Form(
-            key: _formKey,
-            child: Column(
-              mainAxisSize: MainAxisSize.min,
-              crossAxisAlignment: CrossAxisAlignment.stretch,
-              children: [
-                // Header
+        child: Form(
+          key: _formKey,
+          child: Column(
+            mainAxisSize: MainAxisSize.min,
+            crossAxisAlignment: CrossAxisAlignment.stretch,
+            children: [
+              if (isMobile)
+                Center(
+                  child: Container(
+                    width: 44,
+                    height: 4,
+                    margin: const EdgeInsets.only(bottom: 16),
+                    decoration: BoxDecoration(
+                      color: Colors.white24,
+                      borderRadius: BorderRadius.circular(2),
+                    ),
+                  ),
+                ),
+              // Header
                 Row(
                   mainAxisAlignment: MainAxisAlignment.spaceBetween,
                   children: [
@@ -745,7 +767,18 @@ class _StartSessionDialogState extends State<StartSessionDialog> {
             ),
           ),
         ),
-      ),
-    );
+      );
+
+    if (isMobile) {
+      return content;
+    } else {
+      return Dialog(
+        backgroundColor: Colors.transparent,
+        elevation: 0,
+        insetPadding: const EdgeInsets.symmetric(horizontal: 20, vertical: 24),
+        child: content,
+      );
+    }
   }
 }
+

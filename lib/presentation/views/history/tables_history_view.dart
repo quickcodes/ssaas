@@ -5,10 +5,14 @@ import 'package:intl/intl.dart';
 import 'package:uuid/uuid.dart';
 import '../../../core/di/service_locator.dart';
 import '../../../core/theme/app_colors.dart';
+import '../../../core/utils/interactive_feedback.dart';
+import '../../../core/utils/responsive.dart';
 import '../../../data/datasources/firestore_service.dart';
 import '../../../domain/entities/payment_transaction.dart';
 import '../../../domain/entities/table_history_record.dart';
 import '../../blocs/auth/auth_bloc.dart';
+import '../../widgets/empty_state_card.dart';
+import '../../widgets/fade_slide_transition.dart';
 import 'share_history_report_dialog.dart';
 
 class TablesHistoryView extends StatefulWidget {
@@ -1169,9 +1173,15 @@ class _TablesHistoryViewState extends State<TablesHistoryView> {
                   child: TextField(
                     onChanged: (val) =>
                         setState(() => _searchQuery = val.trim()),
-                    decoration: const InputDecoration(
+                    decoration: InputDecoration(
                       hintText: 'Search by customer, table, or staff name...',
-                      prefixIcon: Icon(Icons.search),
+                      prefixIcon: const Icon(Icons.search, size: 20),
+                      suffixIcon: _searchQuery.isNotEmpty
+                          ? IconButton(
+                              icon: const Icon(Icons.clear, size: 18),
+                              onPressed: () => setState(() => _searchQuery = ''),
+                            )
+                          : null,
                     ),
                   ),
                 ),
@@ -1199,15 +1209,14 @@ class _TablesHistoryViewState extends State<TablesHistoryView> {
                 // List of Records
                 Expanded(
                   child: filtered.isEmpty
-                      ? Center(
-                          child: Text(
-                            allHistory.isEmpty
-                                ? 'No closed table matches recorded yet.'
-                                : 'No records match your filter criteria.',
-                            style: const TextStyle(
-                              color: AppColors.secondaryText,
-                            ),
-                          ),
+                      ? EmptyStateCard(
+                          icon: Icons.history,
+                          title: allHistory.isEmpty
+                              ? 'No Closed Matches Yet'
+                              : 'No Matching Records',
+                          subtitle: allHistory.isEmpty
+                              ? 'Once running tables are checked out and bills are settled, detailed match history records will appear here.'
+                              : 'No matches found matching your current search or filter criteria.',
                         )
                       : ListView.separated(
                           itemCount: filtered.length,
@@ -1215,204 +1224,414 @@ class _TablesHistoryViewState extends State<TablesHistoryView> {
                               const SizedBox(height: 10),
                           itemBuilder: (context, index) {
                             final record = filtered[index];
+                            final isMobile = Responsive.isMobile(context);
 
-                            return InkWell(
-                              onTap: () =>
-                                  _showMatchDetailsModal(context, record),
-                              borderRadius: BorderRadius.circular(14),
-                              child: Container(
-                                padding: const EdgeInsets.all(16),
-                                decoration: BoxDecoration(
-                                  color: AppColors.cardSurface,
-                                  borderRadius: BorderRadius.circular(14),
-                                  border: Border.all(
-                                    color: record.isDue
-                                        ? AppColors.tableOccupied.withAlpha(80)
-                                        : AppColors.cardBorderStroke,
-                                  ),
-                                ),
-                                child: Row(
-                                  children: [
-                                    // Status icon badge
-                                    Container(
-                                      padding: const EdgeInsets.all(10),
-                                      decoration: BoxDecoration(
-                                        color: record.isReceived
-                                            ? AppColors.tableAvailable
-                                                  .withAlpha(30)
-                                            : AppColors.tableOccupied.withAlpha(
-                                                30,
-                                              ),
-                                        borderRadius: BorderRadius.circular(10),
-                                      ),
-                                      child: Icon(
-                                        record.isReceived
-                                            ? Icons.check_circle_outline
-                                            : Icons.pending_actions,
-                                        color: record.isReceived
-                                            ? AppColors.tableAvailable
-                                            : AppColors.tableOccupied,
-                                        size: 24,
-                                      ),
+                            return FadeSlideTransitionWidget(
+                              index: index,
+                              child: InkWell(
+                                onTap: () {
+                                  AppHaptics.light();
+                                  _showMatchDetailsModal(context, record);
+                                },
+                                borderRadius: BorderRadius.circular(16),
+                                child: Container(
+                                  padding: EdgeInsets.all(isMobile ? 14 : 16),
+                                  decoration: BoxDecoration(
+                                    color: AppColors.cardSurface,
+                                    borderRadius: BorderRadius.circular(16),
+                                    border: Border.all(
+                                      color: record.isDue
+                                          ? AppColors.tableOccupied.withAlpha(90)
+                                          : AppColors.cardBorderStroke,
+                                      width: record.isDue ? 1.4 : 1.0,
                                     ),
-                                    const SizedBox(width: 14),
-
-                                    // Table & Customer Info
-                                    Expanded(
-                                      flex: 3,
-                                      child: Column(
-                                        crossAxisAlignment:
-                                            CrossAxisAlignment.start,
-                                        children: [
-                                          Wrap(
-                                            crossAxisAlignment:
-                                                WrapCrossAlignment.center,
-                                            spacing: 6,
-                                            runSpacing: 4,
-                                            children: [
-                                              Text(
-                                                record.tableName,
-                                                style: const TextStyle(
-                                                  color: AppColors.primaryText,
-                                                  fontWeight: FontWeight.w700,
-                                                  fontSize: 15,
-                                                ),
-                                              ),
-                                              Container(
-                                                padding:
-                                                    const EdgeInsets.symmetric(
-                                                  horizontal: 6,
-                                                  vertical: 2,
-                                                ),
-                                                decoration: BoxDecoration(
-                                                  color: record.isReceived
-                                                      ? AppColors.tableAvailable
-                                                          .withAlpha(30)
-                                                      : AppColors.tableOccupied
-                                                          .withAlpha(30),
-                                                  borderRadius:
-                                                      BorderRadius.circular(4),
-                                                ),
-                                                child: Text(
-                                                  record.isReceived
-                                                      ? 'RECEIVED'
-                                                      : (record.isPartiallyPaid
-                                                          ? 'DUE (₹${record.dueAmount.toStringAsFixed(0)})'
-                                                          : 'DUE'),
-                                                  style: TextStyle(
+                                    boxShadow: [
+                                      BoxShadow(
+                                        color: Colors.black.withAlpha(30),
+                                        blurRadius: 8,
+                                        offset: const Offset(0, 3),
+                                      ),
+                                    ],
+                                  ),
+                                  child: isMobile
+                                      ? Column(
+                                          crossAxisAlignment:
+                                              CrossAxisAlignment.stretch,
+                                          children: [
+                                            Row(
+                                              children: [
+                                                Container(
+                                                  padding:
+                                                      const EdgeInsets.all(8),
+                                                  decoration: BoxDecoration(
                                                     color: record.isReceived
-                                                        ? AppColors
-                                                            .tableAvailable
+                                                        ? AppColors.tableAvailable
+                                                            .withAlpha(25)
+                                                        : AppColors.tableOccupied
+                                                            .withAlpha(25),
+                                                    borderRadius:
+                                                        BorderRadius.circular(8),
+                                                  ),
+                                                  child: Icon(
+                                                    record.isReceived
+                                                        ? Icons
+                                                            .check_circle_outline
+                                                        : Icons.pending_actions,
+                                                    color: record.isReceived
+                                                        ? AppColors.tableAvailable
                                                         : AppColors
                                                             .tableOccupied,
-                                                    fontSize: 10,
-                                                    fontWeight: FontWeight.w800,
+                                                    size: 18,
                                                   ),
                                                 ),
+                                                const SizedBox(width: 10),
+                                                Expanded(
+                                                  child: Text(
+                                                    record.tableName,
+                                                    style: const TextStyle(
+                                                      color:
+                                                          AppColors.primaryText,
+                                                      fontWeight:
+                                                          FontWeight.w800,
+                                                      fontSize: 15,
+                                                    ),
+                                                  ),
+                                                ),
+                                                Container(
+                                                  padding: const EdgeInsets
+                                                      .symmetric(
+                                                    horizontal: 8,
+                                                    vertical: 3,
+                                                  ),
+                                                  decoration: BoxDecoration(
+                                                    color: record.isReceived
+                                                        ? AppColors.tableAvailable
+                                                            .withAlpha(25)
+                                                        : AppColors.tableOccupied
+                                                            .withAlpha(25),
+                                                    borderRadius:
+                                                        BorderRadius.circular(6),
+                                                    border: Border.all(
+                                                      color: record.isReceived
+                                                          ? AppColors
+                                                              .tableAvailable
+                                                              .withAlpha(120)
+                                                          : AppColors
+                                                              .tableOccupied
+                                                              .withAlpha(120),
+                                                    ),
+                                                  ),
+                                                  child: Text(
+                                                    record.isReceived
+                                                        ? 'RECEIVED'
+                                                        : (record.isPartiallyPaid
+                                                            ? 'DUE: ₹${record.dueAmount.toStringAsFixed(0)}'
+                                                            : 'DUE'),
+                                                    style: TextStyle(
+                                                      color: record.isReceived
+                                                          ? AppColors
+                                                              .tableAvailable
+                                                          : AppColors
+                                                              .tableOccupied,
+                                                      fontSize: 10,
+                                                      fontWeight:
+                                                          FontWeight.w800,
+                                                    ),
+                                                  ),
+                                                ),
+                                              ],
+                                            ),
+                                            const SizedBox(height: 10),
+                                            Row(
+                                              mainAxisAlignment:
+                                                  MainAxisAlignment
+                                                      .spaceBetween,
+                                              children: [
+                                                Expanded(
+                                                  child: Column(
+                                                    crossAxisAlignment:
+                                                        CrossAxisAlignment
+                                                            .start,
+                                                    children: [
+                                                      Text(
+                                                        'Customer: ${record.customerName}',
+                                                        style: const TextStyle(
+                                                          color: AppColors
+                                                              .primaryText,
+                                                          fontSize: 13,
+                                                          fontWeight:
+                                                              FontWeight.w600,
+                                                        ),
+                                                        maxLines: 1,
+                                                        overflow: TextOverflow
+                                                            .ellipsis,
+                                                      ),
+                                                      const SizedBox(height: 2),
+                                                      Text(
+                                                        '${DateFormat('dd MMM, hh:mm a').format(record.closedAt)}  •  ${record.durationMinutes}m',
+                                                        style: const TextStyle(
+                                                          color: AppColors
+                                                              .secondaryText,
+                                                          fontSize: 11,
+                                                        ),
+                                                      ),
+                                                    ],
+                                                  ),
+                                                ),
+                                                Column(
+                                                  crossAxisAlignment:
+                                                      CrossAxisAlignment.end,
+                                                  children: [
+                                                    Text(
+                                                      record.isReceived
+                                                          ? '₹${record.totalAmount.toStringAsFixed(0)}'
+                                                          : '₹${record.dueAmount.toStringAsFixed(0)} Due',
+                                                      style: TextStyle(
+                                                        color: record.isReceived
+                                                            ? AppColors
+                                                                .tableAvailable
+                                                            : AppColors
+                                                                .tableOccupied,
+                                                        fontWeight:
+                                                            FontWeight.w900,
+                                                        fontSize: 16,
+                                                      ),
+                                                    ),
+                                                    if (record.isPartiallyPaid)
+                                                      Text(
+                                                        'Paid ₹${record.paidAmount.toStringAsFixed(0)}',
+                                                        style: const TextStyle(
+                                                          color: AppColors
+                                                              .secondaryText,
+                                                          fontSize: 10,
+                                                        ),
+                                                      ),
+                                                  ],
+                                                ),
+                                                const SizedBox(width: 4),
+                                                const Icon(
+                                                  Icons.chevron_right,
+                                                  color:
+                                                      AppColors.secondaryText,
+                                                  size: 18,
+                                                ),
+                                              ],
+                                            ),
+                                          ],
+                                        )
+                                      : Row(
+                                          children: [
+                                            // Status icon badge
+                                            Container(
+                                              padding:
+                                                  const EdgeInsets.all(10),
+                                              decoration: BoxDecoration(
+                                                color: record.isReceived
+                                                    ? AppColors.tableAvailable
+                                                        .withAlpha(25)
+                                                    : AppColors.tableOccupied
+                                                        .withAlpha(25),
+                                                borderRadius:
+                                                    BorderRadius.circular(10),
                                               ),
-                                            ],
-                                          ),
-                                          const SizedBox(height: 3),
-                                          Text(
-                                            'Closed On: ${record.customerName}  •  Staff: ${record.closedByName}',
-                                            style: const TextStyle(
-                                              color: AppColors.secondaryText,
-                                              fontSize: 12,
-                                            ),
-                                            maxLines: 1,
-                                            overflow: TextOverflow.ellipsis,
-                                          ),
-                                        ],
-                                      ),
-                                    ),
-
-                                    // Timing & Duration
-                                    Expanded(
-                                      flex: 2,
-                                      child: Column(
-                                        crossAxisAlignment:
-                                            CrossAxisAlignment.start,
-                                        children: [
-                                          Text(
-                                            DateFormat(
-                                              'dd MMM, hh:mm a',
-                                            ).format(record.closedAt),
-                                            style: const TextStyle(
-                                              color: AppColors.primaryText,
-                                              fontWeight: FontWeight.w600,
-                                              fontSize: 13,
-                                            ),
-                                          ),
-                                          const SizedBox(height: 2),
-                                          Text(
-                                            '${record.durationMinutes} mins played',
-                                            style: const TextStyle(
-                                              color: AppColors.secondaryText,
-                                              fontSize: 11,
-                                            ),
-                                          ),
-                                        ],
-                                      ),
-                                    ),
-
-                                    // Amount
-                                    Column(
-                                      crossAxisAlignment:
-                                          CrossAxisAlignment.end,
-                                      children: [
-                                        if (record.isReceived) ...[
-                                          Text(
-                                            '₹${record.totalAmount.toStringAsFixed(0)}',
-                                            style: const TextStyle(
-                                              color: AppColors.tableAvailable,
-                                              fontWeight: FontWeight.w800,
-                                              fontSize: 16,
-                                            ),
-                                          ),
-                                          if (record.paymentMethod != null)
-                                            Text(
-                                              record.paymentMethod!,
-                                              style: const TextStyle(
-                                                color: AppColors.secondaryText,
-                                                fontSize: 11,
+                                              child: Icon(
+                                                record.isReceived
+                                                    ? Icons
+                                                        .check_circle_outline
+                                                    : Icons.pending_actions,
+                                                color: record.isReceived
+                                                    ? AppColors.tableAvailable
+                                                    : AppColors.tableOccupied,
+                                                size: 24,
                                               ),
                                             ),
-                                        ] else ...[
-                                          Text(
-                                            '₹${record.dueAmount.toStringAsFixed(0)} Due',
-                                            style: const TextStyle(
-                                              color: AppColors.tableOccupied,
-                                              fontWeight: FontWeight.w800,
-                                              fontSize: 16,
+                                            const SizedBox(width: 14),
+
+                                            // Table & Customer Info
+                                            Expanded(
+                                              flex: 3,
+                                              child: Column(
+                                                crossAxisAlignment:
+                                                    CrossAxisAlignment.start,
+                                                children: [
+                                                  Wrap(
+                                                    crossAxisAlignment:
+                                                        WrapCrossAlignment
+                                                            .center,
+                                                    spacing: 6,
+                                                    runSpacing: 4,
+                                                    children: [
+                                                      Text(
+                                                        record.tableName,
+                                                        style:
+                                                            const TextStyle(
+                                                          color: AppColors
+                                                              .primaryText,
+                                                          fontWeight:
+                                                              FontWeight.w700,
+                                                          fontSize: 15,
+                                                        ),
+                                                      ),
+                                                      Container(
+                                                        padding:
+                                                            const EdgeInsets
+                                                                .symmetric(
+                                                          horizontal: 6,
+                                                          vertical: 2,
+                                                        ),
+                                                        decoration:
+                                                            BoxDecoration(
+                                                          color: record
+                                                                  .isReceived
+                                                              ? AppColors
+                                                                  .tableAvailable
+                                                                  .withAlpha(30)
+                                                              : AppColors
+                                                                  .tableOccupied
+                                                                  .withAlpha(30),
+                                                          borderRadius:
+                                                              BorderRadius
+                                                                  .circular(4),
+                                                        ),
+                                                        child: Text(
+                                                          record.isReceived
+                                                              ? 'RECEIVED'
+                                                              : (record
+                                                                      .isPartiallyPaid
+                                                                  ? 'DUE (₹${record.dueAmount.toStringAsFixed(0)})'
+                                                                  : 'DUE'),
+                                                          style: TextStyle(
+                                                            color: record
+                                                                    .isReceived
+                                                                ? AppColors
+                                                                    .tableAvailable
+                                                                : AppColors
+                                                                    .tableOccupied,
+                                                            fontSize: 10,
+                                                            fontWeight:
+                                                                FontWeight
+                                                                    .w800,
+                                                          ),
+                                                        ),
+                                                      ),
+                                                    ],
+                                                  ),
+                                                  const SizedBox(height: 3),
+                                                  Text(
+                                                    'Closed On: ${record.customerName}  •  Staff: ${record.closedByName}',
+                                                    style: const TextStyle(
+                                                      color: AppColors
+                                                          .secondaryText,
+                                                      fontSize: 12,
+                                                    ),
+                                                    maxLines: 1,
+                                                    overflow: TextOverflow
+                                                        .ellipsis,
+                                                  ),
+                                                ],
+                                              ),
                                             ),
-                                          ),
-                                          const SizedBox(height: 2),
-                                          Text(
-                                            record.isPartiallyPaid
-                                                ? 'Paid ₹${record.paidAmount.toStringAsFixed(0)}'
-                                                : 'Total ₹${record.totalAmount.toStringAsFixed(0)}',
-                                            style: const TextStyle(
+
+                                            // Timing & Duration
+                                            Expanded(
+                                              flex: 2,
+                                              child: Column(
+                                                crossAxisAlignment:
+                                                    CrossAxisAlignment.start,
+                                                children: [
+                                                  Text(
+                                                    DateFormat(
+                                                      'dd MMM, hh:mm a',
+                                                    ).format(record.closedAt),
+                                                    style: const TextStyle(
+                                                      color: AppColors
+                                                          .primaryText,
+                                                      fontWeight:
+                                                          FontWeight.w600,
+                                                      fontSize: 13,
+                                                    ),
+                                                  ),
+                                                  const SizedBox(height: 2),
+                                                  Text(
+                                                    '${record.durationMinutes} mins played',
+                                                    style: const TextStyle(
+                                                      color: AppColors
+                                                          .secondaryText,
+                                                      fontSize: 11,
+                                                    ),
+                                                  ),
+                                                ],
+                                              ),
+                                            ),
+
+                                            // Amount
+                                            Column(
+                                              crossAxisAlignment:
+                                                  CrossAxisAlignment.end,
+                                              children: [
+                                                if (record.isReceived) ...[
+                                                  Text(
+                                                    '₹${record.totalAmount.toStringAsFixed(0)}',
+                                                    style: const TextStyle(
+                                                      color: AppColors
+                                                          .tableAvailable,
+                                                      fontWeight:
+                                                          FontWeight.w800,
+                                                      fontSize: 16,
+                                                    ),
+                                                  ),
+                                                  if (record.paymentMethod !=
+                                                      null)
+                                                    Text(
+                                                      record.paymentMethod!,
+                                                      style: const TextStyle(
+                                                        color: AppColors
+                                                            .secondaryText,
+                                                        fontSize: 11,
+                                                      ),
+                                                    ),
+                                                ] else ...[
+                                                  Text(
+                                                    '₹${record.dueAmount.toStringAsFixed(0)} Due',
+                                                    style: const TextStyle(
+                                                      color: AppColors
+                                                          .tableOccupied,
+                                                      fontWeight:
+                                                          FontWeight.w800,
+                                                      fontSize: 16,
+                                                    ),
+                                                  ),
+                                                  const SizedBox(height: 2),
+                                                  Text(
+                                                    record.isPartiallyPaid
+                                                        ? 'Paid ₹${record.paidAmount.toStringAsFixed(0)}'
+                                                        : 'Total ₹${record.totalAmount.toStringAsFixed(0)}',
+                                                    style: const TextStyle(
+                                                      color: AppColors
+                                                          .secondaryText,
+                                                      fontSize: 11,
+                                                      fontWeight:
+                                                          FontWeight.w500,
+                                                    ),
+                                                  ),
+                                                ],
+                                              ],
+                                            ),
+                                            const SizedBox(width: 8),
+                                            const Icon(
+                                              Icons.chevron_right,
                                               color: AppColors.secondaryText,
-                                              fontSize: 11,
-                                              fontWeight: FontWeight.w500,
+                                              size: 18,
                                             ),
-                                          ),
-                                        ],
-                                      ],
-                                    ),
-                                    const SizedBox(width: 8),
-                                    const Icon(
-                                      Icons.chevron_right,
-                                      color: AppColors.secondaryText,
-                                      size: 18,
-                                    ),
-                                  ],
+                                          ],
+                                        ),
                                 ),
                               ),
                             );
                           },
                         ),
                 ),
+
               ],
             ),
           ),

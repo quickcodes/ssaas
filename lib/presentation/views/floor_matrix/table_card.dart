@@ -1,9 +1,12 @@
 import 'package:flutter/material.dart';
 import '../../../core/theme/app_colors.dart';
 import '../../../core/utils/formatters.dart';
+import '../../../core/utils/interactive_feedback.dart';
 import '../../../domain/entities/club_table.dart';
 import '../../../domain/entities/table_session.dart';
 import '../../../domain/entities/user_account.dart';
+import '../../widgets/bouncing_tap.dart';
+import '../../widgets/pulsing_badge.dart';
 
 class TableCard extends StatelessWidget {
   final ClubTable table;
@@ -50,34 +53,41 @@ class TableCard extends StatelessWidget {
   Widget build(BuildContext context) {
     final hasActiveSession = session != null;
     final playedSeconds = hasActiveSession ? session!.playedSecondsAt(now) : 0;
-    final liveTableFee = hasActiveSession
-        ? session!.computeTableChargeAt(now)
-        : 0.0;
+    final liveTableFee =
+        hasActiveSession ? session!.computeTableChargeAt(now) : 0.0;
     final liveItemsFee = hasActiveSession ? session!.itemsAmount : 0.0;
     final liveGrandTotal = liveTableFee + liveItemsFee;
     final currentHourlyRate = hasActiveSession
         ? session!.effectiveRateAt(now)
         : table.effectiveRateAt(now);
 
-    return Container(
+    return AnimatedContainer(
+      duration: const Duration(milliseconds: 250),
+      curve: Curves.easeOutCubic,
       decoration: BoxDecoration(
         color: AppColors.cardSurface,
-        borderRadius: BorderRadius.circular(16),
+        borderRadius: BorderRadius.circular(18),
         border: Border.all(
           color: hasActiveSession
-              ? _statusColor.withAlpha(180)
+              ? _statusColor.withAlpha(200)
               : AppColors.cardBorderStroke,
           width: hasActiveSession ? 1.8 : 1.0,
         ),
-        boxShadow: hasActiveSession
-            ? [
-                BoxShadow(
-                  color: _statusColor.withAlpha(30),
-                  blurRadius: 18,
-                  spreadRadius: 1,
-                ),
-              ]
-            : null,
+        boxShadow: [
+          if (hasActiveSession)
+            BoxShadow(
+              color: _statusColor.withAlpha(35),
+              blurRadius: 22,
+              spreadRadius: 1,
+              offset: const Offset(0, 4),
+            )
+          else
+            BoxShadow(
+              color: Colors.black.withAlpha(40),
+              blurRadius: 10,
+              offset: const Offset(0, 3),
+            ),
+        ],
       ),
       child: Column(
         crossAxisAlignment: CrossAxisAlignment.stretch,
@@ -88,7 +98,7 @@ class TableCard extends StatelessWidget {
             decoration: BoxDecoration(
               color: AppColors.inputSurface.withAlpha(160),
               borderRadius: const BorderRadius.vertical(
-                top: Radius.circular(15),
+                top: Radius.circular(17),
               ),
               border: const Border(
                 bottom: BorderSide(color: AppColors.cardBorderStroke),
@@ -99,36 +109,44 @@ class TableCard extends StatelessWidget {
               children: [
                 Row(
                   children: [
-                    Container(
-                      width: 10,
-                      height: 10,
-                      decoration: BoxDecoration(
-                        color: _statusColor,
-                        shape: BoxShape.circle,
-                        boxShadow: [
-                          BoxShadow(
-                            color: _statusColor.withAlpha(180),
-                            blurRadius: 6,
-                          ),
-                        ],
+                    if (table.status == TableStatus.occupied)
+                      PulsingBadge(color: _statusColor, size: 10)
+                    else
+                      Container(
+                        width: 10,
+                        height: 10,
+                        decoration: BoxDecoration(
+                          color: _statusColor,
+                          shape: BoxShape.circle,
+                          boxShadow: [
+                            BoxShadow(
+                              color: _statusColor.withAlpha(160),
+                              blurRadius: 5,
+                            ),
+                          ],
+                        ),
                       ),
-                    ),
                     const SizedBox(width: 8),
                     Text(
                       table.name,
                       style: const TextStyle(
                         color: AppColors.primaryText,
-                        fontWeight: FontWeight.w700,
+                        fontWeight: FontWeight.w800,
                         fontSize: 15,
+                        letterSpacing: 0.2,
                       ),
                     ),
                   ],
                 ),
+
                 // Status Popup Menu
                 PopupMenuButton<TableStatus>(
                   initialValue: table.status,
                   tooltip: 'Change Table Status',
-                  onSelected: onUpdateStatus,
+                  onSelected: (status) {
+                    AppHaptics.selection();
+                    onUpdateStatus(status);
+                  },
                   color: AppColors.cardSurface,
                   shape: RoundedRectangleBorder(
                     borderRadius: BorderRadius.circular(12),
@@ -136,13 +154,16 @@ class TableCard extends StatelessWidget {
                   ),
                   child: Container(
                     padding: const EdgeInsets.symmetric(
-                      horizontal: 8,
-                      vertical: 4,
+                      horizontal: 10,
+                      vertical: 5,
                     ),
                     decoration: BoxDecoration(
-                      color: _statusColor.withAlpha(30),
-                      borderRadius: BorderRadius.circular(6),
-                      border: Border.all(color: _statusColor),
+                      color: _statusColor.withAlpha(25),
+                      borderRadius: BorderRadius.circular(8),
+                      border: Border.all(
+                        color: _statusColor.withAlpha(160),
+                        width: 1,
+                      ),
                     ),
                     child: Row(
                       mainAxisSize: MainAxisSize.min,
@@ -151,7 +172,7 @@ class TableCard extends StatelessWidget {
                           table.status.displayName,
                           style: TextStyle(
                             color: _statusColor,
-                            fontWeight: FontWeight.w700,
+                            fontWeight: FontWeight.w800,
                             fontSize: 11,
                           ),
                         ),
@@ -173,11 +194,26 @@ class TableCard extends StatelessWidget {
                       .map((s) {
                         return PopupMenuItem<TableStatus>(
                           value: s,
-                          child: Text(
-                            s.displayName,
-                            style: const TextStyle(
-                              color: AppColors.primaryText,
-                            ),
+                          child: Row(
+                            children: [
+                              Container(
+                                width: 8,
+                                height: 8,
+                                decoration: BoxDecoration(
+                                  color: _getStatusColorFor(s),
+                                  shape: BoxShape.circle,
+                                ),
+                              ),
+                              const SizedBox(width: 10),
+                              Text(
+                                s.displayName,
+                                style: const TextStyle(
+                                  color: AppColors.primaryText,
+                                  fontSize: 13,
+                                  fontWeight: FontWeight.w600,
+                                ),
+                              ),
+                            ],
                           ),
                         );
                       })
@@ -240,6 +276,7 @@ class TableCard extends StatelessWidget {
                             style: TextStyle(
                               color: AppColors.secondaryText,
                               fontSize: 11,
+                              fontWeight: FontWeight.w600,
                             ),
                           ),
                           const SizedBox(height: 2),
@@ -247,9 +284,10 @@ class TableCard extends StatelessWidget {
                             AppFormatters.formatDuration(playedSeconds),
                             style: const TextStyle(
                               color: AppColors.tableAvailable,
-                              fontWeight: FontWeight.w800,
+                              fontWeight: FontWeight.w900,
                               fontSize: 20,
                               fontFamily: 'monospace',
+                              letterSpacing: 1.0,
                             ),
                           ),
                         ],
@@ -262,6 +300,7 @@ class TableCard extends StatelessWidget {
                             style: TextStyle(
                               color: AppColors.secondaryText,
                               fontSize: 11,
+                              fontWeight: FontWeight.w600,
                             ),
                           ),
                           const SizedBox(height: 2),
@@ -269,8 +308,8 @@ class TableCard extends StatelessWidget {
                             '₹${liveGrandTotal.toStringAsFixed(0)}',
                             style: const TextStyle(
                               color: AppColors.brandAccentLight,
-                              fontWeight: FontWeight.w800,
-                              fontSize: 20,
+                              fontWeight: FontWeight.w900,
+                              fontSize: 21,
                             ),
                           ),
                         ],
@@ -297,6 +336,7 @@ class TableCard extends StatelessWidget {
                           style: const TextStyle(
                             color: AppColors.secondaryText,
                             fontSize: 11,
+                            fontWeight: FontWeight.w600,
                           ),
                         ),
                         Text(
@@ -316,56 +356,96 @@ class TableCard extends StatelessWidget {
                     children: [
                       // Add Snack / Drink / Custom item button
                       Expanded(
-                        child: OutlinedButton.icon(
-                          onPressed: onAddItem,
-                          icon: const Icon(Icons.add_shopping_cart, size: 16),
-                          label: const Text(
-                            'Add Items',
-                            style: TextStyle(fontSize: 12),
-                          ),
-                          style: OutlinedButton.styleFrom(
-                            padding: const EdgeInsets.symmetric(vertical: 10),
-                            side: const BorderSide(
-                              color: AppColors.brandAccent,
+                        child: BouncingTap(
+                          onTap: () {
+                            AppHaptics.light();
+                            onAddItem();
+                          },
+                          child: OutlinedButton.icon(
+                            onPressed: () {
+                              AppHaptics.light();
+                              onAddItem();
+                            },
+                            icon: const Icon(Icons.add_shopping_cart, size: 16),
+                            label: const Text(
+                              'Add Items',
+                              style: TextStyle(
+                                fontSize: 12,
+                                fontWeight: FontWeight.w700,
+                              ),
+                            ),
+                            style: OutlinedButton.styleFrom(
+                              padding: const EdgeInsets.symmetric(vertical: 10),
+                              side: const BorderSide(
+                                color: AppColors.brandAccent,
+                              ),
                             ),
                           ),
                         ),
                       ),
                       const SizedBox(width: 8),
                       // Pause / Resume toggle
-                      IconButton(
-                        onPressed: session!.isPaused
-                            ? onResumeSession
-                            : onPauseSession,
-                        tooltip: session!.isPaused
-                            ? 'Resume Clock'
-                            : 'Pause Clock',
-                        icon: Icon(
-                          session!.isPaused ? Icons.play_arrow : Icons.pause,
-                          color: session!.isPaused
-                              ? AppColors.tableAvailable
-                              : AppColors.tableOccupied,
-                        ),
-                        style: IconButton.styleFrom(
-                          backgroundColor: AppColors.inputSurface,
+                      BouncingTap(
+                        onTap: () {
+                          AppHaptics.medium();
+                          if (session!.isPaused) {
+                            onResumeSession();
+                          } else {
+                            onPauseSession();
+                          }
+                        },
+                        child: IconButton(
+                          onPressed: () {
+                            AppHaptics.medium();
+                            if (session!.isPaused) {
+                              onResumeSession();
+                            } else {
+                              onPauseSession();
+                            }
+                          },
+                          tooltip: session!.isPaused
+                              ? 'Resume Clock'
+                              : 'Pause Clock',
+                          icon: Icon(
+                            session!.isPaused ? Icons.play_arrow : Icons.pause,
+                            color: session!.isPaused
+                                ? AppColors.tableAvailable
+                                : AppColors.tableOccupied,
+                          ),
+                          style: IconButton.styleFrom(
+                            backgroundColor: AppColors.inputSurface,
+                          ),
                         ),
                       ),
                     ],
                   ),
                   const SizedBox(height: 8),
-                  ElevatedButton.icon(
-                    onPressed: onCheckoutSession,
-                    icon: const Icon(Icons.check_circle_outline, size: 18),
-                    label: const Text(
-                      'CLOSE TABLE & SETTLE',
-                      style: TextStyle(
-                        fontWeight: FontWeight.w800,
-                        fontSize: 12,
+                  BouncingTap(
+                    onTap: () {
+                      AppHaptics.medium();
+                      onCheckoutSession();
+                    },
+                    child: ElevatedButton.icon(
+                      onPressed: () {
+                        AppHaptics.medium();
+                        onCheckoutSession();
+                      },
+                      icon: const Icon(Icons.check_circle_outline, size: 18),
+                      label: const Text(
+                        'CLOSE TABLE & SETTLE',
+                        style: TextStyle(
+                          fontWeight: FontWeight.w800,
+                          fontSize: 12,
+                          letterSpacing: 0.5,
+                        ),
                       ),
-                    ),
-                    style: ElevatedButton.styleFrom(
-                      backgroundColor: AppColors.brandAccent,
-                      padding: const EdgeInsets.symmetric(vertical: 12),
+                      style: ElevatedButton.styleFrom(
+                        backgroundColor: AppColors.brandAccent,
+                        padding: const EdgeInsets.symmetric(vertical: 12),
+                        shape: RoundedRectangleBorder(
+                          borderRadius: BorderRadius.circular(10),
+                        ),
+                      ),
                     ),
                   ),
                 ] else ...[
@@ -391,13 +471,14 @@ class TableCard extends StatelessWidget {
                             style: TextStyle(
                               color: AppColors.secondaryText,
                               fontSize: 11,
+                              fontWeight: FontWeight.w600,
                             ),
                           ),
                           Text(
                             '₹${table.generalPrice.toStringAsFixed(0)} / hr',
                             style: const TextStyle(
                               color: AppColors.primaryText,
-                              fontWeight: FontWeight.w700,
+                              fontWeight: FontWeight.w800,
                               fontSize: 16,
                             ),
                           ),
@@ -430,17 +511,32 @@ class TableCard extends StatelessWidget {
                   if (table.status != TableStatus.maintenance &&
                       table.status != TableStatus.occupied &&
                       table.status != TableStatus.reserved)
-                    ElevatedButton.icon(
-                      onPressed: onStartSession,
-                      icon: const Icon(Icons.play_arrow, size: 20),
-                      label: const Text(
-                        'START TABLE',
-                        style: TextStyle(fontWeight: FontWeight.w800),
-                      ),
-                      style: ElevatedButton.styleFrom(
-                        backgroundColor: AppColors.tableAvailable,
-                        foregroundColor: Colors.black,
-                        padding: const EdgeInsets.symmetric(vertical: 12),
+                    BouncingTap(
+                      onTap: () {
+                        AppHaptics.medium();
+                        onStartSession();
+                      },
+                      child: ElevatedButton.icon(
+                        onPressed: () {
+                          AppHaptics.medium();
+                          onStartSession();
+                        },
+                        icon: const Icon(Icons.play_arrow, size: 20),
+                        label: const Text(
+                          'START TABLE',
+                          style: TextStyle(
+                            fontWeight: FontWeight.w800,
+                            letterSpacing: 0.5,
+                          ),
+                        ),
+                        style: ElevatedButton.styleFrom(
+                          backgroundColor: AppColors.tableAvailable,
+                          foregroundColor: Colors.black,
+                          padding: const EdgeInsets.symmetric(vertical: 12),
+                          shape: RoundedRectangleBorder(
+                            borderRadius: BorderRadius.circular(10),
+                          ),
+                        ),
                       ),
                     ),
 
@@ -448,7 +544,10 @@ class TableCard extends StatelessWidget {
                   if (activeOperator.isAdmin) ...[
                     const SizedBox(height: 8),
                     TextButton.icon(
-                      onPressed: onConfigureRates,
+                      onPressed: () {
+                        AppHaptics.light();
+                        onConfigureRates();
+                      },
                       icon: const Icon(Icons.tune, size: 16),
                       label: const Text('Configure Prices & Times'),
                       style: TextButton.styleFrom(
@@ -463,5 +562,18 @@ class TableCard extends StatelessWidget {
         ],
       ),
     );
+  }
+
+  Color _getStatusColorFor(TableStatus status) {
+    switch (status) {
+      case TableStatus.available:
+        return AppColors.tableAvailable;
+      case TableStatus.occupied:
+        return AppColors.tableOccupied;
+      case TableStatus.maintenance:
+        return AppColors.tableMaintenance;
+      case TableStatus.reserved:
+        return AppColors.tableReserved;
+    }
   }
 }

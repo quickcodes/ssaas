@@ -2,7 +2,10 @@ import 'package:flutter/material.dart';
 import 'package:flutter_bloc/flutter_bloc.dart';
 import 'package:intl/intl.dart';
 import '../../../core/theme/app_colors.dart';
+import '../../../core/utils/interactive_feedback.dart';
+import '../../../core/utils/responsive.dart';
 import '../../blocs/auth/auth_bloc.dart';
+import '../../widgets/bouncing_tap.dart';
 
 class CreateCompanyScreen extends StatefulWidget {
   const CreateCompanyScreen({super.key});
@@ -40,6 +43,7 @@ class _CreateCompanyScreenState extends State<CreateCompanyScreen> {
   }
 
   Future<void> _pickExpiryDate() async {
+    AppHaptics.light();
     final picked = await showDatePicker(
       context: context,
       initialDate: _expiryDate,
@@ -66,6 +70,7 @@ class _CreateCompanyScreenState extends State<CreateCompanyScreen> {
 
   void _submit() {
     if (!_formKey.currentState!.validate()) return;
+    AppHaptics.medium();
 
     context.read<AuthBloc>().add(
           CreateCompanyWithAdminEvent(
@@ -83,6 +88,8 @@ class _CreateCompanyScreenState extends State<CreateCompanyScreen> {
 
   @override
   Widget build(BuildContext context) {
+    final isMobile = Responsive.isMobile(context);
+
     return BlocListener<AuthBloc, AuthState>(
       listener: (context, state) {
         if (state.errorMessage != null) {
@@ -108,6 +115,13 @@ class _CreateCompanyScreenState extends State<CreateCompanyScreen> {
         appBar: AppBar(
           backgroundColor: AppColors.cardSurface,
           elevation: 0,
+          leading: IconButton(
+            icon: const Icon(Icons.arrow_back),
+            onPressed: () {
+              AppHaptics.light();
+              Navigator.of(context).pop();
+            },
+          ),
           title: const Text(
             'Developer: Create New Company',
             style: TextStyle(fontSize: 18, fontWeight: FontWeight.w700),
@@ -115,10 +129,13 @@ class _CreateCompanyScreenState extends State<CreateCompanyScreen> {
         ),
         body: Center(
           child: SingleChildScrollView(
-            padding: const EdgeInsets.symmetric(horizontal: 24, vertical: 32),
+            padding: EdgeInsets.symmetric(
+              horizontal: isMobile ? 16 : 24,
+              vertical: 24,
+            ),
             child: Container(
               constraints: const BoxConstraints(maxWidth: 680),
-              padding: const EdgeInsets.all(32),
+              padding: EdgeInsets.all(isMobile ? 20 : 32),
               decoration: BoxDecoration(
                 color: AppColors.cardSurface,
                 borderRadius: BorderRadius.circular(20),
@@ -170,232 +187,260 @@ class _CreateCompanyScreenState extends State<CreateCompanyScreen> {
                     const SizedBox(height: 24),
 
                     // Section 1: Company Profile
-                    const Text(
-                      '1. COMPANY PROFILE',
-                      style: TextStyle(
-                        color: AppColors.secondaryText,
-                        fontSize: 12,
-                        fontWeight: FontWeight.w800,
-                        letterSpacing: 1.1,
+                    Container(
+                      padding: EdgeInsets.all(isMobile ? 16 : 20),
+                      decoration: BoxDecoration(
+                        color: AppColors.cardSurfaceElevated,
+                        borderRadius: BorderRadius.circular(16),
+                        border: Border.all(color: AppColors.cardBorderStroke),
                       ),
-                    ),
-                    const SizedBox(height: 12),
-                    TextFormField(
-                      controller: _companyNameCtrl,
-                      decoration: const InputDecoration(
-                        labelText: 'Company / Club Name *',
-                        hintText: 'e.g. CCD Snooker Club, Matrix Snooker Club',
-                        prefixIcon: Icon(Icons.business_outlined),
-                      ),
-                      validator: (val) => val == null || val.trim().isEmpty
-                          ? 'Company name is required'
-                          : null,
-                    ),
-                    const SizedBox(height: 16),
-                    TextFormField(
-                      controller: _companyCodeCtrl,
-                      textCapitalization: TextCapitalization.characters,
-                      decoration: const InputDecoration(
-                        labelText: 'Unique Company Code *',
-                        hintText: 'e.g. CCD01, MATRIX, SNOOKER101',
-                        prefixIcon: Icon(Icons.pin_outlined),
-                        helperText:
-                            'Short unique ID used by staff & admins to login',
-                      ),
-                      validator: (val) {
-                        if (val == null || val.trim().isEmpty) {
-                          return 'Unique company code is required';
-                        }
-                        final clean = val.trim().toUpperCase();
-                        if (clean.length < 3) {
-                          return 'Code must be at least 3 characters long';
-                        }
-                        if (!RegExp(r'^[A-Z0-9_-]+$').hasMatch(clean)) {
-                          return 'Only letters, numbers, hyphens, and underscores allowed';
-                        }
-                        return null;
-                      },
-                    ),
-                    const SizedBox(height: 16),
-                    TextFormField(
-                      controller: _companyNumberCtrl,
-                      decoration: const InputDecoration(
-                        labelText: 'Company Phone / Contact Number *',
-                        hintText: 'e.g. +91 9876543210',
-                        prefixIcon: Icon(Icons.phone_outlined),
-                      ),
-                      validator: (val) => val == null || val.trim().isEmpty
-                          ? 'Company phone number is required'
-                          : null,
-                    ),
-                    const SizedBox(height: 16),
-
-                    // Expiry Date Field
-                    InkWell(
-                      onTap: _pickExpiryDate,
-                      borderRadius: BorderRadius.circular(12),
-                      child: Container(
-                        padding: const EdgeInsets.symmetric(
-                          horizontal: 16,
-                          vertical: 14,
-                        ),
-                        decoration: BoxDecoration(
-                          color: AppColors.inputSurface,
-                          borderRadius: BorderRadius.circular(12),
-                          border: Border.all(color: AppColors.cardBorderStroke),
-                        ),
-                        child: Row(
-                          children: [
-                            const Icon(
-                              Icons.calendar_today_outlined,
+                      child: Column(
+                        crossAxisAlignment: CrossAxisAlignment.stretch,
+                        children: [
+                          const Text(
+                            '1. COMPANY PROFILE',
+                            style: TextStyle(
                               color: AppColors.brandAccentLight,
+                              fontSize: 12,
+                              fontWeight: FontWeight.w800,
+                              letterSpacing: 1.1,
                             ),
-                            const SizedBox(width: 14),
-                            Column(
-                              crossAxisAlignment: CrossAxisAlignment.start,
-                              children: [
-                                const Text(
-                                  'Subscription Expiry Date *',
-                                  style: TextStyle(
+                          ),
+                          const SizedBox(height: 14),
+                          TextFormField(
+                            controller: _companyNameCtrl,
+                            decoration: const InputDecoration(
+                              labelText: 'Company / Club Name *',
+                              hintText: 'e.g. CCD Snooker Club, Matrix Snooker Club',
+                              prefixIcon: Icon(Icons.business_outlined),
+                            ),
+                            validator: (val) => val == null || val.trim().isEmpty
+                                ? 'Company name is required'
+                                : null,
+                          ),
+                          const SizedBox(height: 14),
+                          TextFormField(
+                            controller: _companyCodeCtrl,
+                            textCapitalization: TextCapitalization.characters,
+                            decoration: const InputDecoration(
+                              labelText: 'Unique Company Code *',
+                              hintText: 'e.g. CCD01, MATRIX, SNOOKER101',
+                              prefixIcon: Icon(Icons.pin_outlined),
+                              helperText:
+                                  'Short unique ID used by staff & admins to login',
+                            ),
+                            validator: (val) {
+                              if (val == null || val.trim().isEmpty) {
+                                return 'Unique company code is required';
+                              }
+                              final clean = val.trim().toUpperCase();
+                              if (clean.length < 3) {
+                                return 'Code must be at least 3 characters long';
+                              }
+                              if (!RegExp(r'^[A-Z0-9_-]+$').hasMatch(clean)) {
+                                return 'Only letters, numbers, hyphens, and underscores allowed';
+                              }
+                              return null;
+                            },
+                          ),
+                          const SizedBox(height: 14),
+                          TextFormField(
+                            controller: _companyNumberCtrl,
+                            decoration: const InputDecoration(
+                              labelText: 'Company Phone / Contact Number *',
+                              hintText: 'e.g. +91 9876543210',
+                              prefixIcon: Icon(Icons.phone_outlined),
+                            ),
+                            validator: (val) => val == null || val.trim().isEmpty
+                                ? 'Company phone number is required'
+                                : null,
+                          ),
+                          const SizedBox(height: 14),
+
+                          // Expiry Date Field
+                          BouncingTap(
+                            onTap: _pickExpiryDate,
+                            child: Container(
+                              padding: const EdgeInsets.symmetric(
+                                horizontal: 16,
+                                vertical: 14,
+                              ),
+                              decoration: BoxDecoration(
+                                color: AppColors.inputSurface,
+                                borderRadius: BorderRadius.circular(12),
+                                border: Border.all(color: AppColors.cardBorderStroke),
+                              ),
+                              child: Row(
+                                children: [
+                                  const Icon(
+                                    Icons.calendar_today_outlined,
+                                    color: AppColors.brandAccentLight,
+                                  ),
+                                  const SizedBox(width: 14),
+                                  Column(
+                                    crossAxisAlignment: CrossAxisAlignment.start,
+                                    children: [
+                                      const Text(
+                                        'Subscription Expiry Date *',
+                                        style: TextStyle(
+                                          color: AppColors.secondaryText,
+                                          fontSize: 11,
+                                        ),
+                                      ),
+                                      const SizedBox(height: 2),
+                                      Text(
+                                        DateFormat('dd MMMM yyyy').format(_expiryDate),
+                                        style: const TextStyle(
+                                          color: AppColors.primaryText,
+                                          fontSize: 15,
+                                          fontWeight: FontWeight.w700,
+                                        ),
+                                      ),
+                                    ],
+                                  ),
+                                  const Spacer(),
+                                  const Icon(
+                                    Icons.edit_calendar,
                                     color: AppColors.secondaryText,
-                                    fontSize: 11,
+                                    size: 20,
                                   ),
-                                ),
-                                const SizedBox(height: 2),
-                                Text(
-                                  DateFormat('dd MMMM yyyy').format(_expiryDate),
-                                  style: const TextStyle(
-                                    color: AppColors.primaryText,
-                                    fontSize: 15,
-                                    fontWeight: FontWeight.w700,
-                                  ),
-                                ),
-                              ],
+                                ],
+                              ),
                             ),
-                            const Spacer(),
-                            const Icon(
-                              Icons.edit_calendar,
-                              color: AppColors.secondaryText,
-                              size: 20,
-                            ),
-                          ],
-                        ),
+                          ),
+                        ],
                       ),
                     ),
-                    const SizedBox(height: 32),
+                    const SizedBox(height: 24),
 
                     // Section 2: Initial Admin User
-                    const Text(
-                      '2. INITIAL ADMIN USER',
-                      style: TextStyle(
-                        color: AppColors.secondaryText,
-                        fontSize: 12,
-                        fontWeight: FontWeight.w800,
-                        letterSpacing: 1.1,
+                    Container(
+                      padding: EdgeInsets.all(isMobile ? 16 : 20),
+                      decoration: BoxDecoration(
+                        color: AppColors.cardSurfaceElevated,
+                        borderRadius: BorderRadius.circular(16),
+                        border: Border.all(color: AppColors.cardBorderStroke),
                       ),
-                    ),
-                    const SizedBox(height: 6),
-                    const Text(
-                      'This user will be marked as Admin automatically and can add more users and configure tables.',
-                      style: TextStyle(color: AppColors.secondaryText, fontSize: 12),
-                    ),
-                    const SizedBox(height: 12),
-                    TextFormField(
-                      controller: _userNameCtrl,
-                      decoration: const InputDecoration(
-                        labelText: 'Admin Full Name *',
-                        hintText: 'e.g. John Doe',
-                        prefixIcon: Icon(Icons.person_outline),
-                      ),
-                      validator: (val) => val == null || val.trim().isEmpty
-                          ? 'Admin name is required'
-                          : null,
-                    ),
-                    const SizedBox(height: 16),
-                    TextFormField(
-                      controller: _userNumberCtrl,
-                      decoration: const InputDecoration(
-                        labelText: 'Admin Phone Number *',
-                        hintText: 'e.g. 9876543210',
-                        prefixIcon: Icon(Icons.phone_android_outlined),
-                      ),
-                      validator: (val) => val == null || val.trim().isEmpty
-                          ? 'Phone number is required'
-                          : null,
-                    ),
-                    const SizedBox(height: 16),
-                    TextFormField(
-                      controller: _userEmailCtrl,
-                      decoration: const InputDecoration(
-                        labelText: 'Admin Email *',
-                        hintText: 'admin@club.com',
-                        prefixIcon: Icon(Icons.email_outlined),
-                      ),
-                      keyboardType: TextInputType.emailAddress,
-                      validator: (val) {
-                        if (val == null || val.trim().isEmpty) {
-                          return 'Email is required';
-                        }
-                        if (!val.contains('@')) return 'Enter a valid email';
-                        return null;
-                      },
-                    ),
-                    const SizedBox(height: 16),
-                    TextFormField(
-                      controller: _userPasswordCtrl,
-                      obscureText: _obscurePassword,
-                      decoration: InputDecoration(
-                        labelText: 'Admin Password *',
-                        prefixIcon: const Icon(Icons.lock_outline),
-                        suffixIcon: IconButton(
-                          icon: Icon(
-                            _obscurePassword
-                                ? Icons.visibility_off
-                                : Icons.visibility,
-                            color: AppColors.secondaryText,
+                      child: Column(
+                        crossAxisAlignment: CrossAxisAlignment.stretch,
+                        children: [
+                          const Text(
+                            '2. INITIAL ADMIN USER',
+                            style: TextStyle(
+                              color: AppColors.brandAccentLight,
+                              fontSize: 12,
+                              fontWeight: FontWeight.w800,
+                              letterSpacing: 1.1,
+                            ),
                           ),
-                          onPressed: () {
-                            setState(
-                              () => _obscurePassword = !_obscurePassword,
-                            );
-                          },
-                        ),
+                          const SizedBox(height: 6),
+                          const Text(
+                            'This user will be marked as Admin automatically and can add more users and configure tables.',
+                            style: TextStyle(color: AppColors.secondaryText, fontSize: 12),
+                          ),
+                          const SizedBox(height: 14),
+                          TextFormField(
+                            controller: _userNameCtrl,
+                            decoration: const InputDecoration(
+                              labelText: 'Admin Full Name *',
+                              hintText: 'e.g. John Doe',
+                              prefixIcon: Icon(Icons.person_outline),
+                            ),
+                            validator: (val) => val == null || val.trim().isEmpty
+                                ? 'Admin name is required'
+                                : null,
+                          ),
+                          const SizedBox(height: 14),
+                          TextFormField(
+                            controller: _userNumberCtrl,
+                            decoration: const InputDecoration(
+                              labelText: 'Admin Phone Number *',
+                              hintText: 'e.g. 9876543210',
+                              prefixIcon: Icon(Icons.phone_android_outlined),
+                            ),
+                            validator: (val) => val == null || val.trim().isEmpty
+                                ? 'Phone number is required'
+                                : null,
+                          ),
+                          const SizedBox(height: 14),
+                          TextFormField(
+                            controller: _userEmailCtrl,
+                            decoration: const InputDecoration(
+                              labelText: 'Admin Email *',
+                              hintText: 'admin@club.com',
+                              prefixIcon: Icon(Icons.email_outlined),
+                            ),
+                            keyboardType: TextInputType.emailAddress,
+                            validator: (val) {
+                              if (val == null || val.trim().isEmpty) {
+                                return 'Email is required';
+                              }
+                              if (!val.contains('@')) return 'Enter a valid email';
+                              return null;
+                            },
+                          ),
+                          const SizedBox(height: 14),
+                          TextFormField(
+                            controller: _userPasswordCtrl,
+                            obscureText: _obscurePassword,
+                            decoration: InputDecoration(
+                              labelText: 'Admin Password *',
+                              prefixIcon: const Icon(Icons.lock_outline),
+                              suffixIcon: IconButton(
+                                icon: Icon(
+                                  _obscurePassword
+                                      ? Icons.visibility_off
+                                      : Icons.visibility,
+                                  color: AppColors.secondaryText,
+                                ),
+                                onPressed: () {
+                                  setState(
+                                    () => _obscurePassword = !_obscurePassword,
+                                  );
+                                },
+                              ),
+                            ),
+                            validator: (val) => val == null || val.length < 4
+                                ? 'Password must be at least 4 characters'
+                                : null,
+                          ),
+                        ],
                       ),
-                      validator: (val) => val == null || val.length < 4
-                          ? 'Password must be at least 4 characters'
-                          : null,
                     ),
                     const SizedBox(height: 32),
 
                     // Submit Button
                     BlocBuilder<AuthBloc, AuthState>(
                       builder: (context, state) {
-                        return ElevatedButton(
-                          onPressed: state.isLoading ? null : _submit,
-                          style: ElevatedButton.styleFrom(
-                            backgroundColor: AppColors.brandAccent,
-                            padding: const EdgeInsets.symmetric(vertical: 16),
-                            shape: RoundedRectangleBorder(
-                              borderRadius: BorderRadius.circular(12),
+                        return BouncingTap(
+                          onTap: state.isLoading ? null : _submit,
+                          child: ElevatedButton(
+                            onPressed: state.isLoading ? null : _submit,
+                            style: ElevatedButton.styleFrom(
+                              backgroundColor: AppColors.brandAccent,
+                              padding: const EdgeInsets.symmetric(vertical: 16),
+                              shape: RoundedRectangleBorder(
+                                borderRadius: BorderRadius.circular(12),
+                              ),
                             ),
+                            child: state.isLoading
+                                ? const SizedBox(
+                                    height: 20,
+                                    width: 20,
+                                    child: CircularProgressIndicator(
+                                      strokeWidth: 2,
+                                      color: Colors.white,
+                                    ),
+                                  )
+                                : const Text(
+                                    'CREATE COMPANY & ADMIN',
+                                    style: TextStyle(
+                                      fontSize: 14,
+                                      fontWeight: FontWeight.w800,
+                                      letterSpacing: 1.0,
+                                    ),
+                                  ),
                           ),
-                          child: state.isLoading
-                              ? const SizedBox(
-                                  height: 20,
-                                  width: 20,
-                                  child: CircularProgressIndicator(
-                                    strokeWidth: 2,
-                                    color: Colors.white,
-                                  ),
-                                )
-                              : const Text(
-                                  'CREATE COMPANY & ADMIN',
-                                  style: TextStyle(
-                                    fontSize: 14,
-                                    fontWeight: FontWeight.w800,
-                                    letterSpacing: 1.0,
-                                  ),
-                                ),
                         );
                       },
                     ),
@@ -409,3 +454,4 @@ class _CreateCompanyScreenState extends State<CreateCompanyScreen> {
     );
   }
 }
+

@@ -2,7 +2,10 @@ import 'package:flutter/material.dart';
 import 'package:flutter_bloc/flutter_bloc.dart';
 import '../../../core/constants/constants.dart';
 import '../../../core/theme/app_colors.dart';
+import '../../../core/utils/interactive_feedback.dart';
+import '../../../core/utils/responsive.dart';
 import '../../blocs/auth/auth_bloc.dart';
+import '../../widgets/bouncing_tap.dart';
 import 'create_company_screen.dart';
 
 class LoginScreen extends StatefulWidget {
@@ -12,15 +15,33 @@ class LoginScreen extends StatefulWidget {
   State<LoginScreen> createState() => _LoginScreenState();
 }
 
-class _LoginScreenState extends State<LoginScreen> {
+class _LoginScreenState extends State<LoginScreen>
+    with SingleTickerProviderStateMixin {
   final _formKey = GlobalKey<FormState>();
   final _companyCodeCtrl = TextEditingController();
   final _identifierCtrl = TextEditingController();
   final _passwordCtrl = TextEditingController();
   bool _obscurePassword = true;
 
+  late final AnimationController _logoAnimCtrl;
+  late final Animation<double> _logoScaleAnim;
+
+  @override
+  void initState() {
+    super.initState();
+    _logoAnimCtrl = AnimationController(
+      vsync: this,
+      duration: const Duration(milliseconds: 2400),
+    )..repeat(reverse: true);
+
+    _logoScaleAnim = Tween<double>(begin: 1.0, end: 1.05).animate(
+      CurvedAnimation(parent: _logoAnimCtrl, curve: Curves.easeInOut),
+    );
+  }
+
   @override
   void dispose() {
+    _logoAnimCtrl.dispose();
     _companyCodeCtrl.dispose();
     _identifierCtrl.dispose();
     _passwordCtrl.dispose();
@@ -29,6 +50,7 @@ class _LoginScreenState extends State<LoginScreen> {
 
   void _submitLogin() {
     if (!_formKey.currentState!.validate()) return;
+    AppHaptics.medium();
 
     context.read<AuthBloc>().add(
       LoginCompanyUserEvent(
@@ -41,6 +63,8 @@ class _LoginScreenState extends State<LoginScreen> {
 
   @override
   Widget build(BuildContext context) {
+    final isMobile = Responsive.isMobile(context);
+
     return BlocConsumer<AuthBloc, AuthState>(
       listener: (context, state) {
         if (state.errorMessage != null) {
@@ -54,217 +78,266 @@ class _LoginScreenState extends State<LoginScreen> {
       builder: (context, state) {
         return Scaffold(
           backgroundColor: AppColors.backgroundBase,
-          body: Center(
-            child: SingleChildScrollView(
-              padding: const EdgeInsets.symmetric(horizontal: 24, vertical: 32),
-              child: Container(
-                constraints: const BoxConstraints(maxWidth: 480),
-                padding: const EdgeInsets.all(32),
-                decoration: BoxDecoration(
-                  color: AppColors.cardSurface,
-                  borderRadius: BorderRadius.circular(24),
-                  border: Border.all(color: AppColors.cardBorderStroke),
-                  boxShadow: [
-                    BoxShadow(
-                      color: Colors.black.withAlpha(90),
-                      blurRadius: 40,
-                      offset: const Offset(0, 15),
+          body: Stack(
+            children: [
+              // Ambient glow accents
+              Positioned(
+                top: -80,
+                left: -80,
+                child: IgnorePointer(
+                  child: Container(
+                    width: 280,
+                    height: 280,
+                    decoration: BoxDecoration(
+                      shape: BoxShape.circle,
+                      gradient: RadialGradient(
+                        colors: [
+                          AppColors.brandAccent.withAlpha(35),
+                          Colors.transparent,
+                        ],
+                      ),
                     ),
-                  ],
-                ),
-                child: Form(
-                  key: _formKey,
-                  child: Column(
-                    mainAxisSize: MainAxisSize.min,
-                    crossAxisAlignment: CrossAxisAlignment.stretch,
-                    children: [
-                      // Header Logo & Title
-                      // Center(
-                      //   child: Container(
-                      //     width: 68,
-                      //     height: 68,
-                      //     decoration: BoxDecoration(
-                      //       gradient: const LinearGradient(
-                      //         colors: [AppColors.brandAccent, Color(0xFF0F9D58)],
-                      //         begin: Alignment.topLeft,
-                      //         end: Alignment.bottomRight,
-                      //       ),
-                      //       borderRadius: BorderRadius.circular(20),
-                      //       boxShadow: [
-                      //         BoxShadow(
-                      //           color: AppColors.brandAccent.withAlpha(100),
-                      //           blurRadius: 20,
-                      //           offset: const Offset(0, 6),
-                      //         ),
-                      //       ],
-                      //     ),
-                      //     child: const Icon(
-                      //       Icons.sports_esports,
-                      //       color: Colors.white,
-                      //       size: 34,
-                      //     ),
-                      //   ),
-                      // ),
-                      Center(
-                        child: ClipRRect(
-                          borderRadius: BorderRadius.circular(100),
-                          child: Image.asset(
-                            "assets/logo.png",
-                            height: 68,
-                            width: 68,
-                          ),
-                        ),
-                      ),
-                      const SizedBox(height: 20),
-                      const Text(
-                        'Snooker',
-                        textAlign: TextAlign.center,
-                        style: TextStyle(
-                          color: AppColors.primaryText,
-                          fontSize: 24,
-                          fontWeight: FontWeight.w800,
-                          letterSpacing: 0.5,
-                        ),
-                      ),
-                      const SizedBox(height: 6),
-                      const Text(
-                        'Snooker & Billiards Management Portal',
-                        textAlign: TextAlign.center,
-                        style: TextStyle(
-                          color: AppColors.secondaryText,
-                          fontSize: 13,
-                        ),
-                      ),
-                      const SizedBox(height: 30),
-
-                      // Company Selector
-                      // Company Code
-                      const Text(
-                        'ENTER YOUR CLUB CODE',
-                        style: TextStyle(
-                          color: AppColors.secondaryText,
-                          fontSize: 11,
-                          fontWeight: FontWeight.w800,
-                          letterSpacing: 1.0,
-                        ),
-                      ),
-                      const SizedBox(height: 8),
-                      TextFormField(
-                        controller: _companyCodeCtrl,
-                        textCapitalization: TextCapitalization.characters,
-                        decoration: const InputDecoration(
-                          labelText: 'Unique Company / Club Code *',
-                          hintText: 'e.g. CCD01, MATRIX',
-                          prefixIcon: Icon(Icons.apartment_outlined),
-                        ),
-                        validator: (val) => val == null || val.trim().isEmpty
-                            ? 'Please enter your company / club code'
-                            : null,
-                      ),
-                      const SizedBox(height: 20),
-
-                      // User Identifier (Email or Phone)
-                      TextFormField(
-                        controller: _identifierCtrl,
-                        decoration: const InputDecoration(
-                          labelText: 'Email Address or Phone Number',
-                          hintText: 'e.g. admin@club.com or 9876543210',
-                          prefixIcon: Icon(Icons.person_outline),
-                        ),
-                        validator: (val) => val == null || val.trim().isEmpty
-                            ? 'Enter your email or phone number'
-                            : null,
-                      ),
-                      const SizedBox(height: 16),
-
-                      // Password Field
-                      TextFormField(
-                        controller: _passwordCtrl,
-                        obscureText: _obscurePassword,
-                        decoration: InputDecoration(
-                          labelText: 'Password',
-                          prefixIcon: const Icon(Icons.lock_outline),
-                          suffixIcon: IconButton(
-                            icon: Icon(
-                              _obscurePassword
-                                  ? Icons.visibility_off
-                                  : Icons.visibility,
-                              color: AppColors.secondaryText,
-                            ),
-                            onPressed: () {
-                              setState(
-                                () => _obscurePassword = !_obscurePassword,
-                              );
-                            },
-                          ),
-                        ),
-                        validator: (val) => val == null || val.isEmpty
-                            ? 'Enter your password'
-                            : null,
-                      ),
-                      const SizedBox(height: 28),
-
-                      // Login Button
-                      ElevatedButton(
-                        onPressed: state.isLoading ? null : _submitLogin,
-                        style: ElevatedButton.styleFrom(
-                          backgroundColor: AppColors.brandAccent,
-                          padding: const EdgeInsets.symmetric(vertical: 16),
-                          shape: RoundedRectangleBorder(
-                            borderRadius: BorderRadius.circular(12),
-                          ),
-                        ),
-                        child: state.isLoading
-                            ? const SizedBox(
-                                height: 20,
-                                width: 20,
-                                child: CircularProgressIndicator(
-                                  strokeWidth: 2,
-                                  color: Colors.white,
-                                ),
-                              )
-                            : const Text(
-                                'LOGIN TO CLUB',
-                                style: TextStyle(
-                                  fontSize: 14,
-                                  fontWeight: FontWeight.w800,
-                                  letterSpacing: 1.0,
-                                ),
-                              ),
-                      ),
-
-                      // Dev-only Company Creation Option
-                      if (Constants.isAdmin) ...[
-                        const SizedBox(height: 24),
-                        const Divider(color: AppColors.cardBorderStroke),
-                        const SizedBox(height: 16),
-                        OutlinedButton.icon(
-                          onPressed: () {
-                            Navigator.of(context).push(
-                              MaterialPageRoute(
-                                builder: (_) => const CreateCompanyScreen(),
-                              ),
-                            );
-                          },
-                          icon: const Icon(Icons.add_business_outlined),
-                          label: const Text('Create New Company (Dev Mode)'),
-                          style: OutlinedButton.styleFrom(
-                            foregroundColor: AppColors.brandAccentLight,
-                            side: const BorderSide(
-                              color: AppColors.brandAccent,
-                            ),
-                            padding: const EdgeInsets.symmetric(vertical: 14),
-                            shape: RoundedRectangleBorder(
-                              borderRadius: BorderRadius.circular(12),
-                            ),
-                          ),
-                        ),
-                      ],
-                    ],
                   ),
                 ),
               ),
-            ),
+              Positioned(
+                bottom: -60,
+                right: -60,
+                child: IgnorePointer(
+                  child: Container(
+                    width: 260,
+                    height: 260,
+                    decoration: BoxDecoration(
+                      shape: BoxShape.circle,
+                      gradient: RadialGradient(
+                        colors: [
+                          const Color(0xFF0F9D58).withAlpha(30),
+                          Colors.transparent,
+                        ],
+                      ),
+                    ),
+                  ),
+                ),
+              ),
+              // Main content
+              Center(
+                child: SingleChildScrollView(
+                  padding: EdgeInsets.symmetric(
+                    horizontal: isMobile ? 18 : 24,
+                    vertical: 32,
+                  ),
+                  child: Container(
+                    constraints: const BoxConstraints(maxWidth: 480),
+                    padding: EdgeInsets.all(isMobile ? 22 : 36),
+                    decoration: BoxDecoration(
+                      color: AppColors.cardSurface,
+                      borderRadius: BorderRadius.circular(24),
+                      border: Border.all(color: AppColors.cardBorderStroke),
+                      boxShadow: [
+                        BoxShadow(
+                          color: Colors.black.withAlpha(100),
+                          blurRadius: 40,
+                          offset: const Offset(0, 15),
+                        ),
+                      ],
+                    ),
+                    child: Form(
+                      key: _formKey,
+                      child: Column(
+                        mainAxisSize: MainAxisSize.min,
+                        crossAxisAlignment: CrossAxisAlignment.stretch,
+                        children: [
+                          // Header Logo with breathing pulse
+                          Center(
+                            child: ScaleTransition(
+                              scale: _logoScaleAnim,
+                              child: Container(
+                                decoration: BoxDecoration(
+                                  shape: BoxShape.circle,
+                                  boxShadow: [
+                                    BoxShadow(
+                                      color: AppColors.brandAccent.withAlpha(60),
+                                      blurRadius: 28,
+                                      spreadRadius: 4,
+                                    ),
+                                  ],
+                                ),
+                                child: ClipRRect(
+                                  borderRadius: BorderRadius.circular(100),
+                                  child: Image.asset(
+                                    "assets/logo.png",
+                                    height: isMobile ? 64 : 72,
+                                    width: isMobile ? 64 : 72,
+                                  ),
+                                ),
+                              ),
+                            ),
+                          ),
+                          const SizedBox(height: 20),
+                          const Text(
+                            'Snooker',
+                            textAlign: TextAlign.center,
+                            style: TextStyle(
+                              color: AppColors.primaryText,
+                              fontSize: 24,
+                              fontWeight: FontWeight.w800,
+                              letterSpacing: 0.5,
+                            ),
+                          ),
+                          const SizedBox(height: 6),
+                          const Text(
+                            'Snooker & Billiards Management Portal',
+                            textAlign: TextAlign.center,
+                            style: TextStyle(
+                              color: AppColors.secondaryText,
+                              fontSize: 13,
+                            ),
+                          ),
+                          const SizedBox(height: 28),
+
+                          // Company Code
+                          const Text(
+                            'ENTER YOUR CLUB CODE',
+                            style: TextStyle(
+                              color: AppColors.secondaryText,
+                              fontSize: 11,
+                              fontWeight: FontWeight.w800,
+                              letterSpacing: 1.0,
+                            ),
+                          ),
+                          const SizedBox(height: 8),
+                          TextFormField(
+                            controller: _companyCodeCtrl,
+                            textCapitalization: TextCapitalization.characters,
+                            decoration: const InputDecoration(
+                              labelText: 'Unique Company / Club Code *',
+                              hintText: 'e.g. CCD01, MATRIX',
+                              prefixIcon: Icon(Icons.apartment_outlined),
+                            ),
+                            validator: (val) => val == null || val.trim().isEmpty
+                                ? 'Please enter your company / club code'
+                                : null,
+                          ),
+                          const SizedBox(height: 18),
+
+                          // User Identifier (Email or Phone)
+                          TextFormField(
+                            controller: _identifierCtrl,
+                            decoration: const InputDecoration(
+                              labelText: 'Email Address or Phone Number *',
+                              hintText: 'e.g. admin@club.com or 9876543210',
+                              prefixIcon: Icon(Icons.person_outline),
+                            ),
+                            validator: (val) => val == null || val.trim().isEmpty
+                                ? 'Enter your email or phone number'
+                                : null,
+                          ),
+                          const SizedBox(height: 16),
+
+                          // Password Field
+                          TextFormField(
+                            controller: _passwordCtrl,
+                            obscureText: _obscurePassword,
+                            decoration: InputDecoration(
+                              labelText: 'Password *',
+                              prefixIcon: const Icon(Icons.lock_outline),
+                              suffixIcon: IconButton(
+                                icon: Icon(
+                                  _obscurePassword
+                                      ? Icons.visibility_off
+                                      : Icons.visibility,
+                                  color: AppColors.secondaryText,
+                                ),
+                                onPressed: () {
+                                  setState(
+                                    () => _obscurePassword = !_obscurePassword,
+                                  );
+                                },
+                              ),
+                            ),
+                            validator: (val) => val == null || val.isEmpty
+                                ? 'Enter your password'
+                                : null,
+                          ),
+                          const SizedBox(height: 28),
+
+                          // Login Button
+                          BouncingTap(
+                            onTap: state.isLoading ? null : _submitLogin,
+                            child: ElevatedButton(
+                              onPressed: state.isLoading ? null : _submitLogin,
+                              style: ElevatedButton.styleFrom(
+                                backgroundColor: AppColors.brandAccent,
+                                padding: const EdgeInsets.symmetric(vertical: 16),
+                                shape: RoundedRectangleBorder(
+                                  borderRadius: BorderRadius.circular(12),
+                                ),
+                              ),
+                              child: state.isLoading
+                                  ? const SizedBox(
+                                      height: 20,
+                                      width: 20,
+                                      child: CircularProgressIndicator(
+                                        strokeWidth: 2,
+                                        color: Colors.white,
+                                      ),
+                                    )
+                                  : const Text(
+                                      'LOGIN TO CLUB',
+                                      style: TextStyle(
+                                        fontSize: 14,
+                                        fontWeight: FontWeight.w800,
+                                        letterSpacing: 1.0,
+                                      ),
+                                    ),
+                            ),
+                          ),
+
+                          // Dev-only Company Creation Option
+                          if (Constants.isAdmin) ...[
+                            const SizedBox(height: 24),
+                            const Divider(color: AppColors.cardBorderStroke),
+                            const SizedBox(height: 16),
+                            BouncingTap(
+                              onTap: () {
+                                AppHaptics.light();
+                                Navigator.of(context).push(
+                                  MaterialPageRoute(
+                                    builder: (_) => const CreateCompanyScreen(),
+                                  ),
+                                );
+                              },
+                              child: OutlinedButton.icon(
+                                onPressed: () {
+                                  AppHaptics.light();
+                                  Navigator.of(context).push(
+                                    MaterialPageRoute(
+                                      builder: (_) => const CreateCompanyScreen(),
+                                    ),
+                                  );
+                                },
+                                icon: const Icon(Icons.add_business_outlined),
+                                label: const Text('Create New Company (Dev Mode)'),
+                                style: OutlinedButton.styleFrom(
+                                  foregroundColor: AppColors.brandAccentLight,
+                                  side: const BorderSide(
+                                    color: AppColors.brandAccent,
+                                  ),
+                                  padding: const EdgeInsets.symmetric(vertical: 14),
+                                  shape: RoundedRectangleBorder(
+                                    borderRadius: BorderRadius.circular(12),
+                                  ),
+                                ),
+                              ),
+                            ),
+                          ],
+                        ],
+                      ),
+                    ),
+                  ),
+                ),
+              ),
+            ],
           ),
         );
       },
@@ -324,3 +397,4 @@ class _LoginScreenState extends State<LoginScreen> {
     );
   }
 }
+

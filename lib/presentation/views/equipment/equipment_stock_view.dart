@@ -4,9 +4,13 @@ import 'package:intl/intl.dart';
 import 'package:uuid/uuid.dart';
 import '../../../core/di/service_locator.dart';
 import '../../../core/theme/app_colors.dart';
+import '../../../core/utils/interactive_feedback.dart';
+import '../../../core/utils/responsive.dart';
 import '../../../data/datasources/firestore_service.dart';
 import '../../../domain/entities/stock_item.dart';
 import '../../blocs/auth/auth_bloc.dart';
+import '../../widgets/empty_state_card.dart';
+import '../../widgets/fade_slide_transition.dart';
 
 class EquipmentStockView extends StatefulWidget {
   const EquipmentStockView({super.key});
@@ -17,6 +21,13 @@ class EquipmentStockView extends StatefulWidget {
 
 class _EquipmentStockViewState extends State<EquipmentStockView> {
   String _searchQuery = '';
+  final _searchController = TextEditingController();
+
+  @override
+  void dispose() {
+    _searchController.dispose();
+    super.dispose();
+  }
 
   void _showItemDialog(
     BuildContext context,
@@ -30,13 +41,13 @@ class _EquipmentStockViewState extends State<EquipmentStockView> {
     final descCtrl = TextEditingController(text: existing?.desc ?? '');
     DateTime? expiryDate = existing?.expiryDate;
 
-    showDialog(
+    showAdaptiveModal(
       context: context,
       builder: (dialogCtx) => StatefulBuilder(
         builder: (ctx, setDialogState) => AlertDialog(
           backgroundColor: AppColors.cardSurface,
           shape: RoundedRectangleBorder(
-            borderRadius: BorderRadius.circular(16),
+            borderRadius: BorderRadius.circular(18),
             side: const BorderSide(color: AppColors.cardBorderStroke),
           ),
           title: Row(
@@ -52,7 +63,7 @@ class _EquipmentStockViewState extends State<EquipmentStockView> {
                     : 'Edit Equipment Item',
                 style: const TextStyle(
                   color: AppColors.primaryText,
-                  fontWeight: FontWeight.w700,
+                  fontWeight: FontWeight.w800,
                   fontSize: 18,
                 ),
               ),
@@ -61,6 +72,7 @@ class _EquipmentStockViewState extends State<EquipmentStockView> {
           content: SizedBox(
             width: 460,
             child: SingleChildScrollView(
+              keyboardDismissBehavior: ScrollViewKeyboardDismissBehavior.onDrag,
               child: Column(
                 mainAxisSize: MainAxisSize.min,
                 crossAxisAlignment: CrossAxisAlignment.stretch,
@@ -98,7 +110,7 @@ class _EquipmentStockViewState extends State<EquipmentStockView> {
                         crossAxisAlignment: CrossAxisAlignment.start,
                         children: [
                           const Text(
-                            'Expiry Date or\nMaintenance Due (Optional)',
+                            'Expiry / Replacement Date',
                             style: TextStyle(
                               color: AppColors.secondaryText,
                               fontSize: 12,
@@ -107,7 +119,7 @@ class _EquipmentStockViewState extends State<EquipmentStockView> {
                           Text(
                             expiryDate != null
                                 ? DateFormat('dd MMM yyyy').format(expiryDate!)
-                                : 'No expiry set',
+                                : 'No date set',
                             style: const TextStyle(
                               color: AppColors.primaryText,
                               fontWeight: FontWeight.w600,
@@ -138,18 +150,29 @@ class _EquipmentStockViewState extends State<EquipmentStockView> {
                                       const Duration(days: 180),
                                     ),
                                 firstDate: DateTime.now().subtract(
-                                  const Duration(days: 30),
+                                  const Duration(days: 365),
                                 ),
                                 lastDate: DateTime.now().add(
-                                  const Duration(days: 365 * 5),
+                                  const Duration(days: 3650),
+                                ),
+                                builder: (context, child) => Theme(
+                                  data: ThemeData.dark().copyWith(
+                                    colorScheme: const ColorScheme.dark(
+                                      primary: AppColors.brandAccent,
+                                      onPrimary: Colors.white,
+                                      surface: AppColors.cardSurface,
+                                      onSurface: AppColors.primaryText,
+                                    ),
+                                  ),
+                                  child: child!,
                                 ),
                               );
                               if (picked != null) {
                                 setDialogState(() => expiryDate = picked);
                               }
                             },
-                            icon: const Icon(Icons.calendar_today, size: 16),
-                            label: Text(expiryDate == null ? 'Set' : 'Change'),
+                            icon: const Icon(Icons.calendar_month, size: 16),
+                            label: const Text('Pick Date'),
                             style: ElevatedButton.styleFrom(
                               backgroundColor: AppColors.inputSurface,
                               foregroundColor: AppColors.primaryText,
@@ -171,14 +194,16 @@ class _EquipmentStockViewState extends State<EquipmentStockView> {
             ElevatedButton(
               onPressed: () async {
                 final name = nameCtrl.text.trim();
-                final stock = int.tryParse(stockCtrl.text.trim()) ?? 0;
-                if (name.isEmpty) return;
+                final stock = int.tryParse(stockCtrl.text.trim());
+
+                if (name.isEmpty || stock == null) return;
 
                 final item = StockItem(
                   id: existing?.id ?? const Uuid().v4(),
                   companyId: companyId,
                   name: name,
                   stock: stock,
+                  price: null,
                   desc: descCtrl.text.trim(),
                   expiryDate: expiryDate,
                   category: StockCategory.equipment,
@@ -188,14 +213,16 @@ class _EquipmentStockViewState extends State<EquipmentStockView> {
                 Navigator.of(dialogCtx).pop();
                 await sl<FirestoreService>().saveEquipmentItem(item);
                 if (context.mounted) {
+                  AppHaptics.success();
                   ScaffoldMessenger.of(context).showSnackBar(
                     SnackBar(
                       content: Text(
                         existing == null
-                            ? 'Added "$name" to equipment stock.'
+                            ? 'Added "$name" to equipment.'
                             : 'Updated "$name".',
                       ),
                       backgroundColor: AppColors.tableAvailable,
+                      behavior: SnackBarBehavior.floating,
                     ),
                   );
                 }
@@ -212,6 +239,7 @@ class _EquipmentStockViewState extends State<EquipmentStockView> {
   }
 
   void _confirmDelete(BuildContext context, String companyId, StockItem item) {
+    AppHaptics.light();
     showDialog(
       context: context,
       builder: (ctx) => AlertDialog(
@@ -252,6 +280,8 @@ class _EquipmentStockViewState extends State<EquipmentStockView> {
       return const Center(child: CircularProgressIndicator());
     }
 
+    final isMobile = Responsive.isMobile(context);
+
     return StreamBuilder<List<StockItem>>(
       stream: sl<FirestoreService>().watchEquipmentStock(companyId),
       builder: (context, snapshot) {
@@ -272,48 +302,53 @@ class _EquipmentStockViewState extends State<EquipmentStockView> {
         return Scaffold(
           backgroundColor: AppColors.backgroundBase,
           body: Padding(
-            padding: const EdgeInsets.all(24),
+            padding: EdgeInsets.all(isMobile ? 16 : 24),
             child: Column(
               crossAxisAlignment: CrossAxisAlignment.stretch,
               children: [
                 // Top Header Row
-                Wrap(
-                  // mainAxisAlignment: MainAxisAlignment.spaceBetween,
-                  runSpacing: 10,
-                  spacing: 10,
+                Row(
+                  mainAxisAlignment: MainAxisAlignment.spaceBetween,
+                  crossAxisAlignment: CrossAxisAlignment.center,
                   children: [
                     const Column(
                       crossAxisAlignment: CrossAxisAlignment.start,
                       children: [
                         Text(
-                          'EQUIPMENT & STOCK',
+                          'EQUIPMENT & CLUB STOCK',
                           style: TextStyle(
                             color: AppColors.brandAccentLight,
-                            fontSize: 12,
+                            fontSize: 11,
                             fontWeight: FontWeight.w800,
                             letterSpacing: 1.1,
                           ),
                         ),
-                        SizedBox(height: 4),
+                        SizedBox(height: 2),
                         Text(
-                          'Sticks, Chalks, Table Cloth & Cues',
+                          'Cues, Chalk & Maintenance',
                           style: TextStyle(
                             color: AppColors.primaryText,
-                            fontSize: 22,
+                            fontSize: 20,
                             fontWeight: FontWeight.w800,
                           ),
                         ),
                       ],
                     ),
                     ElevatedButton.icon(
-                      onPressed: () => _showItemDialog(context, companyId),
-                      icon: const Icon(Icons.add),
-                      label: const Text('Add Equipment'),
+                      onPressed: () {
+                        AppHaptics.light();
+                        _showItemDialog(context, companyId);
+                      },
+                      icon: const Icon(Icons.add, size: 18),
+                      label: Text(isMobile ? 'Add' : 'Add Equipment'),
                       style: ElevatedButton.styleFrom(
                         backgroundColor: AppColors.brandAccent,
-                        padding: const EdgeInsets.symmetric(
-                          horizontal: 20,
-                          vertical: 14,
+                        padding: EdgeInsets.symmetric(
+                          horizontal: isMobile ? 14 : 20,
+                          vertical: isMobile ? 10 : 14,
+                        ),
+                        shape: RoundedRectangleBorder(
+                          borderRadius: BorderRadius.circular(12),
                         ),
                       ),
                     ),
@@ -332,14 +367,14 @@ class _EquipmentStockViewState extends State<EquipmentStockView> {
                         AppColors.brandAccentLight,
                         Icons.inventory_2,
                       ),
-                      const SizedBox(width: 12),
+                      const SizedBox(width: 10),
                       _buildPill(
                         'Total Units In Club',
                         totalUnits.toString(),
                         AppColors.tableAvailable,
                         Icons.sports_esports,
                       ),
-                      const SizedBox(width: 12),
+                      const SizedBox(width: 10),
                       _buildPill(
                         'Low Stock (<3)',
                         lowStock.toString(),
@@ -351,15 +386,29 @@ class _EquipmentStockViewState extends State<EquipmentStockView> {
                     ],
                   ),
                 ),
-                const SizedBox(height: 16),
+                const SizedBox(height: 14),
 
-                // Search Bar
+                // Search Bar with clear button
                 TextField(
+                  controller: _searchController,
                   onChanged: (val) => setState(() => _searchQuery = val.trim()),
-                  decoration: const InputDecoration(
+                  decoration: InputDecoration(
                     hintText:
                         'Search equipment (sticks, chalks, cloths, etc)...',
-                    prefixIcon: Icon(Icons.search),
+                    prefixIcon: const Icon(Icons.search, size: 20),
+                    suffixIcon: _searchQuery.isNotEmpty
+                        ? IconButton(
+                            icon: const Icon(Icons.clear, size: 18),
+                            onPressed: () {
+                              _searchController.clear();
+                              setState(() => _searchQuery = '');
+                            },
+                          )
+                        : null,
+                    contentPadding: const EdgeInsets.symmetric(
+                      horizontal: 16,
+                      vertical: 12,
+                    ),
                   ),
                 ),
                 const SizedBox(height: 16),
@@ -367,192 +416,65 @@ class _EquipmentStockViewState extends State<EquipmentStockView> {
                 // Grid of items
                 Expanded(
                   child: filtered.isEmpty
-                      ? Center(
-                          child: Text(
-                            allItems.isEmpty
-                                ? 'No equipment items recorded yet. Click "Add Equipment" to record sticks, chalks, etc.'
-                                : 'No items match your search.',
-                            style: const TextStyle(
-                              color: AppColors.secondaryText,
-                            ),
-                          ),
+                      ? EmptyStateCard(
+                          icon: Icons.inventory_2_outlined,
+                          title: allItems.isEmpty
+                              ? 'No Equipment Recorded Yet'
+                              : 'No Matching Equipment',
+                          subtitle: allItems.isEmpty
+                              ? 'Keep track of snooker cues, chalks, balls, and table maintenance accessories by recording them here.'
+                              : 'No equipment items match "$_searchQuery". Try a different search query.',
+                          actionLabel: allItems.isEmpty
+                              ? 'Add Equipment'
+                              : null,
+                          onAction: allItems.isEmpty
+                              ? () => _showItemDialog(context, companyId)
+                              : null,
                         )
-                      : GridView.builder(
-                          gridDelegate:
-                              const SliverGridDelegateWithMaxCrossAxisExtent(
-                                maxCrossAxisExtent: 340,
-                                mainAxisExtent: 160,
+                      : isMobile
+                          ? ListView.separated(
+                              itemCount: filtered.length,
+                              separatorBuilder: (_, _) =>
+                                  const SizedBox(height: 10),
+                              itemBuilder: (context, index) {
+                                final item = filtered[index];
+                                final isLowStock = item.stock <= 3;
+                                return FadeSlideTransitionWidget(
+                                  index: index,
+                                  child: _buildEquipmentCard(
+                                    context,
+                                    companyId,
+                                    item,
+                                    isLowStock,
+                                    isMobile: true,
+                                  ),
+                                );
+                              },
+                            )
+                          : GridView.builder(
+                              gridDelegate:
+                                  const SliverGridDelegateWithMaxCrossAxisExtent(
+                                maxCrossAxisExtent: 360,
+                                mainAxisExtent: 175,
                                 crossAxisSpacing: 14,
                                 mainAxisSpacing: 14,
                               ),
-                          itemCount: filtered.length,
-                          itemBuilder: (context, index) {
-                            final item = filtered[index];
-                            final isLowStock = item.stock <= 3;
-
-                            return Container(
-                              padding: const EdgeInsets.all(16),
-                              decoration: BoxDecoration(
-                                color: AppColors.cardSurface,
-                                borderRadius: BorderRadius.circular(14),
-                                border: Border.all(
-                                  color: isLowStock
-                                      ? AppColors.tableOccupied.withAlpha(100)
-                                      : AppColors.cardBorderStroke,
-                                ),
-                              ),
-                              child: Column(
-                                crossAxisAlignment: CrossAxisAlignment.start,
-                                children: [
-                                  Row(
-                                    mainAxisAlignment:
-                                        MainAxisAlignment.spaceBetween,
-                                    children: [
-                                      Expanded(
-                                        child: Text(
-                                          item.name,
-                                          style: const TextStyle(
-                                            color: AppColors.primaryText,
-                                            fontWeight: FontWeight.w700,
-                                            fontSize: 15,
-                                          ),
-                                          maxLines: 1,
-                                          overflow: TextOverflow.ellipsis,
-                                        ),
-                                      ),
-                                      PopupMenuButton<String>(
-                                        onSelected: (action) {
-                                          if (action == 'edit') {
-                                            _showItemDialog(
-                                              context,
-                                              companyId,
-                                              existing: item,
-                                            );
-                                          } else if (action == 'delete') {
-                                            _confirmDelete(
-                                              context,
-                                              companyId,
-                                              item,
-                                            );
-                                          }
-                                        },
-                                        color: AppColors.cardSurface,
-                                        itemBuilder: (_) => [
-                                          const PopupMenuItem(
-                                            value: 'edit',
-                                            child: Row(
-                                              children: [
-                                                Icon(
-                                                  Icons.edit,
-                                                  size: 16,
-                                                  color: AppColors
-                                                      .brandAccentLight,
-                                                ),
-                                                SizedBox(width: 8),
-                                                Text(
-                                                  'Edit',
-                                                  style: TextStyle(
-                                                    color:
-                                                        AppColors.primaryText,
-                                                  ),
-                                                ),
-                                              ],
-                                            ),
-                                          ),
-                                          const PopupMenuItem(
-                                            value: 'delete',
-                                            child: Row(
-                                              children: [
-                                                Icon(
-                                                  Icons.delete,
-                                                  size: 16,
-                                                  color:
-                                                      AppColors.tableOccupied,
-                                                ),
-                                                SizedBox(width: 8),
-                                                Text(
-                                                  'Delete',
-                                                  style: TextStyle(
-                                                    color:
-                                                        AppColors.tableOccupied,
-                                                  ),
-                                                ),
-                                              ],
-                                            ),
-                                          ),
-                                        ],
-                                      ),
-                                    ],
+                              itemCount: filtered.length,
+                              itemBuilder: (context, index) {
+                                final item = filtered[index];
+                                final isLowStock = item.stock <= 3;
+                                return FadeSlideTransitionWidget(
+                                  index: index,
+                                  child: _buildEquipmentCard(
+                                    context,
+                                    companyId,
+                                    item,
+                                    isLowStock,
+                                    isMobile: false,
                                   ),
-                                  if (item.desc.isNotEmpty) ...[
-                                    const SizedBox(height: 2),
-                                    Text(
-                                      item.desc,
-                                      style: const TextStyle(
-                                        color: AppColors.secondaryText,
-                                        fontSize: 11,
-                                      ),
-                                      maxLines: 1,
-                                      overflow: TextOverflow.ellipsis,
-                                    ),
-                                  ],
-                                  const Spacer(),
-                                  Row(
-                                    mainAxisAlignment:
-                                        MainAxisAlignment.spaceBetween,
-                                    children: [
-                                      Container(
-                                        padding: const EdgeInsets.symmetric(
-                                          horizontal: 10,
-                                          vertical: 6,
-                                        ),
-                                        decoration: BoxDecoration(
-                                          color: isLowStock
-                                              ? AppColors.tableOccupied
-                                                    .withAlpha(30)
-                                              : AppColors.brandAccent.withAlpha(
-                                                  30,
-                                                ),
-                                          borderRadius: BorderRadius.circular(
-                                            8,
-                                          ),
-                                          border: Border.all(
-                                            color: isLowStock
-                                                ? AppColors.tableOccupied
-                                                : AppColors.brandAccent,
-                                          ),
-                                        ),
-                                        child: Text(
-                                          'Stock: ${item.stock} units',
-                                          style: TextStyle(
-                                            color: isLowStock
-                                                ? AppColors.tableOccupied
-                                                : AppColors.brandAccentLight,
-                                            fontWeight: FontWeight.w700,
-                                            fontSize: 12,
-                                          ),
-                                        ),
-                                      ),
-                                      if (item.expiryDate != null)
-                                        Text(
-                                          'Due: ${DateFormat('dd MMM yyyy').format(item.expiryDate!)}',
-                                          style: TextStyle(
-                                            color: item.isExpired
-                                                ? AppColors.tableOccupied
-                                                : AppColors.secondaryText,
-                                            fontSize: 11,
-                                            fontWeight: item.isExpired
-                                                ? FontWeight.w700
-                                                : FontWeight.normal,
-                                          ),
-                                        ),
-                                    ],
-                                  ),
-                                ],
-                              ),
-                            );
-                          },
-                        ),
+                                );
+                              },
+                            ),
                 ),
               ],
             ),
@@ -567,12 +489,26 @@ class _EquipmentStockViewState extends State<EquipmentStockView> {
       padding: const EdgeInsets.symmetric(horizontal: 14, vertical: 10),
       decoration: BoxDecoration(
         color: AppColors.cardSurface,
-        borderRadius: BorderRadius.circular(10),
+        borderRadius: BorderRadius.circular(12),
         border: Border.all(color: AppColors.cardBorderStroke),
+        boxShadow: [
+          BoxShadow(
+            color: Colors.black.withAlpha(25),
+            blurRadius: 6,
+            offset: const Offset(0, 2),
+          ),
+        ],
       ),
       child: Row(
         children: [
-          Icon(icon, color: color, size: 18),
+          Container(
+            padding: const EdgeInsets.all(5),
+            decoration: BoxDecoration(
+              color: color.withAlpha(25),
+              shape: BoxShape.circle,
+            ),
+            child: Icon(icon, color: color, size: 16),
+          ),
           const SizedBox(width: 8),
           Column(
             crossAxisAlignment: CrossAxisAlignment.start,
@@ -581,8 +517,8 @@ class _EquipmentStockViewState extends State<EquipmentStockView> {
                 value,
                 style: TextStyle(
                   color: color,
-                  fontWeight: FontWeight.w800,
-                  fontSize: 14,
+                  fontWeight: FontWeight.w900,
+                  fontSize: 15,
                 ),
               ),
               Text(
@@ -590,10 +526,217 @@ class _EquipmentStockViewState extends State<EquipmentStockView> {
                 style: const TextStyle(
                   color: AppColors.secondaryText,
                   fontSize: 10,
+                  fontWeight: FontWeight.w500,
                 ),
               ),
             ],
           ),
+        ],
+      ),
+    );
+  }
+
+  Widget _buildEquipmentCard(
+    BuildContext context,
+    String companyId,
+    StockItem item,
+    bool isLowStock, {
+    required bool isMobile,
+  }) {
+    return Container(
+      padding: EdgeInsets.symmetric(
+        horizontal: isMobile ? 14 : 16,
+        vertical: isMobile ? 12 : 16,
+      ),
+      decoration: BoxDecoration(
+        color: AppColors.cardSurface,
+        borderRadius: BorderRadius.circular(16),
+        border: Border.all(
+          color: isLowStock
+              ? AppColors.tableOccupied.withAlpha(120)
+              : AppColors.cardBorderStroke,
+          width: isLowStock ? 1.4 : 1.0,
+        ),
+        boxShadow: [
+          BoxShadow(
+            color: Colors.black.withAlpha(30),
+            blurRadius: 8,
+            offset: const Offset(0, 3),
+          ),
+        ],
+      ),
+      child: Column(
+        mainAxisSize: MainAxisSize.min,
+        crossAxisAlignment: CrossAxisAlignment.start,
+        children: [
+          Row(
+            mainAxisAlignment: MainAxisAlignment.spaceBetween,
+            children: [
+              Expanded(
+                child: Text(
+                  item.name,
+                  style: const TextStyle(
+                    color: AppColors.primaryText,
+                    fontWeight: FontWeight.w800,
+                    fontSize: 15,
+                  ),
+                  maxLines: 1,
+                  overflow: TextOverflow.ellipsis,
+                ),
+              ),
+              PopupMenuButton<String>(
+                onSelected: (action) {
+                  AppHaptics.selection();
+                  if (action == 'edit') {
+                    _showItemDialog(
+                      context,
+                      companyId,
+                      existing: item,
+                    );
+                  } else if (action == 'delete') {
+                    _confirmDelete(
+                      context,
+                      companyId,
+                      item,
+                    );
+                  }
+                },
+                color: AppColors.cardSurface,
+                shape: RoundedRectangleBorder(
+                  borderRadius: BorderRadius.circular(12),
+                  side: const BorderSide(
+                    color: AppColors.cardBorderStroke,
+                  ),
+                ),
+                itemBuilder: (context) => [
+                  const PopupMenuItem(
+                    value: 'edit',
+                    child: Row(
+                      children: [
+                        Icon(
+                          Icons.edit,
+                          size: 16,
+                          color: AppColors.primaryText,
+                        ),
+                        SizedBox(width: 8),
+                        Text('Edit Item'),
+                      ],
+                    ),
+                  ),
+                  const PopupMenuItem(
+                    value: 'delete',
+                    child: Row(
+                      children: [
+                        Icon(
+                          Icons.delete_outline,
+                          size: 16,
+                          color: AppColors.tableOccupied,
+                        ),
+                        SizedBox(width: 8),
+                        Text(
+                          'Delete Item',
+                          style: TextStyle(
+                            color: AppColors.tableOccupied,
+                          ),
+                        ),
+                      ],
+                    ),
+                  ),
+                ],
+              ),
+            ],
+          ),
+          if (item.desc.isNotEmpty) ...[
+            const SizedBox(height: 2),
+            Text(
+              item.desc,
+              style: const TextStyle(
+                color: AppColors.secondaryText,
+                fontSize: 11,
+              ),
+              maxLines: 1,
+              overflow: TextOverflow.ellipsis,
+            ),
+          ],
+          if (isMobile)
+            const SizedBox(height: 10)
+          else
+            const Spacer(),
+          Row(
+            mainAxisAlignment: MainAxisAlignment.spaceBetween,
+            children: [
+              Expanded(
+                child: Column(
+                  crossAxisAlignment: CrossAxisAlignment.start,
+                  children: [
+                    const Text(
+                      'Available Units',
+                      style: TextStyle(
+                        color: AppColors.secondaryText,
+                        fontSize: 10,
+                        fontWeight: FontWeight.w600,
+                      ),
+                      maxLines: 1,
+                      overflow: TextOverflow.ellipsis,
+                    ),
+                    Text(
+                      '${item.stock} in stock',
+                      style: const TextStyle(
+                        color: AppColors.primaryText,
+                        fontWeight: FontWeight.w900,
+                        fontSize: 16,
+                      ),
+                      maxLines: 1,
+                      overflow: TextOverflow.ellipsis,
+                    ),
+                  ],
+                ),
+              ),
+              const SizedBox(width: 8),
+              Container(
+                padding: const EdgeInsets.symmetric(
+                  horizontal: 8,
+                  vertical: 4,
+                ),
+                decoration: BoxDecoration(
+                  color: isLowStock
+                      ? AppColors.tableOccupied.withAlpha(30)
+                      : AppColors.inputSurface,
+                  borderRadius: BorderRadius.circular(8),
+                  border: Border.all(
+                    color: isLowStock
+                        ? AppColors.tableOccupied
+                        : AppColors.cardBorderStroke,
+                  ),
+                ),
+                child: Text(
+                  isLowStock ? 'Low Stock' : 'In Stock',
+                  style: TextStyle(
+                    color: isLowStock
+                        ? AppColors.tableOccupied
+                        : AppColors.tableAvailable,
+                    fontWeight: FontWeight.w800,
+                    fontSize: 11,
+                  ),
+                ),
+              ),
+            ],
+          ),
+          if (item.expiryDate != null) ...[
+            const SizedBox(height: 4),
+            Text(
+              'Expiry: ${DateFormat('dd MMM yyyy').format(item.expiryDate!)}',
+              style: TextStyle(
+                color: item.isExpired
+                    ? AppColors.tableOccupied
+                    : AppColors.secondaryText,
+                fontSize: 10,
+                fontWeight: item.isExpired
+                    ? FontWeight.w700
+                    : FontWeight.normal,
+              ),
+            ),
+          ],
         ],
       ),
     );

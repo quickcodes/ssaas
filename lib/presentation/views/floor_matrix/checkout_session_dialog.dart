@@ -3,6 +3,7 @@ import 'package:flutter/services.dart';
 import 'package:uuid/uuid.dart';
 import '../../../core/theme/app_colors.dart';
 import '../../../core/utils/formatters.dart';
+import '../../../core/utils/responsive.dart';
 import '../../../domain/entities/payment_transaction.dart';
 import '../../../domain/entities/table_history_record.dart';
 import '../../../domain/entities/table_session.dart';
@@ -204,24 +205,48 @@ class _CheckoutSessionDialogState extends State<CheckoutSessionDialog> {
       {'label': '-1 hr', 'minutes': 60},
     ];
 
-    return Dialog(
-      backgroundColor: AppColors.cardSurface,
-      shape: RoundedRectangleBorder(
-        borderRadius: BorderRadius.circular(20),
-        side: const BorderSide(color: AppColors.cardBorderStroke),
+    final isMobile = Responsive.isMobile(context);
+
+    final content = Container(
+      constraints: BoxConstraints(
+        maxWidth: 540,
+        maxHeight: isMobile
+            ? MediaQuery.sizeOf(context).height * 0.88
+            : MediaQuery.sizeOf(context).height * 0.9,
       ),
-      child: Container(
-        constraints: const BoxConstraints(maxWidth: 540),
-        padding: const EdgeInsets.all(26),
-        child: SingleChildScrollView(
-          child: Form(
-            key: _formKey,
-            child: Column(
-              mainAxisSize: MainAxisSize.min,
-              crossAxisAlignment: CrossAxisAlignment.stretch,
-              children: [
-                // Header
-                Row(
+      decoration: BoxDecoration(
+        color: AppColors.cardSurface,
+        borderRadius: isMobile
+            ? const BorderRadius.vertical(top: Radius.circular(24))
+            : BorderRadius.circular(20),
+        border: Border.all(color: AppColors.cardBorderStroke),
+      ),
+      child: SingleChildScrollView(
+        keyboardDismissBehavior: ScrollViewKeyboardDismissBehavior.onDrag,
+        padding: EdgeInsets.symmetric(
+          horizontal: isMobile ? 20 : 26,
+          vertical: isMobile ? 16 : 24,
+        ),
+        child: Form(
+          key: _formKey,
+          child: Column(
+            mainAxisSize: MainAxisSize.min,
+            crossAxisAlignment: CrossAxisAlignment.stretch,
+            children: [
+              if (isMobile)
+                Center(
+                  child: Container(
+                    width: 44,
+                    height: 4,
+                    margin: const EdgeInsets.only(bottom: 16),
+                    decoration: BoxDecoration(
+                      color: Colors.white24,
+                      borderRadius: BorderRadius.circular(2),
+                    ),
+                  ),
+                ),
+              // Header
+              Row(
                   mainAxisAlignment: MainAxisAlignment.spaceBetween,
                   children: [
                     Column(
@@ -1077,9 +1102,20 @@ class _CheckoutSessionDialogState extends State<CheckoutSessionDialog> {
             ),
           ),
         ),
-      ),
-    );
+      );
+
+    if (isMobile) {
+      return content;
+    } else {
+      return Dialog(
+        backgroundColor: Colors.transparent,
+        elevation: 0,
+        insetPadding: const EdgeInsets.symmetric(horizontal: 20, vertical: 24),
+        child: content,
+      );
+    }
   }
+
 
   Widget _buildSettlementOption({
     required String mode,

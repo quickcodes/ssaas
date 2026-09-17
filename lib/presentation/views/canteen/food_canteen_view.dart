@@ -4,9 +4,13 @@ import 'package:intl/intl.dart';
 import 'package:uuid/uuid.dart';
 import '../../../core/di/service_locator.dart';
 import '../../../core/theme/app_colors.dart';
+import '../../../core/utils/interactive_feedback.dart';
+import '../../../core/utils/responsive.dart';
 import '../../../data/datasources/firestore_service.dart';
 import '../../../domain/entities/stock_item.dart';
 import '../../blocs/auth/auth_bloc.dart';
+import '../../widgets/empty_state_card.dart';
+import '../../widgets/fade_slide_transition.dart';
 
 class FoodCanteenView extends StatefulWidget {
   const FoodCanteenView({super.key});
@@ -17,6 +21,13 @@ class FoodCanteenView extends StatefulWidget {
 
 class _FoodCanteenViewState extends State<FoodCanteenView> {
   String _searchQuery = '';
+  final _searchController = TextEditingController();
+
+  @override
+  void dispose() {
+    _searchController.dispose();
+    super.dispose();
+  }
 
   void _showItemDialog(
     BuildContext context,
@@ -35,13 +46,13 @@ class _FoodCanteenViewState extends State<FoodCanteenView> {
     final descCtrl = TextEditingController(text: existing?.desc ?? '');
     DateTime? expiryDate = existing?.expiryDate;
 
-    showDialog(
+    showAdaptiveModal(
       context: context,
       builder: (dialogCtx) => StatefulBuilder(
         builder: (ctx, setDialogState) => AlertDialog(
           backgroundColor: AppColors.cardSurface,
           shape: RoundedRectangleBorder(
-            borderRadius: BorderRadius.circular(16),
+            borderRadius: BorderRadius.circular(18),
             side: const BorderSide(color: AppColors.cardBorderStroke),
           ),
           title: Row(
@@ -57,7 +68,7 @@ class _FoodCanteenViewState extends State<FoodCanteenView> {
                     : 'Edit Food / Drink Item',
                 style: const TextStyle(
                   color: AppColors.primaryText,
-                  fontWeight: FontWeight.w700,
+                  fontWeight: FontWeight.w800,
                   fontSize: 18,
                 ),
               ),
@@ -66,6 +77,7 @@ class _FoodCanteenViewState extends State<FoodCanteenView> {
           content: SizedBox(
             width: 460,
             child: SingleChildScrollView(
+              keyboardDismissBehavior: ScrollViewKeyboardDismissBehavior.onDrag,
               child: Column(
                 mainAxisSize: MainAxisSize.min,
                 crossAxisAlignment: CrossAxisAlignment.stretch,
@@ -160,18 +172,29 @@ class _FoodCanteenViewState extends State<FoodCanteenView> {
                                       const Duration(days: 90),
                                     ),
                                 firstDate: DateTime.now().subtract(
-                                  const Duration(days: 30),
+                                  const Duration(days: 365),
                                 ),
                                 lastDate: DateTime.now().add(
-                                  const Duration(days: 365 * 5),
+                                  const Duration(days: 3650),
+                                ),
+                                builder: (context, child) => Theme(
+                                  data: ThemeData.dark().copyWith(
+                                    colorScheme: const ColorScheme.dark(
+                                      primary: AppColors.brandAccent,
+                                      onPrimary: Colors.white,
+                                      surface: AppColors.cardSurface,
+                                      onSurface: AppColors.primaryText,
+                                    ),
+                                  ),
+                                  child: child!,
                                 ),
                               );
                               if (picked != null) {
                                 setDialogState(() => expiryDate = picked);
                               }
                             },
-                            icon: const Icon(Icons.calendar_today, size: 16),
-                            label: Text(expiryDate == null ? 'Set' : 'Change'),
+                            icon: const Icon(Icons.calendar_month, size: 16),
+                            label: const Text('Pick Date'),
                             style: ElevatedButton.styleFrom(
                               backgroundColor: AppColors.inputSurface,
                               foregroundColor: AppColors.primaryText,
@@ -193,9 +216,12 @@ class _FoodCanteenViewState extends State<FoodCanteenView> {
             ElevatedButton(
               onPressed: () async {
                 final name = nameCtrl.text.trim();
-                final stock = int.tryParse(stockCtrl.text.trim()) ?? 0;
-                final price = double.tryParse(priceCtrl.text.trim()) ?? 0.0;
-                if (name.isEmpty || price <= 0) return;
+                final stock = int.tryParse(stockCtrl.text.trim());
+                final price = double.tryParse(priceCtrl.text.trim());
+
+                if (name.isEmpty || stock == null || price == null) {
+                  return;
+                }
 
                 final item = StockItem(
                   id: existing?.id ?? const Uuid().v4(),
@@ -212,6 +238,7 @@ class _FoodCanteenViewState extends State<FoodCanteenView> {
                 Navigator.of(dialogCtx).pop();
                 await sl<FirestoreService>().saveFoodItem(item);
                 if (context.mounted) {
+                  AppHaptics.success();
                   ScaffoldMessenger.of(context).showSnackBar(
                     SnackBar(
                       content: Text(
@@ -220,6 +247,7 @@ class _FoodCanteenViewState extends State<FoodCanteenView> {
                             : 'Updated "$name".',
                       ),
                       backgroundColor: AppColors.tableAvailable,
+                      behavior: SnackBarBehavior.floating,
                     ),
                   );
                 }
@@ -236,6 +264,7 @@ class _FoodCanteenViewState extends State<FoodCanteenView> {
   }
 
   void _confirmDelete(BuildContext context, String companyId, StockItem item) {
+    AppHaptics.light();
     showDialog(
       context: context,
       builder: (ctx) => AlertDialog(
@@ -273,6 +302,8 @@ class _FoodCanteenViewState extends State<FoodCanteenView> {
       return const Center(child: CircularProgressIndicator());
     }
 
+    final isMobile = Responsive.isMobile(context);
+
     return StreamBuilder<List<StockItem>>(
       stream: sl<FirestoreService>().watchFoodCanteen(companyId),
       builder: (context, snapshot) {
@@ -296,15 +327,14 @@ class _FoodCanteenViewState extends State<FoodCanteenView> {
         return Scaffold(
           backgroundColor: AppColors.backgroundBase,
           body: Padding(
-            padding: const EdgeInsets.all(24),
+            padding: EdgeInsets.all(isMobile ? 16 : 24),
             child: Column(
               crossAxisAlignment: CrossAxisAlignment.stretch,
               children: [
                 // Top Header Row
-                Wrap(
-                  // mainAxisAlignment: MainAxisAlignment.spaceBetween,
-                  runSpacing: 10,
-                  spacing: 10,
+                Row(
+                  mainAxisAlignment: MainAxisAlignment.spaceBetween,
+                  crossAxisAlignment: CrossAxisAlignment.center,
                   children: [
                     const Column(
                       crossAxisAlignment: CrossAxisAlignment.start,
@@ -313,31 +343,37 @@ class _FoodCanteenViewState extends State<FoodCanteenView> {
                           'FOOD & CANTEEN STOCK',
                           style: TextStyle(
                             color: AppColors.brandAccentLight,
-                            fontSize: 12,
+                            fontSize: 11,
                             fontWeight: FontWeight.w800,
                             letterSpacing: 1.1,
                           ),
                         ),
-                        SizedBox(height: 4),
+                        SizedBox(height: 2),
                         Text(
-                          'Snacks, Drinks & Refreshments',
+                          'Snacks & Refreshments',
                           style: TextStyle(
                             color: AppColors.primaryText,
-                            fontSize: 22,
+                            fontSize: 20,
                             fontWeight: FontWeight.w800,
                           ),
                         ),
                       ],
                     ),
                     ElevatedButton.icon(
-                      onPressed: () => _showItemDialog(context, companyId),
-                      icon: const Icon(Icons.add),
-                      label: const Text('Add Food / Drink'),
+                      onPressed: () {
+                        AppHaptics.light();
+                        _showItemDialog(context, companyId);
+                      },
+                      icon: const Icon(Icons.add, size: 18),
+                      label: Text(isMobile ? 'Add' : 'Add Food / Drink'),
                       style: ElevatedButton.styleFrom(
                         backgroundColor: AppColors.brandAccent,
-                        padding: const EdgeInsets.symmetric(
-                          horizontal: 20,
-                          vertical: 14,
+                        padding: EdgeInsets.symmetric(
+                          horizontal: isMobile ? 14 : 20,
+                          vertical: isMobile ? 10 : 14,
+                        ),
+                        shape: RoundedRectangleBorder(
+                          borderRadius: BorderRadius.circular(12),
                         ),
                       ),
                     ),
@@ -356,14 +392,14 @@ class _FoodCanteenViewState extends State<FoodCanteenView> {
                         AppColors.brandAccentLight,
                         Icons.fastfood,
                       ),
-                      const SizedBox(width: 12),
+                      const SizedBox(width: 10),
                       _buildPill(
                         'Total Stock Units',
                         totalStockCount.toString(),
                         AppColors.tableAvailable,
                         Icons.inventory,
                       ),
-                      const SizedBox(width: 12),
+                      const SizedBox(width: 10),
                       _buildPill(
                         'Low Stock (<5)',
                         lowStockCount.toString(),
@@ -375,14 +411,28 @@ class _FoodCanteenViewState extends State<FoodCanteenView> {
                     ],
                   ),
                 ),
-                const SizedBox(height: 16),
+                const SizedBox(height: 14),
 
-                // Search Bar
+                // Search Bar with clear icon
                 TextField(
+                  controller: _searchController,
                   onChanged: (val) => setState(() => _searchQuery = val.trim()),
-                  decoration: const InputDecoration(
-                    hintText: 'Search snacks, drinks, food items...',
-                    prefixIcon: Icon(Icons.search),
+                  decoration: InputDecoration(
+                    hintText: 'Search snacks, drinks, refreshments...',
+                    prefixIcon: const Icon(Icons.search, size: 20),
+                    suffixIcon: _searchQuery.isNotEmpty
+                        ? IconButton(
+                            icon: const Icon(Icons.clear, size: 18),
+                            onPressed: () {
+                              _searchController.clear();
+                              setState(() => _searchQuery = '');
+                            },
+                          )
+                        : null,
+                    contentPadding: const EdgeInsets.symmetric(
+                      horizontal: 16,
+                      vertical: 12,
+                    ),
                   ),
                 ),
                 const SizedBox(height: 16),
@@ -390,213 +440,64 @@ class _FoodCanteenViewState extends State<FoodCanteenView> {
                 // Items List
                 Expanded(
                   child: filtered.isEmpty
-                      ? Center(
-                          child: Text(
-                            allItems.isEmpty
-                                ? 'No food or canteen items added yet. Click "Add Food / Drink" to begin.'
-                                : 'No items match your search.',
-                            style: const TextStyle(
-                              color: AppColors.secondaryText,
-                            ),
-                          ),
+                      ? EmptyStateCard(
+                          icon: Icons.fastfood_outlined,
+                          title: allItems.isEmpty
+                              ? 'No Canteen Items Yet'
+                              : 'No Matching Items',
+                          subtitle: allItems.isEmpty
+                              ? 'Keep your players refreshed by adding snacks, energy drinks, and refreshments to the club canteen inventory.'
+                              : 'No items match "$_searchQuery". Try searching with a different keyword.',
+                          actionLabel:
+                              allItems.isEmpty ? 'Add Food Item' : null,
+                          onAction: allItems.isEmpty
+                              ? () => _showItemDialog(context, companyId)
+                              : null,
                         )
-                      : GridView.builder(
-                          gridDelegate:
-                              const SliverGridDelegateWithMaxCrossAxisExtent(
-                                maxCrossAxisExtent: 340,
-                                mainAxisExtent: 170,
+                      : isMobile
+                          ? ListView.separated(
+                              itemCount: filtered.length,
+                              separatorBuilder: (_, _) =>
+                                  const SizedBox(height: 10),
+                              itemBuilder: (context, index) {
+                                final item = filtered[index];
+                                final isLowStock = item.stock <= 5;
+                                return FadeSlideTransitionWidget(
+                                  index: index,
+                                  child: _buildCanteenCard(
+                                    context,
+                                    companyId,
+                                    item,
+                                    isLowStock,
+                                    isMobile: true,
+                                  ),
+                                );
+                              },
+                            )
+                          : GridView.builder(
+                              gridDelegate:
+                                  const SliverGridDelegateWithMaxCrossAxisExtent(
+                                maxCrossAxisExtent: 360,
+                                mainAxisExtent: 185,
                                 crossAxisSpacing: 14,
                                 mainAxisSpacing: 14,
                               ),
-                          itemCount: filtered.length,
-                          itemBuilder: (context, index) {
-                            final item = filtered[index];
-                            final isLowStock = item.stock <= 5;
-
-                            return Container(
-                              padding: const EdgeInsets.all(16),
-                              decoration: BoxDecoration(
-                                color: AppColors.cardSurface,
-                                borderRadius: BorderRadius.circular(14),
-                                border: Border.all(
-                                  color: isLowStock
-                                      ? AppColors.tableOccupied.withAlpha(100)
-                                      : AppColors.cardBorderStroke,
-                                ),
-                              ),
-                              child: Column(
-                                crossAxisAlignment: CrossAxisAlignment.start,
-                                children: [
-                                  Row(
-                                    mainAxisAlignment:
-                                        MainAxisAlignment.spaceBetween,
-                                    children: [
-                                      Expanded(
-                                        child: Text(
-                                          item.name,
-                                          style: const TextStyle(
-                                            color: AppColors.primaryText,
-                                            fontWeight: FontWeight.w700,
-                                            fontSize: 15,
-                                          ),
-                                          maxLines: 1,
-                                          overflow: TextOverflow.ellipsis,
-                                        ),
-                                      ),
-                                      PopupMenuButton<String>(
-                                        onSelected: (action) {
-                                          if (action == 'edit') {
-                                            _showItemDialog(
-                                              context,
-                                              companyId,
-                                              existing: item,
-                                            );
-                                          } else if (action == 'delete') {
-                                            _confirmDelete(
-                                              context,
-                                              companyId,
-                                              item,
-                                            );
-                                          }
-                                        },
-                                        color: AppColors.cardSurface,
-                                        itemBuilder: (_) => [
-                                          const PopupMenuItem(
-                                            value: 'edit',
-                                            child: Row(
-                                              children: [
-                                                Icon(
-                                                  Icons.edit,
-                                                  size: 16,
-                                                  color: AppColors
-                                                      .brandAccentLight,
-                                                ),
-                                                SizedBox(width: 8),
-                                                Text(
-                                                  'Edit',
-                                                  style: TextStyle(
-                                                    color:
-                                                        AppColors.primaryText,
-                                                  ),
-                                                ),
-                                              ],
-                                            ),
-                                          ),
-                                          const PopupMenuItem(
-                                            value: 'delete',
-                                            child: Row(
-                                              children: [
-                                                Icon(
-                                                  Icons.delete,
-                                                  size: 16,
-                                                  color:
-                                                      AppColors.tableOccupied,
-                                                ),
-                                                SizedBox(width: 8),
-                                                Text(
-                                                  'Delete',
-                                                  style: TextStyle(
-                                                    color:
-                                                        AppColors.tableOccupied,
-                                                  ),
-                                                ),
-                                              ],
-                                            ),
-                                          ),
-                                        ],
-                                      ),
-                                    ],
+                              itemCount: filtered.length,
+                              itemBuilder: (context, index) {
+                                final item = filtered[index];
+                                final isLowStock = item.stock <= 5;
+                                return FadeSlideTransitionWidget(
+                                  index: index,
+                                  child: _buildCanteenCard(
+                                    context,
+                                    companyId,
+                                    item,
+                                    isLowStock,
+                                    isMobile: false,
                                   ),
-                                  if (item.desc.isNotEmpty) ...[
-                                    const SizedBox(height: 2),
-                                    Text(
-                                      item.desc,
-                                      style: const TextStyle(
-                                        color: AppColors.secondaryText,
-                                        fontSize: 11,
-                                      ),
-                                      maxLines: 1,
-                                      overflow: TextOverflow.ellipsis,
-                                    ),
-                                  ],
-                                  const Spacer(),
-                                  Row(
-                                    mainAxisAlignment:
-                                        MainAxisAlignment.spaceBetween,
-                                    children: [
-                                      Column(
-                                        crossAxisAlignment:
-                                            CrossAxisAlignment.start,
-                                        children: [
-                                          const Text(
-                                            'Price',
-                                            style: TextStyle(
-                                              color: AppColors.secondaryText,
-                                              fontSize: 10,
-                                            ),
-                                          ),
-                                          Text(
-                                            '₹${(item.price ?? 0).toStringAsFixed(0)}',
-                                            style: const TextStyle(
-                                              color: AppColors.primaryText,
-                                              fontWeight: FontWeight.w800,
-                                              fontSize: 16,
-                                            ),
-                                          ),
-                                        ],
-                                      ),
-                                      Container(
-                                        padding: const EdgeInsets.symmetric(
-                                          horizontal: 10,
-                                          vertical: 6,
-                                        ),
-                                        decoration: BoxDecoration(
-                                          color: isLowStock
-                                              ? AppColors.tableOccupied
-                                                    .withAlpha(30)
-                                              : AppColors.inputSurface,
-                                          borderRadius: BorderRadius.circular(
-                                            8,
-                                          ),
-                                          border: Border.all(
-                                            color: isLowStock
-                                                ? AppColors.tableOccupied
-                                                : AppColors.cardBorderStroke,
-                                          ),
-                                        ),
-                                        child: Text(
-                                          'Stock: ${item.stock}',
-                                          style: TextStyle(
-                                            color: isLowStock
-                                                ? AppColors.tableOccupied
-                                                : AppColors.brandAccentLight,
-                                            fontWeight: FontWeight.w700,
-                                            fontSize: 12,
-                                          ),
-                                        ),
-                                      ),
-                                    ],
-                                  ),
-                                  if (item.expiryDate != null) ...[
-                                    const SizedBox(height: 6),
-                                    Text(
-                                      'Exp: ${DateFormat('dd MMM yyyy').format(item.expiryDate!)}',
-                                      style: TextStyle(
-                                        color: item.isExpired
-                                            ? AppColors.tableOccupied
-                                            : AppColors.secondaryText,
-                                        fontSize: 10,
-                                        fontWeight: item.isExpired
-                                            ? FontWeight.w700
-                                            : FontWeight.normal,
-                                      ),
-                                    ),
-                                  ],
-                                ],
-                              ),
-                            );
-                          },
-                        ),
+                                );
+                              },
+                            ),
                 ),
               ],
             ),
@@ -611,12 +512,26 @@ class _FoodCanteenViewState extends State<FoodCanteenView> {
       padding: const EdgeInsets.symmetric(horizontal: 14, vertical: 10),
       decoration: BoxDecoration(
         color: AppColors.cardSurface,
-        borderRadius: BorderRadius.circular(10),
+        borderRadius: BorderRadius.circular(12),
         border: Border.all(color: AppColors.cardBorderStroke),
+        boxShadow: [
+          BoxShadow(
+            color: Colors.black.withAlpha(25),
+            blurRadius: 6,
+            offset: const Offset(0, 2),
+          ),
+        ],
       ),
       child: Row(
         children: [
-          Icon(icon, color: color, size: 18),
+          Container(
+            padding: const EdgeInsets.all(5),
+            decoration: BoxDecoration(
+              color: color.withAlpha(25),
+              shape: BoxShape.circle,
+            ),
+            child: Icon(icon, color: color, size: 16),
+          ),
           const SizedBox(width: 8),
           Column(
             crossAxisAlignment: CrossAxisAlignment.start,
@@ -625,8 +540,8 @@ class _FoodCanteenViewState extends State<FoodCanteenView> {
                 value,
                 style: TextStyle(
                   color: color,
-                  fontWeight: FontWeight.w800,
-                  fontSize: 14,
+                  fontWeight: FontWeight.w900,
+                  fontSize: 15,
                 ),
               ),
               Text(
@@ -634,10 +549,217 @@ class _FoodCanteenViewState extends State<FoodCanteenView> {
                 style: const TextStyle(
                   color: AppColors.secondaryText,
                   fontSize: 10,
+                  fontWeight: FontWeight.w500,
                 ),
               ),
             ],
           ),
+        ],
+      ),
+    );
+  }
+
+  Widget _buildCanteenCard(
+    BuildContext context,
+    String companyId,
+    StockItem item,
+    bool isLowStock, {
+    required bool isMobile,
+  }) {
+    return Container(
+      padding: EdgeInsets.symmetric(
+        horizontal: isMobile ? 14 : 16,
+        vertical: isMobile ? 12 : 16,
+      ),
+      decoration: BoxDecoration(
+        color: AppColors.cardSurface,
+        borderRadius: BorderRadius.circular(16),
+        border: Border.all(
+          color: isLowStock
+              ? AppColors.tableOccupied.withAlpha(120)
+              : AppColors.cardBorderStroke,
+          width: isLowStock ? 1.4 : 1.0,
+        ),
+        boxShadow: [
+          BoxShadow(
+            color: Colors.black.withAlpha(30),
+            blurRadius: 8,
+            offset: const Offset(0, 3),
+          ),
+        ],
+      ),
+      child: Column(
+        mainAxisSize: MainAxisSize.min,
+        crossAxisAlignment: CrossAxisAlignment.start,
+        children: [
+          Row(
+            mainAxisAlignment: MainAxisAlignment.spaceBetween,
+            children: [
+              Expanded(
+                child: Text(
+                  item.name,
+                  style: const TextStyle(
+                    color: AppColors.primaryText,
+                    fontWeight: FontWeight.w800,
+                    fontSize: 15,
+                  ),
+                  maxLines: 1,
+                  overflow: TextOverflow.ellipsis,
+                ),
+              ),
+              PopupMenuButton<String>(
+                onSelected: (action) {
+                  AppHaptics.selection();
+                  if (action == 'edit') {
+                    _showItemDialog(
+                      context,
+                      companyId,
+                      existing: item,
+                    );
+                  } else if (action == 'delete') {
+                    _confirmDelete(
+                      context,
+                      companyId,
+                      item,
+                    );
+                  }
+                },
+                color: AppColors.cardSurface,
+                shape: RoundedRectangleBorder(
+                  borderRadius: BorderRadius.circular(12),
+                  side: const BorderSide(
+                    color: AppColors.cardBorderStroke,
+                  ),
+                ),
+                itemBuilder: (context) => [
+                  const PopupMenuItem(
+                    value: 'edit',
+                    child: Row(
+                      children: [
+                        Icon(
+                          Icons.edit,
+                          size: 16,
+                          color: AppColors.primaryText,
+                        ),
+                        SizedBox(width: 8),
+                        Text('Edit Item'),
+                      ],
+                    ),
+                  ),
+                  const PopupMenuItem(
+                    value: 'delete',
+                    child: Row(
+                      children: [
+                        Icon(
+                          Icons.delete_outline,
+                          size: 16,
+                          color: AppColors.tableOccupied,
+                        ),
+                        SizedBox(width: 8),
+                        Text(
+                          'Delete Item',
+                          style: TextStyle(
+                            color: AppColors.tableOccupied,
+                          ),
+                        ),
+                      ],
+                    ),
+                  ),
+                ],
+              ),
+            ],
+          ),
+          if (item.desc.isNotEmpty) ...[
+            const SizedBox(height: 2),
+            Text(
+              item.desc,
+              style: const TextStyle(
+                color: AppColors.secondaryText,
+                fontSize: 11,
+              ),
+              maxLines: 1,
+              overflow: TextOverflow.ellipsis,
+            ),
+          ],
+          if (isMobile)
+            const SizedBox(height: 10)
+          else
+            const Spacer(),
+          Row(
+            mainAxisAlignment: MainAxisAlignment.spaceBetween,
+            children: [
+              Expanded(
+                child: Column(
+                  crossAxisAlignment: CrossAxisAlignment.start,
+                  children: [
+                    const Text(
+                      'Price',
+                      style: TextStyle(
+                        color: AppColors.secondaryText,
+                        fontSize: 10,
+                        fontWeight: FontWeight.w600,
+                      ),
+                      maxLines: 1,
+                      overflow: TextOverflow.ellipsis,
+                    ),
+                    Text(
+                      '₹${(item.price ?? 0).toStringAsFixed(0)}',
+                      style: const TextStyle(
+                        color: AppColors.primaryText,
+                        fontWeight: FontWeight.w900,
+                        fontSize: 16,
+                      ),
+                      maxLines: 1,
+                      overflow: TextOverflow.ellipsis,
+                    ),
+                  ],
+                ),
+              ),
+              const SizedBox(width: 8),
+              Container(
+                padding: const EdgeInsets.symmetric(
+                  horizontal: 8,
+                  vertical: 4,
+                ),
+                decoration: BoxDecoration(
+                  color: isLowStock
+                      ? AppColors.tableOccupied.withAlpha(30)
+                      : AppColors.inputSurface,
+                  borderRadius: BorderRadius.circular(8),
+                  border: Border.all(
+                    color: isLowStock
+                        ? AppColors.tableOccupied
+                        : AppColors.cardBorderStroke,
+                  ),
+                ),
+                child: Text(
+                  'Stock: ${item.stock}',
+                  style: TextStyle(
+                    color: isLowStock
+                        ? AppColors.tableOccupied
+                        : AppColors.brandAccentLight,
+                    fontWeight: FontWeight.w800,
+                    fontSize: 12,
+                  ),
+                ),
+              ),
+            ],
+          ),
+          if (item.expiryDate != null) ...[
+            const SizedBox(height: 4),
+            Text(
+              'Exp: ${DateFormat('dd MMM yyyy').format(item.expiryDate!)}',
+              style: TextStyle(
+                color: item.isExpired
+                    ? AppColors.tableOccupied
+                    : AppColors.secondaryText,
+                fontSize: 10,
+                fontWeight: item.isExpired
+                    ? FontWeight.w700
+                    : FontWeight.normal,
+              ),
+            ),
+          ],
         ],
       ),
     );

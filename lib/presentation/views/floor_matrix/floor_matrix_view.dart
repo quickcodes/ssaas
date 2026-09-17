@@ -3,6 +3,8 @@ import 'package:flutter_bloc/flutter_bloc.dart';
 import 'package:uuid/uuid.dart';
 import '../../../core/di/service_locator.dart';
 import '../../../core/theme/app_colors.dart';
+import '../../../core/utils/interactive_feedback.dart';
+import '../../../core/utils/responsive.dart';
 import '../../../data/datasources/firestore_service.dart';
 import '../../../domain/entities/club_table.dart';
 import '../../../domain/entities/stock_item.dart';
@@ -12,6 +14,8 @@ import '../../../domain/entities/table_session.dart';
 import '../../../domain/entities/user_account.dart';
 import '../../blocs/auth/auth_bloc.dart';
 import '../../blocs/floor_matrix/floor_matrix_bloc.dart';
+import '../../widgets/empty_state_card.dart';
+import '../../widgets/fade_slide_transition.dart';
 import 'add_table_item_dialog.dart';
 import 'checkout_session_dialog.dart';
 import 'start_session_dialog.dart';
@@ -50,12 +54,12 @@ class _FloorMatrixViewState extends State<FloorMatrixView> {
     final priceCtrl = TextEditingController(text: '120');
     final specsCtrl = TextEditingController();
 
-    showDialog(
+    showAdaptiveModal(
       context: context,
       builder: (dialogCtx) => AlertDialog(
         backgroundColor: AppColors.cardSurface,
         shape: RoundedRectangleBorder(
-          borderRadius: BorderRadius.circular(16),
+          borderRadius: BorderRadius.circular(18),
           side: const BorderSide(color: AppColors.cardBorderStroke),
         ),
         title: const Row(
@@ -66,7 +70,7 @@ class _FloorMatrixViewState extends State<FloorMatrixView> {
               'Add Snooker Table',
               style: TextStyle(
                 color: AppColors.primaryText,
-                fontWeight: FontWeight.w700,
+                fontWeight: FontWeight.w800,
                 fontSize: 18,
               ),
             ),
@@ -162,6 +166,10 @@ class _FloorMatrixViewState extends State<FloorMatrixView> {
                 SnackBar(
                   content: Text(state.successMessage!),
                   backgroundColor: AppColors.tableAvailable,
+                  behavior: SnackBarBehavior.floating,
+                  shape: RoundedRectangleBorder(
+                    borderRadius: BorderRadius.circular(10),
+                  ),
                 ),
               );
               context
@@ -173,6 +181,10 @@ class _FloorMatrixViewState extends State<FloorMatrixView> {
                 SnackBar(
                   content: Text(state.errorMessage!),
                   backgroundColor: AppColors.tableOccupied,
+                  behavior: SnackBarBehavior.floating,
+                  shape: RoundedRectangleBorder(
+                    borderRadius: BorderRadius.circular(10),
+                  ),
                 ),
               );
               context
@@ -200,96 +212,117 @@ class _FloorMatrixViewState extends State<FloorMatrixView> {
                 .where((t) => t.status == TableStatus.reserved)
                 .length;
 
+            final isMobile = Responsive.isMobile(context);
+
             return SingleChildScrollView(
-              padding: const EdgeInsets.all(20),
+              padding: EdgeInsets.symmetric(
+                horizontal: isMobile ? 16 : 24,
+                vertical: isMobile ? 16 : 24,
+              ),
               child: Column(
                 crossAxisAlignment: CrossAxisAlignment.stretch,
                 children: [
                   // Top Row: Summary & Admin Add Table
-                  Row(
-                    children: [
-                      Expanded(
-                        child: _buildFloorSummaryBar(
-                          available: availableCount,
-                          occupied: occupiedCount,
-                          maintenance: maintenanceCount,
-                          reserved: reservedCount,
-                        ),
-                      ),
-                      if (activeUser.isAdmin) ...[
-                        const SizedBox(width: 14),
-                        ElevatedButton.icon(
-                          onPressed: () =>
-                              _showAddTableDialog(context, activeCompany.id),
-                          icon: const Icon(Icons.add),
-                          label: const Text('Add Table'),
-                          style: ElevatedButton.styleFrom(
-                            backgroundColor: AppColors.brandAccent,
-                            padding: const EdgeInsets.symmetric(
-                              horizontal: 18,
-                              vertical: 18,
-                            ),
-                            shape: RoundedRectangleBorder(
-                              borderRadius: BorderRadius.circular(14),
-                            ),
+                  if (isMobile) ...[
+                    if (activeUser.isAdmin)
+                      ElevatedButton.icon(
+                        onPressed: () {
+                          AppHaptics.light();
+                          _showAddTableDialog(context, activeCompany.id);
+                        },
+                        icon: const Icon(Icons.add, size: 18),
+                        label: const Text('Add Snooker Table'),
+                        style: ElevatedButton.styleFrom(
+                          backgroundColor: AppColors.brandAccent,
+                          padding: const EdgeInsets.symmetric(vertical: 14),
+                          shape: RoundedRectangleBorder(
+                            borderRadius: BorderRadius.circular(12),
                           ),
                         ),
+                      ),
+                    if (activeUser.isAdmin) const SizedBox(height: 12),
+                    _buildFloorSummaryBar(
+                      available: availableCount,
+                      occupied: occupiedCount,
+                      maintenance: maintenanceCount,
+                      reserved: reservedCount,
+                    ),
+                  ] else ...[
+                    Row(
+                      children: [
+                        Expanded(
+                          child: _buildFloorSummaryBar(
+                            available: availableCount,
+                            occupied: occupiedCount,
+                            maintenance: maintenanceCount,
+                            reserved: reservedCount,
+                          ),
+                        ),
+                        if (activeUser.isAdmin) ...[
+                          const SizedBox(width: 14),
+                          ElevatedButton.icon(
+                            onPressed: () {
+                              AppHaptics.light();
+                              _showAddTableDialog(context, activeCompany.id);
+                            },
+                            icon: const Icon(Icons.add),
+                            label: const Text('Add Table'),
+                            style: ElevatedButton.styleFrom(
+                              backgroundColor: AppColors.brandAccent,
+                              padding: const EdgeInsets.symmetric(
+                                horizontal: 20,
+                                vertical: 16,
+                              ),
+                              shape: RoundedRectangleBorder(
+                                borderRadius: BorderRadius.circular(14),
+                              ),
+                            ),
+                          ),
+                        ],
                       ],
-                    ],
-                  ),
+                    ),
+                  ],
                   const SizedBox(height: 16),
 
                   // Filter Row
-                  _buildFilterRow(context, matrixState.filterStatus),
+                  _buildFilterRow(
+                    context,
+                    matrixState.filterStatus,
+                    totalCount: allTables.length,
+                    availableCount: availableCount,
+                    occupiedCount: occupiedCount,
+                    maintenanceCount: maintenanceCount,
+                    reservedCount: reservedCount,
+                  ),
                   const SizedBox(height: 20),
 
                   // Tables Grid Matrix
                   if (tables.isEmpty)
-                    Container(
-                      padding: const EdgeInsets.all(48),
-                      alignment: Alignment.center,
-                      decoration: BoxDecoration(
-                        color: AppColors.cardSurface,
-                        borderRadius: BorderRadius.circular(16),
-                        border: Border.all(color: AppColors.cardBorderStroke),
-                      ),
-                      child: Column(
-                        children: [
-                          const Icon(
-                            Icons.sports_esports_outlined,
-                            size: 48,
-                            color: AppColors.secondaryText,
-                          ),
-                          const SizedBox(height: 12),
-                          const Text(
-                            'No snooker tables found.',
-                            style: TextStyle(
-                              color: AppColors.primaryText,
-                              fontSize: 16,
-                              fontWeight: FontWeight.w700,
-                            ),
-                          ),
-                          if (activeUser.isAdmin) ...[
-                            const SizedBox(height: 8),
-                            const Text(
-                              'Click "Add Table" above to create your first snooker table.',
-                              style: TextStyle(
-                                color: AppColors.secondaryText,
-                                fontSize: 13,
-                              ),
-                            ),
-                          ],
-                        ],
-                      ),
+                    EmptyStateCard(
+                      icon: Icons.sports_esports_outlined,
+                      title: matrixState.filterStatus != null
+                          ? 'No ${matrixState.filterStatus!.displayName} Tables'
+                          : 'No Snooker Tables Found',
+                      subtitle: activeUser.isAdmin
+                          ? 'Get started by creating your first snooker table to begin tracking live sessions.'
+                          : 'No tables currently match this filter criteria.',
+                      actionLabel: activeUser.isAdmin ? 'Add First Table' : null,
+                      onAction: activeUser.isAdmin
+                          ? () => _showAddTableDialog(context, activeCompany.id)
+                          : null,
                     )
                   else
                     LayoutBuilder(
                       builder: (context, constraints) {
                         int crossAxisCount = 3;
-                        if (constraints.maxWidth < 650) {
+                        if (constraints.maxWidth < 620) {
                           crossAxisCount = 1;
-                        } else if (constraints.maxWidth < 1100) {
+                        } else if (constraints.maxWidth < 1050) {
                           crossAxisCount = 2;
+                        } else if (constraints.maxWidth < 1500) {
+                          crossAxisCount = 3;
+                        } else {
+                          crossAxisCount = 4;
                         }
 
                         return GridView.builder(
@@ -300,7 +333,7 @@ class _FloorMatrixViewState extends State<FloorMatrixView> {
                             crossAxisCount: crossAxisCount,
                             crossAxisSpacing: 16,
                             mainAxisSpacing: 16,
-                            mainAxisExtent: 360,
+                            mainAxisExtent: 365,
                           ),
                           itemCount: tables.length,
                           itemBuilder: (context, index) {
@@ -308,60 +341,63 @@ class _FloorMatrixViewState extends State<FloorMatrixView> {
                             final session =
                                 matrixState.getSessionForTable(table.id);
 
-                            return TableCard(
-                              table: table,
-                              session: session,
-                              now: matrixState.currentTickerTime,
-                              activeOperator: activeUser,
-                              onStartSession: () => _handleStartSession(
-                                context,
-                                table,
-                                activeUser,
-                              ),
-                              onPauseSession: () {
-                                if (session != null) {
+                            return FadeSlideTransitionWidget(
+                              index: index,
+                              child: TableCard(
+                                table: table,
+                                session: session,
+                                now: matrixState.currentTickerTime,
+                                activeOperator: activeUser,
+                                onStartSession: () => _handleStartSession(
+                                  context,
+                                  table,
+                                  activeUser,
+                                ),
+                                onPauseSession: () {
+                                  if (session != null) {
+                                    context.read<FloorMatrixBloc>().add(
+                                          PauseTableSessionEvent(
+                                            activeCompany.id,
+                                            session.id,
+                                          ),
+                                        );
+                                  }
+                                },
+                                onResumeSession: () {
+                                  if (session != null) {
+                                    context.read<FloorMatrixBloc>().add(
+                                          ResumeTableSessionEvent(
+                                            activeCompany.id,
+                                            session.id,
+                                          ),
+                                        );
+                                  }
+                                },
+                                onAddItem: () => _handleAddItem(
+                                  context,
+                                  activeCompany.id,
+                                  session,
+                                ),
+                                onCheckoutSession: () => _handleCheckoutSession(
+                                  context,
+                                  activeCompany.id,
+                                  table,
+                                  session,
+                                  matrixState.currentTickerTime,
+                                  activeUser,
+                                ),
+                                onUpdateStatus: (newStatus) {
                                   context.read<FloorMatrixBloc>().add(
-                                        PauseTableSessionEvent(
+                                        UpdateTableStatusDirectEvent(
                                           activeCompany.id,
-                                          session.id,
+                                          table.id,
+                                          newStatus,
                                         ),
                                       );
-                                }
-                              },
-                              onResumeSession: () {
-                                if (session != null) {
-                                  context.read<FloorMatrixBloc>().add(
-                                        ResumeTableSessionEvent(
-                                          activeCompany.id,
-                                          session.id,
-                                        ),
-                                      );
-                                }
-                              },
-                              onAddItem: () => _handleAddItem(
-                                context,
-                                activeCompany.id,
-                                session,
+                                },
+                                onConfigureRates: () =>
+                                    _handleConfigureRates(context, table),
                               ),
-                              onCheckoutSession: () => _handleCheckoutSession(
-                                context,
-                                activeCompany.id,
-                                table,
-                                session,
-                                matrixState.currentTickerTime,
-                                activeUser,
-                              ),
-                              onUpdateStatus: (newStatus) {
-                                context.read<FloorMatrixBloc>().add(
-                                      UpdateTableStatusDirectEvent(
-                                        activeCompany.id,
-                                        table.id,
-                                        newStatus,
-                                      ),
-                                    );
-                              },
-                              onConfigureRates: () =>
-                                  _handleConfigureRates(context, table),
                             );
                           },
                         );
@@ -383,11 +419,18 @@ class _FloorMatrixViewState extends State<FloorMatrixView> {
     required int reserved,
   }) {
     return Container(
-      padding: const EdgeInsets.all(16),
+      padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 14),
       decoration: BoxDecoration(
         color: AppColors.cardSurface,
-        borderRadius: BorderRadius.circular(14),
+        borderRadius: BorderRadius.circular(16),
         border: Border.all(color: AppColors.cardBorderStroke),
+        boxShadow: [
+          BoxShadow(
+            color: Colors.black.withAlpha(30),
+            blurRadius: 10,
+            offset: const Offset(0, 3),
+          ),
+        ],
       ),
       child: SingleChildScrollView(
         scrollDirection: Axis.horizontal,
@@ -443,8 +486,15 @@ class _FloorMatrixViewState extends State<FloorMatrixView> {
   ) {
     return Row(
       children: [
-        Icon(icon, color: color, size: 20),
-        const SizedBox(width: 8),
+        Container(
+          padding: const EdgeInsets.all(6),
+          decoration: BoxDecoration(
+            color: color.withAlpha(25),
+            shape: BoxShape.circle,
+          ),
+          child: Icon(icon, color: color, size: 18),
+        ),
+        const SizedBox(width: 10),
         Column(
           crossAxisAlignment: CrossAxisAlignment.start,
           children: [
@@ -452,8 +502,8 @@ class _FloorMatrixViewState extends State<FloorMatrixView> {
               value,
               style: TextStyle(
                 color: color,
-                fontSize: 16,
-                fontWeight: FontWeight.w800,
+                fontSize: 17,
+                fontWeight: FontWeight.w900,
               ),
             ),
             Text(
@@ -461,6 +511,7 @@ class _FloorMatrixViewState extends State<FloorMatrixView> {
               style: const TextStyle(
                 color: AppColors.secondaryText,
                 fontSize: 11,
+                fontWeight: FontWeight.w500,
               ),
             ),
           ],
@@ -469,7 +520,15 @@ class _FloorMatrixViewState extends State<FloorMatrixView> {
     );
   }
 
-  Widget _buildFilterRow(BuildContext context, TableStatus? currentFilter) {
+  Widget _buildFilterRow(
+    BuildContext context,
+    TableStatus? currentFilter, {
+    required int totalCount,
+    required int availableCount,
+    required int occupiedCount,
+    required int maintenanceCount,
+    required int reservedCount,
+  }) {
     return SingleChildScrollView(
       scrollDirection: Axis.horizontal,
       child: Row(
@@ -477,14 +536,14 @@ class _FloorMatrixViewState extends State<FloorMatrixView> {
           _buildFilterChip(
             context,
             null,
-            'All Tables',
+            'All ($totalCount)',
             currentFilter == null,
           ),
           const SizedBox(width: 8),
           _buildFilterChip(
             context,
             TableStatus.available,
-            'Available',
+            'Available ($availableCount)',
             currentFilter == TableStatus.available,
             color: AppColors.tableAvailable,
           ),
@@ -492,7 +551,7 @@ class _FloorMatrixViewState extends State<FloorMatrixView> {
           _buildFilterChip(
             context,
             TableStatus.occupied,
-            'Running',
+            'Running ($occupiedCount)',
             currentFilter == TableStatus.occupied,
             color: AppColors.tableOccupied,
           ),
@@ -500,7 +559,7 @@ class _FloorMatrixViewState extends State<FloorMatrixView> {
           _buildFilterChip(
             context,
             TableStatus.maintenance,
-            'Maintenance',
+            'Maintenance ($maintenanceCount)',
             currentFilter == TableStatus.maintenance,
             color: AppColors.tableMaintenance,
           ),
@@ -508,7 +567,7 @@ class _FloorMatrixViewState extends State<FloorMatrixView> {
           _buildFilterChip(
             context,
             TableStatus.reserved,
-            'Booked',
+            'Booked ($reservedCount)',
             currentFilter == TableStatus.reserved,
             color: AppColors.tableReserved,
           ),
@@ -527,10 +586,12 @@ class _FloorMatrixViewState extends State<FloorMatrixView> {
     final chipColor = color ?? AppColors.brandAccentLight;
     return InkWell(
       onTap: () {
+        AppHaptics.selection();
         context.read<FloorMatrixBloc>().add(FilterStatusChangedEvent(status));
       },
       borderRadius: BorderRadius.circular(20),
-      child: Container(
+      child: AnimatedContainer(
+        duration: const Duration(milliseconds: 180),
         padding: const EdgeInsets.symmetric(horizontal: 14, vertical: 8),
         decoration: BoxDecoration(
           color: isSelected ? chipColor.withAlpha(35) : AppColors.inputSurface,
@@ -571,7 +632,7 @@ class _FloorMatrixViewState extends State<FloorMatrixView> {
     ClubTable table,
     UserAccount activeUser,
   ) async {
-    final session = await showDialog<TableSession>(
+    final session = await showAdaptiveModal<TableSession>(
       context: context,
       builder: (_) => StartSessionDialog(
         table: table,
@@ -591,7 +652,7 @@ class _FloorMatrixViewState extends State<FloorMatrixView> {
   ) async {
     if (session == null) return;
 
-    final item = await showDialog<TableBillingItem>(
+    final item = await showAdaptiveModal<TableBillingItem>(
       context: context,
       builder: (_) => AddTableItemDialog(
         canteenItems: _canteenItems,
@@ -620,7 +681,7 @@ class _FloorMatrixViewState extends State<FloorMatrixView> {
   ) async {
     if (session == null) return;
 
-    final historyRecord = await showDialog<TableHistoryRecord>(
+    final historyRecord = await showAdaptiveModal<TableHistoryRecord>(
       context: context,
       builder: (_) => CheckoutSessionDialog(
         session: session,
@@ -641,7 +702,7 @@ class _FloorMatrixViewState extends State<FloorMatrixView> {
   }
 
   void _handleConfigureRates(BuildContext context, ClubTable table) async {
-    final updated = await showDialog<ClubTable>(
+    final updated = await showAdaptiveModal<ClubTable>(
       context: context,
       builder: (_) => TableConfigurationDialog(table: table),
     );
