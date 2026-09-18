@@ -14,6 +14,8 @@ import '../equipment/equipment_stock_view.dart';
 import '../floor_matrix/floor_matrix_view.dart';
 import '../history/tables_history_view.dart';
 import '../users/company_users_view.dart';
+import '../../widgets/bouncing_tap.dart';
+import 'user_online_status_dialog.dart';
 
 class MainDashboardView extends StatefulWidget {
   const MainDashboardView({super.key});
@@ -286,68 +288,105 @@ class _MainDashboardViewState extends State<MainDashboardView> {
         ],
       ),
       actions: [
-        // User Profile Tag
-        Container(
-          margin: const EdgeInsets.symmetric(vertical: 10, horizontal: 6),
-          padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 4),
-          constraints: BoxConstraints(
-            maxWidth: MediaQuery.of(context).size.width * 0.45,
-          ),
-          decoration: BoxDecoration(
-            color: AppColors.inputSurface,
-            borderRadius: BorderRadius.circular(20),
-            border: Border.all(color: AppColors.cardBorderStroke),
-          ),
-          child: Row(
-            mainAxisSize: MainAxisSize.min,
-            children: [
-              CircleAvatar(
-                radius: 12,
-                backgroundColor: currentUser.isAdmin
-                    ? AppColors.brandAccent.withAlpha(40)
-                    : AppColors.cardBorderStroke,
-                child: Icon(
-                  currentUser.isAdmin ? Icons.shield : Icons.person,
-                  size: 13,
-                  color: currentUser.isAdmin
-                      ? AppColors.brandAccentLight
-                      : AppColors.secondaryText,
+        // User Profile Tag with Live Shift Status Indicator
+        Tooltip(
+          message: 'Tap to view shift & change Online/Offline status',
+          child: BouncingTap(
+            onTap: () {
+              AppHaptics.selection();
+              showDialog(
+                context: context,
+                builder: (_) => UserOnlineStatusDialog(
+                  currentUser: currentUser,
+                  activeCompany: activeCompany,
+                ),
+              );
+            },
+            child: Container(
+              margin: const EdgeInsets.symmetric(vertical: 9, horizontal: 6),
+              padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 4),
+              constraints: BoxConstraints(
+                maxWidth: MediaQuery.of(context).size.width * 0.48,
+              ),
+              decoration: BoxDecoration(
+                color: currentUser.isOnline
+                    ? AppColors.tableAvailable.withAlpha(20)
+                    : AppColors.inputSurface,
+                borderRadius: BorderRadius.circular(20),
+                border: Border.all(
+                  color: currentUser.isOnline
+                      ? AppColors.tableAvailable.withAlpha(90)
+                      : AppColors.cardBorderStroke,
+                  width: currentUser.isOnline ? 1.5 : 1.0,
                 ),
               ),
-              const SizedBox(width: 6),
-              Flexible(
-                child: Text(
-                  currentUser.name,
-                  maxLines: 1,
-                  overflow: TextOverflow.ellipsis,
-                  style: const TextStyle(
-                    color: AppColors.primaryText,
-                    fontSize: 12,
-                    fontWeight: FontWeight.w600,
+              child: Row(
+                mainAxisSize: MainAxisSize.min,
+                children: [
+                  Container(
+                    width: 8,
+                    height: 8,
+                    decoration: BoxDecoration(
+                      color: currentUser.isOnline
+                          ? AppColors.tableAvailable
+                          : AppColors.textDisabled,
+                      shape: BoxShape.circle,
+                      boxShadow: currentUser.isOnline
+                          ? [
+                              BoxShadow(
+                                color: AppColors.tableAvailable.withAlpha(140),
+                                blurRadius: 4,
+                                spreadRadius: 1,
+                              ),
+                            ]
+                          : null,
+                    ),
                   ),
-                ),
-              ),
-              const SizedBox(width: 6),
-              Container(
-                padding: const EdgeInsets.symmetric(horizontal: 6, vertical: 2),
-                decoration: BoxDecoration(
-                  color: currentUser.isAdmin
-                      ? AppColors.brandAccent.withAlpha(30)
-                      : AppColors.inputSurface,
-                  borderRadius: BorderRadius.circular(4),
-                ),
-                child: Text(
-                  currentUser.isAdmin ? 'ADMIN' : 'STAFF',
-                  style: TextStyle(
-                    color: currentUser.isAdmin
-                        ? AppColors.brandAccentLight
-                        : AppColors.secondaryText,
-                    fontSize: 9,
-                    fontWeight: FontWeight.w800,
+                  const SizedBox(width: 6),
+                  Flexible(
+                    child: Text(
+                      currentUser.name,
+                      maxLines: 1,
+                      overflow: TextOverflow.ellipsis,
+                      style: const TextStyle(
+                        color: AppColors.primaryText,
+                        fontSize: 12,
+                        fontWeight: FontWeight.w600,
+                      ),
+                    ),
                   ),
-                ),
+                  const SizedBox(width: 6),
+                  Container(
+                    padding: const EdgeInsets.symmetric(
+                      horizontal: 6,
+                      vertical: 2,
+                    ),
+                    decoration: BoxDecoration(
+                      color: currentUser.isOnline
+                          ? AppColors.tableAvailable.withAlpha(35)
+                          : (currentUser.isAdmin
+                              ? AppColors.brandAccent.withAlpha(30)
+                              : AppColors.inputSurface),
+                      borderRadius: BorderRadius.circular(4),
+                    ),
+                    child: Text(
+                      currentUser.isOnline
+                          ? 'ONLINE'
+                          : (currentUser.isAdmin ? 'ADMIN' : 'STAFF'),
+                      style: TextStyle(
+                        color: currentUser.isOnline
+                            ? AppColors.tableAvailable
+                            : (currentUser.isAdmin
+                                ? AppColors.brandAccentLight
+                                : AppColors.secondaryText),
+                        fontSize: 9,
+                        fontWeight: FontWeight.w800,
+                      ),
+                    ),
+                  ),
+                ],
               ),
-            ],
+            ),
           ),
         ),
 

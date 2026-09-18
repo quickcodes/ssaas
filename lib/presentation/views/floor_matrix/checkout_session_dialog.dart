@@ -1,6 +1,7 @@
 import 'package:flutter/material.dart';
 import 'package:flutter/services.dart';
 import 'package:uuid/uuid.dart';
+import '../../../core/constants/constants.dart';
 import '../../../core/theme/app_colors.dart';
 import '../../../core/utils/formatters.dart';
 import '../../../core/utils/responsive.dart';
@@ -13,12 +14,14 @@ class CheckoutSessionDialog extends StatefulWidget {
   final TableSession session;
   final DateTime now;
   final UserAccount activeOperator;
+  final double dueBufferAmount;
 
   const CheckoutSessionDialog({
     super.key,
     required this.session,
     required this.now,
     required this.activeOperator,
+    this.dueBufferAmount = Constants.dueBufferAmount,
   });
 
   @override
@@ -26,15 +29,19 @@ class CheckoutSessionDialog extends StatefulWidget {
 }
 
 class _CheckoutSessionDialogState extends State<CheckoutSessionDialog> {
+  double get _dueBuffer => widget.dueBufferAmount;
   final _closingPersonCtrl = TextEditingController();
   final _closingNameCtrl = TextEditingController();
   final _notesCtrl = TextEditingController();
   final _partialAmountCtrl = TextEditingController();
+  final _splitCashAmountCtrl = TextEditingController();
+  final _splitOnlineAmountCtrl = TextEditingController();
   final _minutesAgoController = TextEditingController();
   final _formKey = GlobalKey<FormState>();
 
-  String _settlementMode = 'Full'; // 'Full', 'Partial', 'Due'
+  String _settlementMode = 'Full'; // 'Full', 'Split', 'Partial', 'Due'
   String _paymentMethod = 'Cash'; // 'Cash', 'UPI', 'Card'
+  String _splitOnlineMethod = 'UPI'; // 'UPI', 'Card'
 
   int? _selectedPresetMinutes = 0; // 0 = Now
   bool _isCustomTime = false;
@@ -53,6 +60,8 @@ class _CheckoutSessionDialogState extends State<CheckoutSessionDialog> {
     _closingNameCtrl.dispose();
     _notesCtrl.dispose();
     _partialAmountCtrl.dispose();
+    _splitCashAmountCtrl.dispose();
+    _splitOnlineAmountCtrl.dispose();
     _minutesAgoController.dispose();
     super.dispose();
   }
@@ -824,6 +833,18 @@ class _CheckoutSessionDialogState extends State<CheckoutSessionDialog> {
                     ),
                     const SizedBox(width: 8),
                     _buildSettlementOption(
+                      mode: 'Split',
+                      icon: Icons.call_split,
+                      title: 'Split Pay',
+                      subtitle: 'Cash + UPI',
+                      activeColor: AppColors.brandAccentLight,
+                    ),
+                  ],
+                ),
+                const SizedBox(height: 8),
+                Row(
+                  children: [
+                    _buildSettlementOption(
                       mode: 'Partial',
                       icon: Icons.timelapse,
                       title: 'Partial Paid',
@@ -840,6 +861,139 @@ class _CheckoutSessionDialogState extends State<CheckoutSessionDialog> {
                     ),
                   ],
                 ),
+
+                // If Split, show Cash & Online amounts + Online method selector + live summary
+                if (_settlementMode == 'Split') ...[
+                  const SizedBox(height: 14),
+                  Container(
+                    padding: const EdgeInsets.all(14),
+                    decoration: BoxDecoration(
+                      color: AppColors.inputSurface,
+                      borderRadius: BorderRadius.circular(12),
+                      border: Border.all(
+                        color: AppColors.brandAccent.withAlpha(80),
+                      ),
+                    ),
+                    child: Column(
+                      crossAxisAlignment: CrossAxisAlignment.stretch,
+                      children: [
+                        const Row(
+                          children: [
+                            Icon(
+                              Icons.call_split,
+                              size: 16,
+                              color: AppColors.brandAccentLight,
+                            ),
+                            SizedBox(width: 8),
+                            Text(
+                              'SPLIT PAYMENT (CASH + ONLINE/UPI)',
+                              style: TextStyle(
+                                color: AppColors.brandAccentLight,
+                                fontSize: 11,
+                                fontWeight: FontWeight.w800,
+                                letterSpacing: 0.8,
+                              ),
+                            ),
+                          ],
+                        ),
+                        const SizedBox(height: 12),
+                        TextField(
+                          controller: _splitCashAmountCtrl,
+                          keyboardType: const TextInputType.numberWithOptions(
+                            decimal: true,
+                          ),
+                          inputFormatters: [
+                            FilteringTextInputFormatter.allow(
+                              RegExp(r'^\d*\.?\d{0,2}'),
+                            ),
+                          ],
+                          onChanged: (_) => setState(() {}),
+                          decoration: InputDecoration(
+                            labelText: 'Cash Amount (₹) *',
+                            prefixText: '₹ ',
+                            suffixIcon: TextButton(
+                              onPressed: () {
+                                setState(() {
+                                  _splitCashAmountCtrl.text =
+                                      grandTotal.toStringAsFixed(0);
+                                  _splitOnlineAmountCtrl.text = '0';
+                                });
+                              },
+                              child: const Text(
+                                'All Cash',
+                                style: TextStyle(
+                                  fontSize: 11,
+                                  color: AppColors.brandAccentLight,
+                                ),
+                              ),
+                            ),
+                          ),
+                        ),
+                        const SizedBox(height: 12),
+                        TextField(
+                          controller: _splitOnlineAmountCtrl,
+                          keyboardType: const TextInputType.numberWithOptions(
+                            decimal: true,
+                          ),
+                          inputFormatters: [
+                            FilteringTextInputFormatter.allow(
+                              RegExp(r'^\d*\.?\d{0,2}'),
+                            ),
+                          ],
+                          onChanged: (_) => setState(() {}),
+                          decoration: InputDecoration(
+                            labelText: 'Online / UPI Amount (₹) *',
+                            prefixText: '₹ ',
+                            suffixIcon: TextButton(
+                              onPressed: () {
+                                final cash =
+                                    double.tryParse(
+                                      _splitCashAmountCtrl.text.trim(),
+                                    ) ??
+                                    0.0;
+                                final rem = (grandTotal - cash).clamp(
+                                  0.0,
+                                  grandTotal,
+                                );
+                                setState(() {
+                                  _splitOnlineAmountCtrl.text =
+                                      rem.toStringAsFixed(0);
+                                });
+                              },
+                              child: const Text(
+                                'Fill Rest',
+                                style: TextStyle(
+                                  fontSize: 11,
+                                  color: AppColors.brandAccentLight,
+                                ),
+                              ),
+                            ),
+                          ),
+                        ),
+                        const SizedBox(height: 12),
+                        Row(
+                          children: [
+                            const Text(
+                              'ONLINE METHOD:',
+                              style: TextStyle(
+                                color: AppColors.secondaryText,
+                                fontSize: 10,
+                                fontWeight: FontWeight.w800,
+                                letterSpacing: 0.6,
+                              ),
+                            ),
+                            const SizedBox(width: 12),
+                            _buildSplitMethodChip('UPI', Icons.qr_code),
+                            const SizedBox(width: 8),
+                            _buildSplitMethodChip('Card', Icons.credit_card),
+                          ],
+                        ),
+                        const SizedBox(height: 12),
+                        _buildSplitSummaryCard(grandTotal),
+                      ],
+                    ),
+                  ),
+                ],
 
                 // If Partial, show amount input with validation & real-time calculation
                 if (_settlementMode == 'Partial') ...[
@@ -913,8 +1067,8 @@ class _CheckoutSessionDialogState extends State<CheckoutSessionDialog> {
                   ],
                 ],
 
-                // Payment Method (if money received now)
-                if (_settlementMode != 'Due') ...[
+                // Payment Method (if money received now, for Single-method Full/Partial)
+                if (_settlementMode != 'Due' && _settlementMode != 'Split') ...[
                   const SizedBox(height: 14),
                   const Text(
                     'PAYMENT METHOD FOR RECEIVED AMOUNT',
@@ -1004,6 +1158,77 @@ class _CheckoutSessionDialogState extends State<CheckoutSessionDialog> {
                                 notes: 'Initial full settlement at checkout',
                               ),
                             );
+                          } else if (_settlementMode == 'Split') {
+                            final cashEntered =
+                                double.tryParse(
+                                  _splitCashAmountCtrl.text.trim(),
+                                ) ??
+                                0.0;
+                            final onlineEntered =
+                                double.tryParse(
+                                  _splitOnlineAmountCtrl.text.trim(),
+                                ) ??
+                                0.0;
+                            final totalSplit = cashEntered + onlineEntered;
+
+                            if (totalSplit <= 0) {
+                              ScaffoldMessenger.of(context).showSnackBar(
+                                const SnackBar(
+                                  content: Text(
+                                    'Please enter a valid Cash or Online amount greater than ₹0.',
+                                  ),
+                                  backgroundColor: AppColors.tableOccupied,
+                                ),
+                              );
+                              return;
+                            }
+
+                            if (totalSplit > grandTotal + 0.01) {
+                              ScaffoldMessenger.of(context).showSnackBar(
+                                SnackBar(
+                                  content: Text(
+                                    'Total split paid (₹${totalSplit.toStringAsFixed(2)}) cannot exceed total bill (₹${grandTotal.toStringAsFixed(2)}).',
+                                  ),
+                                  backgroundColor: AppColors.tableOccupied,
+                                ),
+                              );
+                              return;
+                            }
+
+                            paidAmount = totalSplit;
+                            final remSplit =
+                                (grandTotal - totalSplit).clamp(0.0, grandTotal);
+                            final isFullSettled = remSplit < _dueBuffer;
+                            status = isFullSettled ? 'Received' : 'Due';
+                            method = 'Split (Cash + $_splitOnlineMethod)';
+
+                            // 2 transaction entries with their relevant amounts
+                            if (cashEntered > 0) {
+                              transactions.add(
+                                PaymentTransaction(
+                                  id: const Uuid().v4(),
+                                  amount: cashEntered,
+                                  paymentMethod: 'Cash',
+                                  receivedAt: effectiveClose,
+                                  receivedBy: _closingNameCtrl.text.trim(),
+                                  notes: 'Split payment - Cash portion',
+                                ),
+                              );
+                            }
+
+                            if (onlineEntered > 0) {
+                              transactions.add(
+                                PaymentTransaction(
+                                  id: const Uuid().v4(),
+                                  amount: onlineEntered,
+                                  paymentMethod: _splitOnlineMethod,
+                                  receivedAt: effectiveClose,
+                                  receivedBy: _closingNameCtrl.text.trim(),
+                                  notes:
+                                      'Split payment - $_splitOnlineMethod portion',
+                                ),
+                              );
+                            }
                           } else if (_settlementMode == 'Partial') {
                             final entered = double.tryParse(
                               _partialAmountCtrl.text.trim(),
@@ -1031,7 +1256,10 @@ class _CheckoutSessionDialogState extends State<CheckoutSessionDialog> {
                               return;
                             }
                             paidAmount = entered;
-                            status = 'Due';
+                            final remPartial =
+                                (grandTotal - entered).clamp(0.0, grandTotal);
+                            final isPartialSettled = remPartial < _dueBuffer;
+                            status = isPartialSettled ? 'Received' : 'Due';
                             method = _paymentMethod;
                             transactions.add(
                               PaymentTransaction(
@@ -1040,13 +1268,16 @@ class _CheckoutSessionDialogState extends State<CheckoutSessionDialog> {
                                 paymentMethod: _paymentMethod,
                                 receivedAt: effectiveClose,
                                 receivedBy: _closingNameCtrl.text.trim(),
-                                notes: 'Initial partial payment at checkout',
+                                notes: isPartialSettled
+                                    ? 'Settled at checkout (due < ₹${_dueBuffer.toStringAsFixed(0)} waived)'
+                                    : 'Initial partial payment at checkout',
                               ),
                             );
                           } else {
                             // Full Due
                             paidAmount = 0.0;
-                            status = 'Due';
+                            final isSettled = grandTotal < _dueBuffer;
+                            status = isSettled ? 'Received' : 'Due';
                             method = null;
                           }
 
@@ -1069,6 +1300,7 @@ class _CheckoutSessionDialogState extends State<CheckoutSessionDialog> {
                             paymentMethod: method,
                             items: widget.session.items,
                             transactions: transactions,
+                            dueBufferAmount: _dueBuffer,
                             createdAt: DateTime.now(),
                           );
 
@@ -1077,44 +1309,104 @@ class _CheckoutSessionDialogState extends State<CheckoutSessionDialog> {
                         style: ElevatedButton.styleFrom(
                           backgroundColor: _settlementMode == 'Full'
                               ? AppColors.tableAvailable
-                              : (_settlementMode == 'Partial'
-                                    ? Colors.orange
-                                    : AppColors.tableOccupied),
+                              : (_settlementMode == 'Split'
+                                  ? (() {
+                                      final c = double.tryParse(
+                                            _splitCashAmountCtrl.text.trim(),
+                                          ) ??
+                                          0.0;
+                                      final o = double.tryParse(
+                                            _splitOnlineAmountCtrl.text.trim(),
+                                          ) ??
+                                          0.0;
+                                      final total = c + o;
+                                      final due = (grandTotal - total).clamp(
+                                        0.0,
+                                        grandTotal,
+                                      );
+                                      return (due < _dueBuffer && total > 0)
+                                          ? AppColors.tableAvailable
+                                          : AppColors.brandAccentLight;
+                                    }())
+                                  : (_settlementMode == 'Partial'
+                                      ? (() {
+                                          final p = double.tryParse(
+                                                _partialAmountCtrl.text.trim(),
+                                              ) ??
+                                              0.0;
+                                          final due = (grandTotal - p).clamp(
+                                            0.0,
+                                            grandTotal,
+                                          );
+                                          return (due < _dueBuffer && p > 0)
+                                              ? AppColors.tableAvailable
+                                              : Colors.orange;
+                                        }())
+                                      : (grandTotal < _dueBuffer
+                                          ? AppColors.tableAvailable
+                                          : AppColors.tableOccupied))),
                           foregroundColor: Colors.black,
                           padding: const EdgeInsets.symmetric(vertical: 14),
                         ),
                         child: Text(
                           _settlementMode == 'Full'
                               ? 'RECEIVED ₹${grandTotal.toStringAsFixed(0)}'
-                              : (_settlementMode == 'Partial'
-                                    ? () {
-                                        final p =
-                                            double.tryParse(
-                                              _partialAmountCtrl.text.trim(),
-                                            ) ??
-                                            0.0;
-                                        final due = (grandTotal - p).clamp(
-                                          0.0,
-                                          grandTotal,
-                                        );
-                                        return '(₹${due.toStringAsFixed(0)} DUE)';
-                                      }()
-                                    : 'DUE ₹${grandTotal.toStringAsFixed(0)}'),
+                              : (_settlementMode == 'Split'
+                                  ? () {
+                                      final c =
+                                          double.tryParse(
+                                            _splitCashAmountCtrl.text.trim(),
+                                          ) ??
+                                          0.0;
+                                      final o =
+                                          double.tryParse(
+                                            _splitOnlineAmountCtrl.text.trim(),
+                                          ) ??
+                                          0.0;
+                                      final total = c + o;
+                                      final due = (grandTotal - total).clamp(
+                                        0.0,
+                                        grandTotal,
+                                      );
+                                      if (due < _dueBuffer) {
+                                        return 'RECEIVED ₹${total.toStringAsFixed(0)} (SPLIT SETTLED)';
+                                      }
+                                      return 'PAY ₹${total.toStringAsFixed(0)} (₹${due.toStringAsFixed(0)} DUE)';
+                                    }()
+                                  : (_settlementMode == 'Partial'
+                                      ? () {
+                                          final p =
+                                              double.tryParse(
+                                                _partialAmountCtrl.text.trim(),
+                                              ) ??
+                                              0.0;
+                                          final due = (grandTotal - p).clamp(
+                                            0.0,
+                                            grandTotal,
+                                          );
+                                          if (due < _dueBuffer) {
+                                            return 'RECEIVED ₹${p.toStringAsFixed(0)} (SETTLED)';
+                                          }
+                                          return 'PAY ₹${p.toStringAsFixed(0)} (₹${due.toStringAsFixed(0)} DUE)';
+                                        }()
+                                      : (grandTotal < _dueBuffer
+                                          ? 'RECEIVED (WAIVED < ₹${_dueBuffer.toStringAsFixed(0)})'
+                                          : 'DUE ₹${grandTotal.toStringAsFixed(0)}'))),
                           style: const TextStyle(fontWeight: FontWeight.w800),
                         ),
                       ),
                     ),
                   ],
                 ),
-                    ],
-                  ),
-                ),
-              ),
+              ],
             ),
           ),
         ),
       ),
-    );
+    ),
+  ),
+),
+);
   }
 
 
@@ -1270,6 +1562,202 @@ class _CheckoutSessionDialogState extends State<CheckoutSessionDialog> {
             ],
           ),
         ),
+      ),
+    );
+  }
+
+  Widget _buildSplitMethodChip(String method, IconData icon) {
+    final isSelected = _splitOnlineMethod == method;
+    return InkWell(
+      onTap: () => setState(() => _splitOnlineMethod = method),
+      borderRadius: BorderRadius.circular(8),
+      child: Container(
+        padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 6),
+        decoration: BoxDecoration(
+          color: isSelected
+              ? AppColors.brandAccent.withAlpha(40)
+              : AppColors.cardSurface,
+          borderRadius: BorderRadius.circular(8),
+          border: Border.all(
+            color: isSelected
+                ? AppColors.brandAccent
+                : AppColors.cardBorderStroke,
+          ),
+        ),
+        child: Row(
+          mainAxisSize: MainAxisSize.min,
+          children: [
+            Icon(
+              icon,
+              size: 14,
+              color: isSelected
+                  ? AppColors.brandAccentLight
+                  : AppColors.secondaryText,
+            ),
+            const SizedBox(width: 6),
+            Text(
+              method,
+              style: TextStyle(
+                color: isSelected
+                    ? AppColors.primaryText
+                    : AppColors.secondaryText,
+                fontWeight: FontWeight.w700,
+                fontSize: 11,
+              ),
+            ),
+          ],
+        ),
+      ),
+    );
+  }
+
+  Widget _buildSplitSummaryCard(double grandTotal) {
+    final cash = double.tryParse(_splitCashAmountCtrl.text.trim()) ?? 0.0;
+    final online = double.tryParse(_splitOnlineAmountCtrl.text.trim()) ?? 0.0;
+    final totalCollected = cash + online;
+    final remainingDue = (grandTotal - totalCollected).clamp(0.0, grandTotal);
+    final isOverpaid = totalCollected > grandTotal + 0.01;
+    final isFullySettled = remainingDue < _dueBuffer && totalCollected > 0;
+
+    return Container(
+      padding: const EdgeInsets.all(12),
+      decoration: BoxDecoration(
+        color: isOverpaid
+            ? AppColors.error.withAlpha(20)
+            : (isFullySettled
+                ? AppColors.success.withAlpha(20)
+                : AppColors.cardSurface),
+        borderRadius: BorderRadius.circular(10),
+        border: Border.all(
+          color: isOverpaid
+              ? AppColors.error.withAlpha(90)
+              : (isFullySettled
+                  ? AppColors.success.withAlpha(90)
+                  : AppColors.cardBorderStroke),
+        ),
+      ),
+      child: Column(
+        children: [
+          Row(
+            mainAxisAlignment: MainAxisAlignment.spaceBetween,
+            children: [
+              const Text(
+                'Paid via Cash:',
+                style: TextStyle(color: AppColors.secondaryText, fontSize: 12),
+              ),
+              Text(
+                '₹${cash.toStringAsFixed(2)}',
+                style: const TextStyle(
+                  color: AppColors.primaryText,
+                  fontWeight: FontWeight.w600,
+                  fontSize: 12,
+                ),
+              ),
+            ],
+          ),
+          const SizedBox(height: 4),
+          Row(
+            mainAxisAlignment: MainAxisAlignment.spaceBetween,
+            children: [
+              Text(
+                'Paid via $_splitOnlineMethod:',
+                style: const TextStyle(
+                  color: AppColors.secondaryText,
+                  fontSize: 12,
+                ),
+              ),
+              Text(
+                '₹${online.toStringAsFixed(2)}',
+                style: const TextStyle(
+                  color: AppColors.primaryText,
+                  fontWeight: FontWeight.w600,
+                  fontSize: 12,
+                ),
+              ),
+            ],
+          ),
+          const Divider(color: AppColors.cardBorderStroke, height: 16),
+          Row(
+            mainAxisAlignment: MainAxisAlignment.spaceBetween,
+            children: [
+              Text(
+                isOverpaid
+                    ? 'OVERPAID BY:'
+                    : (isFullySettled
+                        ? 'TOTAL COLLECTED (SETTLED):'
+                        : 'TOTAL COLLECTED:'),
+                style: TextStyle(
+                  color: isOverpaid
+                      ? AppColors.error
+                      : (isFullySettled
+                          ? AppColors.success
+                          : AppColors.primaryText),
+                  fontWeight: FontWeight.w800,
+                  fontSize: 12,
+                ),
+              ),
+              Text(
+                '₹${totalCollected.toStringAsFixed(2)}',
+                style: TextStyle(
+                  color: isOverpaid
+                      ? AppColors.error
+                      : (isFullySettled
+                          ? AppColors.success
+                          : AppColors.primaryText),
+                  fontWeight: FontWeight.w800,
+                  fontSize: 13,
+                ),
+              ),
+            ],
+          ),
+          if (!isFullySettled && !isOverpaid) ...[
+            const SizedBox(height: 4),
+            Row(
+              mainAxisAlignment: MainAxisAlignment.spaceBetween,
+              children: [
+                const Text(
+                  'Remaining DUE:',
+                  style: TextStyle(
+                    color: Colors.orangeAccent,
+                    fontWeight: FontWeight.w700,
+                    fontSize: 12,
+                  ),
+                ),
+                Text(
+                  '₹${remainingDue.toStringAsFixed(2)}',
+                  style: const TextStyle(
+                    color: Colors.orangeAccent,
+                    fontWeight: FontWeight.w700,
+                    fontSize: 12,
+                  ),
+                ),
+              ],
+            ),
+          ] else if (isFullySettled && remainingDue > 0) ...[
+            const SizedBox(height: 4),
+            Row(
+              mainAxisAlignment: MainAxisAlignment.spaceBetween,
+              children: [
+                Text(
+                  'Due Waived (< ₹${_dueBuffer.toStringAsFixed(0)}):',
+                  style: const TextStyle(
+                    color: AppColors.tableAvailable,
+                    fontWeight: FontWeight.w600,
+                    fontSize: 12,
+                  ),
+                ),
+                Text(
+                  '₹${remainingDue.toStringAsFixed(2)} waived (Received)',
+                  style: const TextStyle(
+                    color: AppColors.tableAvailable,
+                    fontWeight: FontWeight.w600,
+                    fontSize: 12,
+                  ),
+                ),
+              ],
+            ),
+          ],
+        ],
       ),
     );
   }

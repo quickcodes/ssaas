@@ -10,6 +10,7 @@ import '../../widgets/bouncing_tap.dart';
 import '../../widgets/empty_state_card.dart';
 import '../../widgets/fade_slide_transition.dart';
 import 'add_company_user_screen.dart';
+import 'user_details_screen.dart';
 
 class CompanyUsersView extends StatelessWidget {
   const CompanyUsersView({super.key});
@@ -200,8 +201,19 @@ class CompanyUsersView extends StatelessWidget {
 
                             return FadeSlideTransitionWidget(
                               index: index,
-                              child: Container(
-                                padding: EdgeInsets.all(isMobile ? 14 : 18),
+                              child: BouncingTap(
+                                onTap: () {
+                                  AppHaptics.selection();
+                                  AppNavigation.pushSmooth(
+                                    context,
+                                    UserDetailsScreen(
+                                      user: user,
+                                      isSelf: isSelf,
+                                    ),
+                                  );
+                                },
+                                child: Container(
+                                  padding: EdgeInsets.all(isMobile ? 14 : 18),
                                 decoration: BoxDecoration(
                                   color: AppColors.cardSurface,
                                   borderRadius: BorderRadius.circular(14),
@@ -278,6 +290,41 @@ class CompanyUsersView extends StatelessWidget {
                                                   ),
                                                 ),
                                               ],
+                                              const SizedBox(width: 8),
+                                              Container(
+                                                padding: const EdgeInsets.symmetric(
+                                                  horizontal: 6,
+                                                  vertical: 2,
+                                                ),
+                                                decoration: BoxDecoration(
+                                                  color: user.isOnline
+                                                      ? AppColors.tableAvailable.withAlpha(25)
+                                                      : AppColors.cardBorderStroke,
+                                                  borderRadius: BorderRadius.circular(4),
+                                                ),
+                                                child: Row(
+                                                  mainAxisSize: MainAxisSize.min,
+                                                  children: [
+                                                    CircleAvatar(
+                                                      radius: 3,
+                                                      backgroundColor: user.isOnline
+                                                          ? AppColors.tableAvailable
+                                                          : AppColors.textDisabled,
+                                                    ),
+                                                    const SizedBox(width: 4),
+                                                    Text(
+                                                      user.isOnline ? 'ONLINE' : 'OFFLINE',
+                                                      style: TextStyle(
+                                                        color: user.isOnline
+                                                            ? AppColors.tableAvailable
+                                                            : AppColors.secondaryText,
+                                                        fontSize: 9,
+                                                        fontWeight: FontWeight.w800,
+                                                      ),
+                                                    ),
+                                                  ],
+                                                ),
+                                              ),
                                             ],
                                           ),
                                           const SizedBox(height: 4),
@@ -402,8 +449,15 @@ class CompanyUsersView extends StatelessWidget {
                                         ],
                                       ),
                                     ),
+                                    const SizedBox(width: 6),
+                                    const Icon(
+                                      Icons.chevron_right,
+                                      color: AppColors.secondaryText,
+                                      size: 18,
+                                    ),
                                   ],
                                 ),
+                              ),
                               ),
                             );
                           },

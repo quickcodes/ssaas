@@ -7,4 +7,9 @@ class Constants {
   /// opens the dedicated company creation screen.
   /// When false (default): General users have no option to create companies in the app.
   static const bool isAdmin = true;
+
+  /// Threshold / buffer cap for waiving minor pending due amounts (in ₹).
+  /// If the remaining due amount is strictly less than this buffer amount,
+  /// it is automatically waived and marked as "Received" / settled.
+  static const double dueBufferAmount = 5.0;
 }

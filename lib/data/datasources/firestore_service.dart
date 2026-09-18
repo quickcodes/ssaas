@@ -1,4 +1,6 @@
 import 'package:cloud_firestore/cloud_firestore.dart';
+import 'package:uuid/uuid.dart';
+import '../../core/constants/constants.dart';
 import '../../domain/entities/club_table.dart';
 import '../../domain/entities/company.dart';
 import '../../domain/entities/stock_item.dart';
@@ -71,6 +73,38 @@ class FirestoreService {
     } catch (_) {}
 
     return null;
+  }
+
+  /// Ensures that the company document in Firestore contains the [dueBufferAmount] field.
+  /// If missing from Firestore, it writes [Constants.dueBufferAmount] into the company document.
+  Future<Company> ensureCompanyDueBuffer(Company company) async {
+    try {
+      final doc = await _companiesCol.doc(company.id).get();
+      if (doc.exists && doc.data() != null) {
+        final data = doc.data()!;
+        if (!data.containsKey('dueBufferAmount')) {
+          await _companiesCol.doc(company.id).set({
+            'dueBufferAmount': Constants.dueBufferAmount,
+          }, SetOptions(merge: true));
+          return company.copyWith(dueBufferAmount: Constants.dueBufferAmount);
+        } else {
+          final buffer = (data['dueBufferAmount'] as num?)?.toDouble() ??
+              Constants.dueBufferAmount;
+          return company.copyWith(dueBufferAmount: buffer);
+        }
+      }
+    } catch (_) {}
+    return company;
+  }
+
+  /// Updates the company's due buffer threshold in Firestore
+  Future<void> updateCompanyDueBufferAmount(
+    String companyId,
+    double amount,
+  ) async {
+    await _companiesCol.doc(companyId).set({
+      'dueBufferAmount': amount,
+    }, SetOptions(merge: true));
   }
 
   /// Dev-only company creation with initial admin user
@@ -202,6 +236,72 @@ class FirestoreService {
           ? Timestamp.fromDate(sessionExpiresAt)
           : null,
     }, SetOptions(merge: true));
+  }
+
+  Future<({bool success, String? conflictingUserName})> setUserOnlineStatus({
+    required String companyId,
+    required String userId,
+    required bool isOnline,
+  }) async {
+    final usersCol = _usersCol(companyId);
+
+    if (isOnline) {
+      // Concurrency rule: Check if any other user is currently online
+      final allUsersSnap = await usersCol.get();
+      for (final doc in allUsersSnap.docs) {
+        if (doc.id != userId) {
+          final data = doc.data();
+          if (data['isOnline'] == true) {
+            final name = (data['name'] as String?)?.trim();
+            return (
+              success: false,
+              conflictingUserName:
+                  (name != null && name.isNotEmpty) ? name : 'Another operator',
+            );
+          }
+        }
+      }
+    }
+
+    final userDoc = await usersCol.doc(userId).get();
+    final existingData = userDoc.data() ?? {};
+    final rawShifts = List<Map<String, dynamic>>.from(
+      (existingData['shifts'] as List<dynamic>?)?.map(
+            (e) => Map<String, dynamic>.from(e as Map),
+          ) ??
+          [],
+    );
+
+    final now = Timestamp.now();
+
+    if (isOnline) {
+      // Close any previously open shift if found
+      for (final shift in rawShifts) {
+        if (shift['offlineAt'] == null) {
+          shift['offlineAt'] = now;
+        }
+      }
+      // Append new active shift
+      rawShifts.add({
+        'id': const Uuid().v4(),
+        'onlineAt': now,
+        'offlineAt': null,
+      });
+    } else {
+      // Close active shift
+      for (final shift in rawShifts) {
+        if (shift['offlineAt'] == null) {
+          shift['offlineAt'] = now;
+        }
+      }
+    }
+
+    await usersCol.doc(userId).set({
+      'isOnline': isOnline,
+      'shifts': rawShifts,
+    }, SetOptions(merge: true));
+
+    return (success: true, conflictingUserName: null);
   }
 
   // -------------------------------------------------------------

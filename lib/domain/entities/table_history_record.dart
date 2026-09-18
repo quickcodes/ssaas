@@ -1,5 +1,6 @@
 import 'package:cloud_firestore/cloud_firestore.dart';
 import 'package:equatable/equatable.dart';
+import '../../core/constants/constants.dart';
 import 'payment_transaction.dart';
 import 'table_billing_item.dart';
 
@@ -22,6 +23,7 @@ class TableHistoryRecord extends Equatable {
   final String? paymentMethod; // "Cash", "UPI", "Card"
   final List<TableBillingItem> items;
   final List<PaymentTransaction> transactions;
+  final double dueBufferAmount;
   final DateTime createdAt;
 
   const TableHistoryRecord({
@@ -43,6 +45,7 @@ class TableHistoryRecord extends Equatable {
     this.paymentMethod,
     this.items = const [],
     this.transactions = const [],
+    this.dueBufferAmount = Constants.dueBufferAmount,
     required this.createdAt,
   }) : _paidAmount = paidAmount;
 
@@ -54,7 +57,10 @@ class TableHistoryRecord extends Equatable {
   }
 
   double get dueAmount {
+    if (paymentStatus.toLowerCase() == 'received') return 0.0;
     final remaining = totalAmount - paidAmount;
+    // Waive/settle remaining due if less than buffer cap
+    if (remaining < dueBufferAmount) return 0.0;
     return remaining > 0.001 ? remaining : 0.0;
   }
 
@@ -82,6 +88,7 @@ class TableHistoryRecord extends Equatable {
     String? paymentMethod,
     List<TableBillingItem>? items,
     List<PaymentTransaction>? transactions,
+    double? dueBufferAmount,
     DateTime? createdAt,
   }) {
     return TableHistoryRecord(
@@ -103,6 +110,7 @@ class TableHistoryRecord extends Equatable {
       paymentMethod: paymentMethod ?? this.paymentMethod,
       items: items ?? this.items,
       transactions: transactions ?? this.transactions,
+      dueBufferAmount: dueBufferAmount ?? this.dueBufferAmount,
       createdAt: createdAt ?? this.createdAt,
     );
   }
@@ -126,6 +134,7 @@ class TableHistoryRecord extends Equatable {
       'paymentMethod': paymentMethod,
       'items': items.map((i) => i.toMap()).toList(),
       'transactions': transactions.map((t) => t.toMap()).toList(),
+      'dueBufferAmount': dueBufferAmount,
       'createdAt': Timestamp.fromDate(createdAt),
     };
   }
@@ -148,9 +157,15 @@ class TableHistoryRecord extends Equatable {
         .toList();
 
     final total = (map['totalAmount'] as num?)?.toDouble() ?? 0.0;
-    final status = map['paymentStatus'] as String? ?? 'Received';
+    var status = map['paymentStatus'] as String? ?? 'Received';
     final rawPaid = (map['paidAmount'] as num?)?.toDouble();
     final legacyPaid = rawPaid ?? (status.toLowerCase() == 'received' ? total : 0.0);
+    final buffer = (map['dueBufferAmount'] as num?)?.toDouble() ?? Constants.dueBufferAmount;
+
+    // If remaining due is less than buffer amount, consider it as Received
+    if ((total - legacyPaid) < buffer) {
+      status = 'Received';
+    }
 
     // If no transactions recorded yet but legacy paid amount > 0, synthesize 1 transaction
     if (transactions.isEmpty && legacyPaid > 0.001) {
@@ -185,6 +200,7 @@ class TableHistoryRecord extends Equatable {
       paymentMethod: map['paymentMethod'] as String?,
       items: items,
       transactions: transactions,
+      dueBufferAmount: buffer,
       createdAt: parseDate(map['createdAt']),
     );
   }
@@ -209,6 +225,7 @@ class TableHistoryRecord extends Equatable {
         paymentMethod,
         items,
         transactions,
+        dueBufferAmount,
         createdAt,
       ];
 }

@@ -1,5 +1,6 @@
 import 'package:cloud_firestore/cloud_firestore.dart';
 import 'package:equatable/equatable.dart';
+import 'user_shift_record.dart';
 
 class UserAccount extends Equatable {
   final String id;
@@ -9,8 +10,10 @@ class UserAccount extends Equatable {
   final String email;
   final String password;
   final bool isAdmin;
+  final bool isOnline;
   final DateTime createdAt;
   final DateTime? sessionExpiresAt;
+  final List<UserShiftRecord> shifts;
 
   const UserAccount({
     required this.id,
@@ -20,8 +23,10 @@ class UserAccount extends Equatable {
     required this.email,
     required this.password,
     this.isAdmin = false,
+    this.isOnline = false,
     required this.createdAt,
     this.sessionExpiresAt,
+    this.shifts = const [],
   });
 
   // Role permissions
@@ -34,6 +39,23 @@ class UserAccount extends Equatable {
   bool get isSessionValid =>
       sessionExpiresAt != null && DateTime.now().isBefore(sessionExpiresAt!);
 
+  // Shift & working hours calculations
+  Duration get totalWorkingDuration {
+    Duration total = Duration.zero;
+    for (final s in shifts) {
+      total += s.duration;
+    }
+    return total;
+  }
+
+  UserShiftRecord? get activeShift {
+    try {
+      return shifts.firstWhere((s) => s.isActive);
+    } catch (_) {
+      return null;
+    }
+  }
+
   UserAccount copyWith({
     String? id,
     String? companyId,
@@ -42,8 +64,10 @@ class UserAccount extends Equatable {
     String? email,
     String? password,
     bool? isAdmin,
+    bool? isOnline,
     DateTime? createdAt,
     DateTime? sessionExpiresAt,
+    List<UserShiftRecord>? shifts,
     bool clearSession = false,
   }) {
     return UserAccount(
@@ -54,10 +78,12 @@ class UserAccount extends Equatable {
       email: email ?? this.email,
       password: password ?? this.password,
       isAdmin: isAdmin ?? this.isAdmin,
+      isOnline: isOnline ?? this.isOnline,
       createdAt: createdAt ?? this.createdAt,
       sessionExpiresAt: clearSession
           ? null
           : (sessionExpiresAt ?? this.sessionExpiresAt),
+      shifts: shifts ?? this.shifts,
     );
   }
 
@@ -69,10 +95,12 @@ class UserAccount extends Equatable {
       'email': email,
       'password': password,
       'isAdmin': isAdmin,
+      'isOnline': isOnline,
       'createdAt': Timestamp.fromDate(createdAt),
       'sessionExpiresAt': sessionExpiresAt != null
           ? Timestamp.fromDate(sessionExpiresAt!)
           : null,
+      'shifts': shifts.map((s) => s.toMap()).toList(),
     };
   }
 
@@ -98,8 +126,17 @@ class UserAccount extends Equatable {
       email: map['email'] as String? ?? '',
       password: map['password'] as String? ?? '',
       isAdmin: map['isAdmin'] as bool? ?? false,
+      isOnline: map['isOnline'] as bool? ?? false,
       createdAt: parseDate(map['createdAt']),
       sessionExpiresAt: parseOptionalDate(map['sessionExpiresAt']),
+      shifts: (map['shifts'] as List<dynamic>?)
+              ?.map(
+                (e) => UserShiftRecord.fromMap(
+                  Map<String, dynamic>.from(e as Map),
+                ),
+              )
+              .toList() ??
+          const [],
     );
   }
 
@@ -112,7 +149,9 @@ class UserAccount extends Equatable {
         email,
         password,
         isAdmin,
+        isOnline,
         createdAt,
         sessionExpiresAt,
+        shifts,
       ];
 }

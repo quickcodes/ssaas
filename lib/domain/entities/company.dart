@@ -1,5 +1,6 @@
 import 'package:cloud_firestore/cloud_firestore.dart';
 import 'package:equatable/equatable.dart';
+import '../../core/constants/constants.dart';
 
 class Company extends Equatable {
   final String id;
@@ -8,6 +9,7 @@ class Company extends Equatable {
   final String number;
   final DateTime expiryDate;
   final DateTime createdAt;
+  final double dueBufferAmount;
 
   const Company({
     required this.id,
@@ -16,6 +18,7 @@ class Company extends Equatable {
     required this.number,
     required this.expiryDate,
     required this.createdAt,
+    this.dueBufferAmount = Constants.dueBufferAmount,
   });
 
   bool get isExpired => DateTime.now().isAfter(expiryDate);
@@ -27,6 +30,7 @@ class Company extends Equatable {
     String? number,
     DateTime? expiryDate,
     DateTime? createdAt,
+    double? dueBufferAmount,
   }) {
     return Company(
       id: id ?? this.id,
@@ -35,6 +39,7 @@ class Company extends Equatable {
       number: number ?? this.number,
       expiryDate: expiryDate ?? this.expiryDate,
       createdAt: createdAt ?? this.createdAt,
+      dueBufferAmount: dueBufferAmount ?? this.dueBufferAmount,
     );
   }
 
@@ -45,6 +50,7 @@ class Company extends Equatable {
       'number': number,
       'expiryDate': Timestamp.fromDate(expiryDate),
       'createdAt': Timestamp.fromDate(createdAt),
+      'dueBufferAmount': dueBufferAmount,
     };
   }
 
@@ -67,9 +73,12 @@ class Company extends Equatable {
       number: map['number'] as String? ?? '',
       expiryDate: parseDate(map['expiryDate']),
       createdAt: parseDate(map['createdAt']),
+      dueBufferAmount: (map['dueBufferAmount'] as num?)?.toDouble() ??
+          Constants.dueBufferAmount,
     );
   }
 
   @override
-  List<Object?> get props => [id, name, code, number, expiryDate, createdAt];
+  List<Object?> get props =>
+      [id, name, code, number, expiryDate, createdAt, dueBufferAmount];
 }

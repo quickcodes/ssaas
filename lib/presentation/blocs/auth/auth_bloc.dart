@@ -97,6 +97,17 @@ class ToggleUserAdminStatusEvent extends AuthEvent {
   List<Object?> get props => [userId, isAdmin];
 }
 
+class ToggleUserOnlineStatusEvent extends AuthEvent {
+  final String userId;
+  final bool isOnline;
+  const ToggleUserOnlineStatusEvent({
+    required this.userId,
+    required this.isOnline,
+  });
+  @override
+  List<Object?> get props => [userId, isOnline];
+}
+
 class ClearAuthErrorEvent extends AuthEvent {}
 
 class _CompanyUpdatedInternalEvent extends AuthEvent {
@@ -209,6 +220,7 @@ class AuthBloc extends Bloc<AuthEvent, AuthState> {
     on<CreateCompanyWithAdminEvent>(_onCreateCompanyWithAdmin);
     on<CreateCompanyUserEvent>(_onCreateCompanyUser);
     on<ToggleUserAdminStatusEvent>(_onToggleUserAdminStatus);
+    on<ToggleUserOnlineStatusEvent>(_onToggleUserOnlineStatus);
     on<ClearAuthErrorEvent>(_onClearAuthError);
     on<_CompanyUpdatedInternalEvent>(_onCompanyUpdatedInternal);
     on<_UsersUpdatedInternalEvent>(_onUsersUpdatedInternal);
@@ -230,9 +242,12 @@ class AuthBloc extends Bloc<AuthEvent, AuthState> {
           session.companyId.isNotEmpty &&
           session.userId.isNotEmpty) {
         // 2. Fetch company and check subscription
-        final company =
+        var company =
             await _firestoreService.getCompanyById(session.companyId);
         if (company != null && !company.isExpired) {
+          // Ensure dueBufferAmount is present in company details and store if missing
+          company = await _firestoreService.ensureCompanyDueBuffer(company);
+
           // 3. Verify user and check 10-day session expiry stored in Firebase DB
           final user = await _firestoreService.getUserById(
             session.companyId,
@@ -386,23 +401,29 @@ class AuthBloc extends Bloc<AuthEvent, AuthState> {
 
       final userWithSession = user.copyWith(sessionExpiresAt: sessionExpiresAt);
 
+      // Ensure dueBufferAmount is present in company details and store if missing
+      final updatedCompany =
+          await _firestoreService.ensureCompanyDueBuffer(company);
+
       // Subscribe to active company to monitor expiry in real-time
       _companySub?.cancel();
-      _companySub = _firestoreService.watchCompany(company.id).listen((updated) {
+      _companySub =
+          _firestoreService.watchCompany(updatedCompany.id).listen((updated) {
         add(_CompanyUpdatedInternalEvent(updated));
       });
 
       // Subscribe to company users
       _usersSub?.cancel();
-      _usersSub =
-          _firestoreService.watchCompanyUsers(company.id).listen((users) {
+      _usersSub = _firestoreService
+          .watchCompanyUsers(updatedCompany.id)
+          .listen((users) {
         add(_UsersUpdatedInternalEvent(users));
       });
 
       emit(
         state.copyWith(
           currentUser: userWithSession,
-          activeCompany: company,
+          activeCompany: updatedCompany,
           isLoading: false,
           isSubscriptionExpired: false,
           clearErrorMessage: true,
@@ -442,14 +463,24 @@ class AuthBloc extends Bloc<AuthEvent, AuthState> {
     _UsersUpdatedInternalEvent event,
     Emitter<AuthState> emit,
   ) {
-    emit(state.copyWith(companyUsers: event.users));
+    UserAccount? updatedCurrentUser = state.currentUser;
+    if (state.currentUser != null) {
+      try {
+        updatedCurrentUser =
+            event.users.firstWhere((u) => u.id == state.currentUser!.id);
+      } catch (_) {}
+    }
+    emit(state.copyWith(
+      companyUsers: event.users,
+      currentUser: updatedCurrentUser,
+    ));
   }
 
   Future<void> _onLogout(LogoutEvent event, Emitter<AuthState> emit) async {
     await _companySub?.cancel();
     await _usersSub?.cancel();
 
-    // Invalidate session in Firebase DB and locally
+    // Invalidate session and clear online shift in Firebase DB and locally
     if (state.activeCompany != null && state.currentUser != null) {
       try {
         await _firestoreService.updateUserSession(
@@ -457,6 +488,13 @@ class AuthBloc extends Bloc<AuthEvent, AuthState> {
           state.currentUser!.id,
           null,
         );
+        if (state.currentUser!.isOnline) {
+          await _firestoreService.setUserOnlineStatus(
+            companyId: state.activeCompany!.id,
+            userId: state.currentUser!.id,
+            isOnline: false,
+          );
+        }
       } catch (_) {}
     }
     await _sessionLocalStorage.clearSession();
@@ -551,6 +589,51 @@ class AuthBloc extends Bloc<AuthEvent, AuthState> {
           successMessage: 'Admin status updated successfully.',
         ),
       );
+    } catch (e) {
+      emit(state.copyWith(errorMessage: e.toString()));
+    }
+  }
+
+  Future<void> _onToggleUserOnlineStatus(
+    ToggleUserOnlineStatusEvent event,
+    Emitter<AuthState> emit,
+  ) async {
+    if (state.activeCompany == null) return;
+    try {
+      final result = await _firestoreService.setUserOnlineStatus(
+        companyId: state.activeCompany!.id,
+        userId: event.userId,
+        isOnline: event.isOnline,
+      );
+
+      if (!result.success) {
+        emit(
+          state.copyWith(
+            errorMessage:
+                '${result.conflictingUserName ?? "Another operator"} is currently online. They must go offline before you can go online.',
+          ),
+        );
+        return;
+      }
+
+      if (state.currentUser?.id == event.userId) {
+        emit(
+          state.copyWith(
+            currentUser: state.currentUser!.copyWith(isOnline: event.isOnline),
+            successMessage: event.isOnline
+                ? 'You are now ONLINE. You can now open and close tables.'
+                : 'You are now OFFLINE.',
+          ),
+        );
+      } else {
+        emit(
+          state.copyWith(
+            successMessage: event.isOnline
+                ? 'Operator status updated to ONLINE.'
+                : 'Operator status updated to OFFLINE.',
+          ),
+        );
+      }
     } catch (e) {
       emit(state.copyWith(errorMessage: e.toString()));
     }

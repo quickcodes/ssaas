@@ -1,5 +1,6 @@
 import 'package:flutter/material.dart';
 import 'package:flutter_bloc/flutter_bloc.dart';
+import '../../../core/constants/constants.dart';
 import '../../../core/di/service_locator.dart';
 import '../../../core/theme/app_colors.dart';
 import '../../../core/utils/app_navigation.dart';
@@ -22,6 +23,7 @@ import 'checkout_session_dialog.dart';
 import 'start_session_dialog.dart';
 import 'table_card.dart';
 import 'table_configuration_dialog.dart';
+import '../dashboard/user_online_status_dialog.dart';
 
 class FloorMatrixView extends StatefulWidget {
   const FloorMatrixView({super.key});
@@ -550,6 +552,34 @@ class _FloorMatrixViewState extends State<FloorMatrixView> {
     ClubTable table,
     UserAccount activeUser,
   ) async {
+    if (!activeUser.isOnline) {
+      final activeCompany = context.read<AuthBloc>().state.activeCompany;
+      ScaffoldMessenger.of(context).showSnackBar(
+        SnackBar(
+          content: const Text(
+            'Only the active Online operator can start tables. Please switch to Online first.',
+          ),
+          backgroundColor: AppColors.tableOccupied,
+          action: activeCompany != null
+              ? SnackBarAction(
+                  label: 'GO ONLINE',
+                  textColor: Colors.white,
+                  onPressed: () {
+                    showDialog(
+                      context: context,
+                      builder: (_) => UserOnlineStatusDialog(
+                        currentUser: activeUser,
+                        activeCompany: activeCompany,
+                      ),
+                    );
+                  },
+                )
+              : null,
+        ),
+      );
+      return;
+    }
+
     final session = await AppNavigation.pushSmooth<TableSession>(
       context,
       StartSessionScreen(
@@ -599,12 +629,43 @@ class _FloorMatrixViewState extends State<FloorMatrixView> {
   ) async {
     if (session == null) return;
 
+    if (!activeUser.isOnline) {
+      final activeCompany = context.read<AuthBloc>().state.activeCompany;
+      ScaffoldMessenger.of(context).showSnackBar(
+        SnackBar(
+          content: const Text(
+            'Only the active Online operator can close tables. Please switch to Online first.',
+          ),
+          backgroundColor: AppColors.tableOccupied,
+          action: activeCompany != null
+              ? SnackBarAction(
+                  label: 'GO ONLINE',
+                  textColor: Colors.white,
+                  onPressed: () {
+                    showDialog(
+                      context: context,
+                      builder: (_) => UserOnlineStatusDialog(
+                        currentUser: activeUser,
+                        activeCompany: activeCompany,
+                      ),
+                    );
+                  },
+                )
+              : null,
+        ),
+      );
+      return;
+    }
+
+    final activeCompany = context.read<AuthBloc>().state.activeCompany;
     final historyRecord = await AppNavigation.pushSmooth<TableHistoryRecord>(
       context,
       CheckoutSessionScreen(
         session: session,
         now: now,
         activeOperator: activeUser,
+        dueBufferAmount:
+            activeCompany?.dueBufferAmount ?? Constants.dueBufferAmount,
       ),
     );
 
