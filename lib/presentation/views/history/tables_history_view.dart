@@ -59,432 +59,437 @@ class _TablesHistoryViewState extends State<TablesHistoryView> {
               mainAxisSize: MainAxisSize.min,
               crossAxisAlignment: CrossAxisAlignment.stretch,
               children: [
-              Row(
-                mainAxisAlignment: MainAxisAlignment.spaceBetween,
-                children: [
-                  Column(
-                    crossAxisAlignment: CrossAxisAlignment.start,
-                    children: [
-                      const Text(
-                        'MATCH RECORD DETAILS',
-                        style: TextStyle(
-                          color: AppColors.brandAccentLight,
-                          fontSize: 11,
-                          fontWeight: FontWeight.w800,
-                          letterSpacing: 1.1,
-                        ),
-                      ),
-                      const SizedBox(height: 4),
-                      Text(
-                        record.tableName,
-                        style: const TextStyle(
-                          color: AppColors.primaryText,
-                          fontSize: 20,
-                          fontWeight: FontWeight.w800,
-                        ),
-                      ),
-                    ],
-                  ),
-                  IconButton(
-                    onPressed: () => Navigator.of(ctx).pop(),
-                    icon: const Icon(
-                      Icons.close,
-                      color: AppColors.secondaryText,
-                    ),
-                  ),
-                ],
-              ),
-              const SizedBox(height: 16),
-              const Divider(color: AppColors.cardBorderStroke),
-              const SizedBox(height: 14),
-
-              // Customer & Closed By
-              _buildDetailRow('Closing Person', record.customerName),
-              _buildDetailRow('Closed By (Staff)', record.closedByName),
-              _buildDetailRow('Started By', record.startedByName),
-              _buildDetailRow(
-                'Start Time',
-                DateFormat('dd MMM yyyy, hh:mm a').format(record.startedAt),
-              ),
-              _buildDetailRow(
-                'End Time',
-                DateFormat('dd MMM yyyy, hh:mm a').format(record.closedAt),
-              ),
-              _buildDetailRow(
-                'Duration',
-                '${record.durationMinutes} mins (${(record.durationMinutes / 60.0).toStringAsFixed(1)} hrs)',
-              ),
-              _buildDetailRow(
-                'Payment Status',
-                record.isReceived
-                    ? 'Received (${record.paymentMethod ?? "Cash"})'
-                    : (record.isPartiallyPaid
-                        ? 'Due (₹${record.dueAmount.toStringAsFixed(2)} Pending)'
-                        : 'Due (Payment Pending)'),
-                valueColor: record.isReceived
-                    ? AppColors.tableAvailable
-                    : AppColors.tableOccupied,
-              ),
-              if (record.paidAmount > 0)
-                _buildDetailRow(
-                  'Amount Received',
-                  '₹${record.paidAmount.toStringAsFixed(2)}${record.paymentMethod != null ? " (${record.paymentMethod})" : ""}',
-                  valueColor: AppColors.tableAvailable,
-                ),
-              if (record.isDue)
-                _buildDetailRow(
-                  'Remaining Due',
-                  '₹${record.dueAmount.toStringAsFixed(2)}',
-                  valueColor: AppColors.tableOccupied,
-                ),
-              const SizedBox(height: 14),
-
-              // Itemization
-              const Text(
-                'CHARGES ITEMIZATION',
-                style: TextStyle(
-                  color: AppColors.secondaryText,
-                  fontSize: 11,
-                  fontWeight: FontWeight.w800,
-                ),
-              ),
-              const SizedBox(height: 8),
-              _buildDetailRow(
-                'Table Rental Charge',
-                '₹${record.tableAmount.toStringAsFixed(2)}',
-              ),
-
-              if (record.items.isNotEmpty) ...[
-                const SizedBox(height: 6),
-                Container(
-                  padding: const EdgeInsets.all(12),
-                  decoration: BoxDecoration(
-                    color: AppColors.inputSurface,
-                    borderRadius: BorderRadius.circular(10),
-                  ),
-                  child: Column(
-                    children: record.items.map((i) {
-                      return Padding(
-                        padding: const EdgeInsets.symmetric(vertical: 3),
-                        child: Row(
-                          mainAxisAlignment: MainAxisAlignment.spaceBetween,
-                          children: [
-                            Text(
-                              '${i.quantity}x ${i.name}${i.isCustom ? " (Custom)" : ""}',
-                              style: const TextStyle(
-                                color: AppColors.primaryText,
-                                fontSize: 13,
-                              ),
-                            ),
-                            Text(
-                              '₹${i.totalAmount.toStringAsFixed(2)}',
-                              style: const TextStyle(
-                                color: AppColors.primaryText,
-                                fontWeight: FontWeight.w600,
-                                fontSize: 13,
-                              ),
-                            ),
-                          ],
-                        ),
-                      );
-                    }).toList(),
-                  ),
-                ),
-              ],
-              const SizedBox(height: 10),
-
-              // Grand Total Banner
-              Container(
-                padding: const EdgeInsets.symmetric(
-                  horizontal: 16,
-                  vertical: 12,
-                ),
-                decoration: BoxDecoration(
-                  color: AppColors.brandAccent.withAlpha(30),
-                  borderRadius: BorderRadius.circular(10),
-                  border: Border.all(
-                    color: AppColors.brandAccent.withAlpha(100),
-                  ),
-                ),
-                child: Row(
+                Row(
                   mainAxisAlignment: MainAxisAlignment.spaceBetween,
                   children: [
-                    const Text(
-                      'Total Match Amount',
-                      style: TextStyle(
-                        color: AppColors.primaryText,
-                        fontSize: 15,
-                        fontWeight: FontWeight.w700,
-                      ),
+                    Column(
+                      crossAxisAlignment: CrossAxisAlignment.start,
+                      children: [
+                        const Text(
+                          'MATCH RECORD DETAILS',
+                          style: TextStyle(
+                            color: AppColors.brandAccentLight,
+                            fontSize: 11,
+                            fontWeight: FontWeight.w800,
+                            letterSpacing: 1.1,
+                          ),
+                        ),
+                        const SizedBox(height: 4),
+                        Text(
+                          record.tableName,
+                          style: const TextStyle(
+                            color: AppColors.primaryText,
+                            fontSize: 20,
+                            fontWeight: FontWeight.w800,
+                          ),
+                        ),
+                      ],
                     ),
-                    Text(
-                      '₹${record.totalAmount.toStringAsFixed(2)}',
-                      style: const TextStyle(
-                        color: AppColors.brandAccentLight,
-                        fontSize: 18,
-                        fontWeight: FontWeight.w800,
+                    IconButton(
+                      onPressed: () => Navigator.of(ctx).pop(),
+                      icon: const Icon(
+                        Icons.close,
+                        color: AppColors.secondaryText,
                       ),
                     ),
                   ],
                 ),
-              ),
-              if (record.isDue) ...[
-                const SizedBox(height: 12),
+                const SizedBox(height: 16),
+                const Divider(color: AppColors.cardBorderStroke),
+                const SizedBox(height: 14),
+
+                // Customer & Closed By
+                _buildDetailRow('Closing Person', record.customerName),
+                _buildDetailRow('Closed By (Staff)', record.closedByName),
+                _buildDetailRow('Started By', record.startedByName),
+                _buildDetailRow(
+                  'Start Time',
+                  DateFormat('dd MMM yyyy, hh:mm a').format(record.startedAt),
+                ),
+                _buildDetailRow(
+                  'End Time',
+                  DateFormat('dd MMM yyyy, hh:mm a').format(record.closedAt),
+                ),
+                _buildDetailRow(
+                  'Duration',
+                  '${record.durationMinutes} mins (${(record.durationMinutes / 60.0).toStringAsFixed(1)} hrs)',
+                ),
+                _buildDetailRow(
+                  'Payment Status',
+                  record.isReceived
+                      ? 'Received (${record.paymentMethod ?? "Cash"})'
+                      : (record.isPartiallyPaid
+                            ? 'Due (₹${record.dueAmount.toStringAsFixed(2)} Pending)'
+                            : 'Due (Payment Pending)'),
+                  valueColor: record.isReceived
+                      ? AppColors.tableAvailable
+                      : AppColors.tableOccupied,
+                ),
+                if (record.paidAmount > 0)
+                  _buildDetailRow(
+                    'Amount Received',
+                    '₹${record.paidAmount.toStringAsFixed(2)}${record.paymentMethod != null ? " (${record.paymentMethod})" : ""}',
+                    valueColor: AppColors.tableAvailable,
+                  ),
+                if (record.isDue)
+                  _buildDetailRow(
+                    'Remaining Due',
+                    '₹${record.dueAmount.toStringAsFixed(2)}',
+                    valueColor: AppColors.tableOccupied,
+                  ),
+                const SizedBox(height: 14),
+
+                // Itemization
+                const Text(
+                  'CHARGES ITEMIZATION',
+                  style: TextStyle(
+                    color: AppColors.secondaryText,
+                    fontSize: 11,
+                    fontWeight: FontWeight.w800,
+                  ),
+                ),
+                const SizedBox(height: 8),
+                _buildDetailRow(
+                  'Table Rental Charge',
+                  '₹${record.tableAmount.toStringAsFixed(2)}',
+                ),
+
+                if (record.items.isNotEmpty) ...[
+                  const SizedBox(height: 6),
+                  Container(
+                    padding: const EdgeInsets.all(12),
+                    decoration: BoxDecoration(
+                      color: AppColors.inputSurface,
+                      borderRadius: BorderRadius.circular(10),
+                    ),
+                    child: Column(
+                      children: record.items.map((i) {
+                        return Padding(
+                          padding: const EdgeInsets.symmetric(vertical: 3),
+                          child: Row(
+                            mainAxisAlignment: MainAxisAlignment.spaceBetween,
+                            children: [
+                              Text(
+                                '${i.quantity}x ${i.name}${i.isCustom ? " (Custom)" : ""}',
+                                style: const TextStyle(
+                                  color: AppColors.primaryText,
+                                  fontSize: 13,
+                                ),
+                              ),
+                              Text(
+                                '₹${i.totalAmount.toStringAsFixed(2)}',
+                                style: const TextStyle(
+                                  color: AppColors.primaryText,
+                                  fontWeight: FontWeight.w600,
+                                  fontSize: 13,
+                                ),
+                              ),
+                            ],
+                          ),
+                        );
+                      }).toList(),
+                    ),
+                  ),
+                ],
+                const SizedBox(height: 10),
+
+                // Grand Total Banner
                 Container(
                   padding: const EdgeInsets.symmetric(
-                    horizontal: 14,
-                    vertical: 10,
+                    horizontal: 16,
+                    vertical: 12,
                   ),
                   decoration: BoxDecoration(
-                    color: AppColors.tableOccupied.withAlpha(20),
+                    color: AppColors.brandAccent.withAlpha(30),
                     borderRadius: BorderRadius.circular(10),
                     border: Border.all(
-                      color: AppColors.tableOccupied.withAlpha(80),
+                      color: AppColors.brandAccent.withAlpha(100),
                     ),
                   ),
                   child: Row(
+                    mainAxisAlignment: MainAxisAlignment.spaceBetween,
                     children: [
-                      const Icon(
-                        Icons.pending_actions,
-                        color: AppColors.tableOccupied,
-                        size: 20,
+                      const Text(
+                        'Total Match Amount',
+                        style: TextStyle(
+                          color: AppColors.primaryText,
+                          fontSize: 15,
+                          fontWeight: FontWeight.w700,
+                        ),
                       ),
-                      const SizedBox(width: 10),
-                      Expanded(
-                        child: Column(
-                          crossAxisAlignment: CrossAxisAlignment.start,
-                          children: [
-                            Text(
-                              'Payment Due: ₹${record.dueAmount.toStringAsFixed(2)}',
-                              style: const TextStyle(
-                                color: AppColors.tableOccupied,
-                                fontSize: 13,
-                                fontWeight: FontWeight.w800,
-                              ),
-                            ),
-                            const SizedBox(height: 2),
-                            Text(
-                              record.isPartiallyPaid
-                                  ? 'Customer has paid ₹${record.paidAmount.toStringAsFixed(2)} so far. Remaining balance is ₹${record.dueAmount.toStringAsFixed(2)}.'
-                                  : 'Full payment of ₹${record.totalAmount.toStringAsFixed(2)} is pending for this match.',
-                              style: const TextStyle(
-                                color: AppColors.secondaryText,
-                                fontSize: 11,
-                              ),
-                            ),
-                          ],
+                      Text(
+                        '₹${record.totalAmount.toStringAsFixed(2)}',
+                        style: const TextStyle(
+                          color: AppColors.brandAccentLight,
+                          fontSize: 18,
+                          fontWeight: FontWeight.w800,
                         ),
                       ),
                     ],
                   ),
                 ),
-              ],
-              const SizedBox(height: 16),
-
-              // Payment Transactions History Section
-              Row(
-                mainAxisAlignment: MainAxisAlignment.spaceBetween,
-                children: [
-                  const Text(
-                    'PAYMENT TRANSACTIONS',
-                    style: TextStyle(
-                      color: AppColors.secondaryText,
-                      fontSize: 11,
-                      fontWeight: FontWeight.w800,
-                      letterSpacing: 0.8,
+                if (record.isDue) ...[
+                  const SizedBox(height: 12),
+                  Container(
+                    padding: const EdgeInsets.symmetric(
+                      horizontal: 14,
+                      vertical: 10,
+                    ),
+                    decoration: BoxDecoration(
+                      color: AppColors.tableOccupied.withAlpha(20),
+                      borderRadius: BorderRadius.circular(10),
+                      border: Border.all(
+                        color: AppColors.tableOccupied.withAlpha(80),
+                      ),
+                    ),
+                    child: Row(
+                      children: [
+                        const Icon(
+                          Icons.pending_actions,
+                          color: AppColors.tableOccupied,
+                          size: 20,
+                        ),
+                        const SizedBox(width: 10),
+                        Expanded(
+                          child: Column(
+                            crossAxisAlignment: CrossAxisAlignment.start,
+                            children: [
+                              Text(
+                                'Payment Due: ₹${record.dueAmount.toStringAsFixed(2)}',
+                                style: const TextStyle(
+                                  color: AppColors.tableOccupied,
+                                  fontSize: 13,
+                                  fontWeight: FontWeight.w800,
+                                ),
+                              ),
+                              const SizedBox(height: 2),
+                              Text(
+                                record.isPartiallyPaid
+                                    ? 'Customer has paid ₹${record.paidAmount.toStringAsFixed(2)} so far. Remaining balance is ₹${record.dueAmount.toStringAsFixed(2)}.'
+                                    : 'Full payment of ₹${record.totalAmount.toStringAsFixed(2)} is pending for this match.',
+                                style: const TextStyle(
+                                  color: AppColors.secondaryText,
+                                  fontSize: 11,
+                                ),
+                              ),
+                            ],
+                          ),
+                        ),
+                      ],
                     ),
                   ),
-                  if (record.transactions.isNotEmpty)
-                    Text(
-                      '${record.transactions.length} payment${record.transactions.length > 1 ? "s" : ""}',
-                      style: const TextStyle(
+                ],
+                const SizedBox(height: 16),
+
+                // Payment Transactions History Section
+                Row(
+                  mainAxisAlignment: MainAxisAlignment.spaceBetween,
+                  children: [
+                    const Text(
+                      'PAYMENT TRANSACTIONS',
+                      style: TextStyle(
                         color: AppColors.secondaryText,
                         fontSize: 11,
+                        fontWeight: FontWeight.w800,
+                        letterSpacing: 0.8,
                       ),
                     ),
-                ],
-              ),
-              const SizedBox(height: 8),
-              if (record.transactions.isEmpty)
-                Container(
-                  padding: const EdgeInsets.all(12),
-                  decoration: BoxDecoration(
-                    color: AppColors.inputSurface,
-                    borderRadius: BorderRadius.circular(10),
-                    border: Border.all(color: AppColors.cardBorderStroke),
-                  ),
-                  child: const Row(
-                    children: [
-                      Icon(
-                        Icons.info_outline,
-                        size: 16,
-                        color: AppColors.secondaryText,
-                      ),
-                      SizedBox(width: 8),
+                    if (record.transactions.isNotEmpty)
                       Text(
-                        'No payment transactions recorded yet.',
-                        style: TextStyle(
+                        '${record.transactions.length} payment${record.transactions.length > 1 ? "s" : ""}',
+                        style: const TextStyle(
                           color: AppColors.secondaryText,
-                          fontSize: 12,
+                          fontSize: 11,
+                        ),
+                      ),
+                  ],
+                ),
+                const SizedBox(height: 8),
+                if (record.transactions.isEmpty)
+                  Container(
+                    padding: const EdgeInsets.all(12),
+                    decoration: BoxDecoration(
+                      color: AppColors.inputSurface,
+                      borderRadius: BorderRadius.circular(10),
+                      border: Border.all(color: AppColors.cardBorderStroke),
+                    ),
+                    child: const Row(
+                      children: [
+                        Icon(
+                          Icons.info_outline,
+                          size: 16,
+                          color: AppColors.secondaryText,
+                        ),
+                        SizedBox(width: 8),
+                        Text(
+                          'No payment transactions recorded yet.',
+                          style: TextStyle(
+                            color: AppColors.secondaryText,
+                            fontSize: 12,
+                          ),
+                        ),
+                      ],
+                    ),
+                  )
+                else
+                  Container(
+                    padding: const EdgeInsets.symmetric(
+                      horizontal: 12,
+                      vertical: 8,
+                    ),
+                    decoration: BoxDecoration(
+                      color: AppColors.inputSurface,
+                      borderRadius: BorderRadius.circular(10),
+                      border: Border.all(color: AppColors.cardBorderStroke),
+                    ),
+                    child: Column(
+                      children: record.transactions.asMap().entries.map((
+                        entry,
+                      ) {
+                        final idx = entry.key;
+                        final tx = entry.value;
+                        final isLast = idx == record.transactions.length - 1;
+                        return Column(
+                          children: [
+                            Padding(
+                              padding: const EdgeInsets.symmetric(vertical: 6),
+                              child: Row(
+                                children: [
+                                  Container(
+                                    padding: const EdgeInsets.all(6),
+                                    decoration: BoxDecoration(
+                                      color: AppColors.tableAvailable.withAlpha(
+                                        25,
+                                      ),
+                                      shape: BoxShape.circle,
+                                    ),
+                                    child: const Icon(
+                                      Icons.arrow_downward,
+                                      size: 14,
+                                      color: AppColors.tableAvailable,
+                                    ),
+                                  ),
+                                  const SizedBox(width: 10),
+                                  Expanded(
+                                    child: Column(
+                                      crossAxisAlignment:
+                                          CrossAxisAlignment.start,
+                                      children: [
+                                        Row(
+                                          children: [
+                                            Text(
+                                              '+₹${tx.amount.toStringAsFixed(2)}',
+                                              style: const TextStyle(
+                                                color: AppColors.tableAvailable,
+                                                fontWeight: FontWeight.w800,
+                                                fontSize: 14,
+                                              ),
+                                            ),
+                                            const SizedBox(width: 8),
+                                            Container(
+                                              padding:
+                                                  const EdgeInsets.symmetric(
+                                                    horizontal: 6,
+                                                    vertical: 1.5,
+                                                  ),
+                                              decoration: BoxDecoration(
+                                                color: AppColors.brandAccent
+                                                    .withAlpha(40),
+                                                borderRadius:
+                                                    BorderRadius.circular(4),
+                                              ),
+                                              child: Text(
+                                                tx.paymentMethod.toUpperCase(),
+                                                style: const TextStyle(
+                                                  color: AppColors
+                                                      .brandAccentLight,
+                                                  fontSize: 9,
+                                                  fontWeight: FontWeight.w700,
+                                                ),
+                                              ),
+                                            ),
+                                          ],
+                                        ),
+                                        const SizedBox(height: 2),
+                                        Text(
+                                          '${DateFormat("dd MMM yyyy, hh:mm a").format(tx.receivedAt)} • by ${tx.receivedBy}',
+                                          style: const TextStyle(
+                                            color: AppColors.secondaryText,
+                                            fontSize: 11,
+                                          ),
+                                        ),
+                                      ],
+                                    ),
+                                  ),
+                                ],
+                              ),
+                            ),
+                            if (!isLast)
+                              const Divider(
+                                color: AppColors.cardBorderStroke,
+                                height: 1,
+                              ),
+                          ],
+                        );
+                      }).toList(),
+                    ),
+                  ),
+                const SizedBox(height: 20),
+                Row(
+                  children: [
+                    Expanded(
+                      child: OutlinedButton(
+                        onPressed: () => Navigator.of(ctx).pop(),
+                        style: OutlinedButton.styleFrom(
+                          padding: const EdgeInsets.symmetric(vertical: 12),
+                          foregroundColor: AppColors.secondaryText,
+                          side: const BorderSide(
+                            color: AppColors.cardBorderStroke,
+                          ),
+                        ),
+                        child: const Text('Close'),
+                      ),
+                    ),
+                    if (record.isDue) ...[
+                      const SizedBox(width: 12),
+                      Expanded(
+                        flex: 2,
+                        child: ElevatedButton.icon(
+                          onPressed: () {
+                            Navigator.of(ctx).pop();
+                            _showRecordPaymentDialog(context, record);
+                          },
+                          icon: const Icon(Icons.payments_outlined, size: 18),
+                          label: const Text(
+                            'RECEIVE PAYMENT',
+                            style: TextStyle(
+                              fontWeight: FontWeight.w800,
+                              fontSize: 13,
+                            ),
+                          ),
+                          style: ElevatedButton.styleFrom(
+                            backgroundColor: AppColors.brandAccent,
+                            foregroundColor: Colors.white,
+                            padding: const EdgeInsets.symmetric(vertical: 12),
+                          ),
                         ),
                       ),
                     ],
-                  ),
-                )
-              else
-                Container(
-                  padding: const EdgeInsets.symmetric(
-                    horizontal: 12,
-                    vertical: 8,
-                  ),
-                  decoration: BoxDecoration(
-                    color: AppColors.inputSurface,
-                    borderRadius: BorderRadius.circular(10),
-                    border: Border.all(color: AppColors.cardBorderStroke),
-                  ),
-                  child: Column(
-                    children: record.transactions.asMap().entries.map((entry) {
-                      final idx = entry.key;
-                      final tx = entry.value;
-                      final isLast = idx == record.transactions.length - 1;
-                      return Column(
-                        children: [
-                          Padding(
-                            padding: const EdgeInsets.symmetric(vertical: 6),
-                            child: Row(
-                              children: [
-                                Container(
-                                  padding: const EdgeInsets.all(6),
-                                  decoration: BoxDecoration(
-                                    color: AppColors.tableAvailable.withAlpha(25),
-                                    shape: BoxShape.circle,
-                                  ),
-                                  child: const Icon(
-                                    Icons.arrow_downward,
-                                    size: 14,
-                                    color: AppColors.tableAvailable,
-                                  ),
-                                ),
-                                const SizedBox(width: 10),
-                                Expanded(
-                                  child: Column(
-                                    crossAxisAlignment:
-                                        CrossAxisAlignment.start,
-                                    children: [
-                                      Row(
-                                        children: [
-                                          Text(
-                                            '+₹${tx.amount.toStringAsFixed(2)}',
-                                            style: const TextStyle(
-                                              color: AppColors.tableAvailable,
-                                              fontWeight: FontWeight.w800,
-                                              fontSize: 14,
-                                            ),
-                                          ),
-                                          const SizedBox(width: 8),
-                                          Container(
-                                            padding: const EdgeInsets.symmetric(
-                                              horizontal: 6,
-                                              vertical: 1.5,
-                                            ),
-                                            decoration: BoxDecoration(
-                                              color: AppColors.brandAccent
-                                                  .withAlpha(40),
-                                              borderRadius:
-                                                  BorderRadius.circular(4),
-                                            ),
-                                            child: Text(
-                                              tx.paymentMethod.toUpperCase(),
-                                              style: const TextStyle(
-                                                color: AppColors.brandAccentLight,
-                                                fontSize: 9,
-                                                fontWeight: FontWeight.w700,
-                                              ),
-                                            ),
-                                          ),
-                                        ],
-                                      ),
-                                      const SizedBox(height: 2),
-                                      Text(
-                                        '${DateFormat("dd MMM yyyy, hh:mm a").format(tx.receivedAt)} • by ${tx.receivedBy}',
-                                        style: const TextStyle(
-                                          color: AppColors.secondaryText,
-                                          fontSize: 11,
-                                        ),
-                                      ),
-                                    ],
-                                  ),
-                                ),
-                              ],
-                            ),
-                          ),
-                          if (!isLast)
-                            const Divider(
-                              color: AppColors.cardBorderStroke,
-                              height: 1,
-                            ),
-                        ],
-                      );
-                    }).toList(),
-                  ),
-                ),
-              const SizedBox(height: 20),
-              Row(
-                children: [
-                  Expanded(
-                    child: OutlinedButton(
-                      onPressed: () => Navigator.of(ctx).pop(),
-                      style: OutlinedButton.styleFrom(
-                        padding: const EdgeInsets.symmetric(vertical: 12),
-                        foregroundColor: AppColors.secondaryText,
-                        side: const BorderSide(color: AppColors.cardBorderStroke),
-                      ),
-                      child: const Text('Close'),
-                    ),
-                  ),
-                  if (record.isDue) ...[
-                    const SizedBox(width: 12),
-                    Expanded(
-                      flex: 2,
-                      child: ElevatedButton.icon(
-                        onPressed: () {
-                          Navigator.of(ctx).pop();
-                          _showRecordPaymentDialog(context, record);
-                        },
-                        icon: const Icon(Icons.payments_outlined, size: 18),
-                        label: const Text(
-                          'RECEIVE PAYMENT',
-                          style: TextStyle(
-                            fontWeight: FontWeight.w800,
-                            fontSize: 13,
-                          ),
-                        ),
-                        style: ElevatedButton.styleFrom(
-                          backgroundColor: AppColors.brandAccent,
-                          foregroundColor: Colors.white,
-                          padding: const EdgeInsets.symmetric(vertical: 12),
-                        ),
-                      ),
-                    ),
                   ],
-                ],
-              ),
-            ],
+                ),
+              ],
+            ),
           ),
         ),
       ),
-    ),
-  );
-}
+    );
+  }
 
   void _showRecordPaymentDialog(
     BuildContext context,
     TableHistoryRecord record,
   ) {
-    AppNavigation.pushSmooth(
-      context,
-      SettleDuePaymentScreen(record: record),
-    );
+    AppNavigation.pushSmooth(context, SettleDuePaymentScreen(record: record));
   }
 
   Widget _buildDetailRow(String label, String value, {Color? valueColor}) {
@@ -548,10 +553,14 @@ class _TablesHistoryViewState extends State<TablesHistoryView> {
         }).toList();
 
         final totalMatches = allHistory.length;
-        final totalReceived = allHistory
-            .fold<double>(0.0, (sum, r) => sum + r.paidAmount);
-        final totalDue = allHistory
-            .fold<double>(0.0, (sum, r) => sum + r.dueAmount);
+        final totalReceived = allHistory.fold<double>(
+          0.0,
+          (sum, r) => sum + r.paidAmount,
+        );
+        final totalDue = allHistory.fold<double>(
+          0.0,
+          (sum, r) => sum + r.dueAmount,
+        );
 
         return Scaffold(
           backgroundColor: AppColors.backgroundBase,
@@ -598,7 +607,7 @@ class _TablesHistoryViewState extends State<TablesHistoryView> {
                       ),
                       icon: const Icon(Icons.share_outlined, size: 18),
                       label: const Text(
-                        'Share Report',
+                        'Report',
                         style: TextStyle(
                           fontWeight: FontWeight.w800,
                           fontSize: 13,
@@ -662,7 +671,8 @@ class _TablesHistoryViewState extends State<TablesHistoryView> {
                       suffixIcon: _searchQuery.isNotEmpty
                           ? IconButton(
                               icon: const Icon(Icons.clear, size: 18),
-                              onPressed: () => setState(() => _searchQuery = ''),
+                              onPressed: () =>
+                                  setState(() => _searchQuery = ''),
                             )
                           : null,
                     ),
@@ -670,24 +680,24 @@ class _TablesHistoryViewState extends State<TablesHistoryView> {
                 ),
                 const SizedBox(height: 16),
                 // Filter & Search Controls
-                Row(
-                  children: [
-                    _buildStatusFilterChip('All', 'All Matches'),
-                    const SizedBox(width: 8),
-                    _buildStatusFilterChip(
-                      'Received',
-                      'Received',
-                      color: AppColors.tableAvailable,
-                    ),
-                    const SizedBox(width: 8),
-                    _buildStatusFilterChip(
-                      'Due',
-                      'Due',
-                      color: AppColors.tableOccupied,
-                    ),
-                  ],
-                ),
-                const SizedBox(height: 16),
+                // Row(
+                //   children: [
+                //     _buildStatusFilterChip('All', 'All Matches'),
+                //     const SizedBox(width: 8),
+                //     _buildStatusFilterChip(
+                //       'Received',
+                //       'Received',
+                //       color: AppColors.tableAvailable,
+                //     ),
+                //     const SizedBox(width: 8),
+                //     _buildStatusFilterChip(
+                //       'Due',
+                //       'Due',
+                //       color: AppColors.tableOccupied,
+                //     ),
+                //   ],
+                // ),
+                // const SizedBox(height: 16),
 
                 // List of Records
                 Expanded(
@@ -724,7 +734,9 @@ class _TablesHistoryViewState extends State<TablesHistoryView> {
                                     borderRadius: BorderRadius.circular(16),
                                     border: Border.all(
                                       color: record.isDue
-                                          ? AppColors.tableOccupied.withAlpha(90)
+                                          ? AppColors.tableOccupied.withAlpha(
+                                              90,
+                                            )
                                           : AppColors.cardBorderStroke,
                                       width: record.isDue ? 1.4 : 1.0,
                                     ),
@@ -744,26 +756,32 @@ class _TablesHistoryViewState extends State<TablesHistoryView> {
                                             Row(
                                               children: [
                                                 Container(
-                                                  padding:
-                                                      const EdgeInsets.all(8),
+                                                  padding: const EdgeInsets.all(
+                                                    8,
+                                                  ),
                                                   decoration: BoxDecoration(
                                                     color: record.isReceived
-                                                        ? AppColors.tableAvailable
-                                                            .withAlpha(25)
-                                                        : AppColors.tableOccupied
-                                                            .withAlpha(25),
+                                                        ? AppColors
+                                                              .tableAvailable
+                                                              .withAlpha(25)
+                                                        : AppColors
+                                                              .tableOccupied
+                                                              .withAlpha(25),
                                                     borderRadius:
-                                                        BorderRadius.circular(8),
+                                                        BorderRadius.circular(
+                                                          8,
+                                                        ),
                                                   ),
                                                   child: Icon(
                                                     record.isReceived
                                                         ? Icons
-                                                            .check_circle_outline
+                                                              .check_circle_outline
                                                         : Icons.pending_actions,
                                                     color: record.isReceived
-                                                        ? AppColors.tableAvailable
+                                                        ? AppColors
+                                                              .tableAvailable
                                                         : AppColors
-                                                            .tableOccupied,
+                                                              .tableOccupied,
                                                     size: 18,
                                                   ),
                                                 ),
@@ -781,41 +799,45 @@ class _TablesHistoryViewState extends State<TablesHistoryView> {
                                                   ),
                                                 ),
                                                 Container(
-                                                  padding: const EdgeInsets
-                                                      .symmetric(
-                                                    horizontal: 8,
-                                                    vertical: 3,
-                                                  ),
+                                                  padding:
+                                                      const EdgeInsets.symmetric(
+                                                        horizontal: 8,
+                                                        vertical: 3,
+                                                      ),
                                                   decoration: BoxDecoration(
                                                     color: record.isReceived
-                                                        ? AppColors.tableAvailable
-                                                            .withAlpha(25)
-                                                        : AppColors.tableOccupied
-                                                            .withAlpha(25),
+                                                        ? AppColors
+                                                              .tableAvailable
+                                                              .withAlpha(25)
+                                                        : AppColors
+                                                              .tableOccupied
+                                                              .withAlpha(25),
                                                     borderRadius:
-                                                        BorderRadius.circular(6),
+                                                        BorderRadius.circular(
+                                                          6,
+                                                        ),
                                                     border: Border.all(
                                                       color: record.isReceived
                                                           ? AppColors
-                                                              .tableAvailable
-                                                              .withAlpha(120)
+                                                                .tableAvailable
+                                                                .withAlpha(120)
                                                           : AppColors
-                                                              .tableOccupied
-                                                              .withAlpha(120),
+                                                                .tableOccupied
+                                                                .withAlpha(120),
                                                     ),
                                                   ),
                                                   child: Text(
                                                     record.isReceived
                                                         ? 'RECEIVED'
                                                         : (record.isPartiallyPaid
-                                                            ? 'DUE: ₹${record.dueAmount.toStringAsFixed(0)}'
-                                                            : 'DUE'),
+                                                              ? 'DUE: ₹${record.dueAmount.toStringAsFixed(0)}'
+                                                              : 'DUE'),
                                                     style: TextStyle(
                                                       color: record.isReceived
                                                           ? AppColors
-                                                              .tableAvailable
+                                                                .tableAvailable
                                                           : AppColors
-                                                              .tableOccupied,
+                                                                .tableOccupied,
                                                       fontSize: 10,
                                                       fontWeight:
                                                           FontWeight.w800,
@@ -872,9 +894,9 @@ class _TablesHistoryViewState extends State<TablesHistoryView> {
                                                       style: TextStyle(
                                                         color: record.isReceived
                                                             ? AppColors
-                                                                .tableAvailable
+                                                                  .tableAvailable
                                                             : AppColors
-                                                                .tableOccupied,
+                                                                  .tableOccupied,
                                                         fontWeight:
                                                             FontWeight.w900,
                                                         fontSize: 16,
@@ -906,21 +928,19 @@ class _TablesHistoryViewState extends State<TablesHistoryView> {
                                           children: [
                                             // Status icon badge
                                             Container(
-                                              padding:
-                                                  const EdgeInsets.all(10),
+                                              padding: const EdgeInsets.all(10),
                                               decoration: BoxDecoration(
                                                 color: record.isReceived
                                                     ? AppColors.tableAvailable
-                                                        .withAlpha(25)
+                                                          .withAlpha(25)
                                                     : AppColors.tableOccupied
-                                                        .withAlpha(25),
+                                                          .withAlpha(25),
                                                 borderRadius:
                                                     BorderRadius.circular(10),
                                               ),
                                               child: Icon(
                                                 record.isReceived
-                                                    ? Icons
-                                                        .check_circle_outline
+                                                    ? Icons.check_circle_outline
                                                     : Icons.pending_actions,
                                                 color: record.isReceived
                                                     ? AppColors.tableAvailable
@@ -946,8 +966,7 @@ class _TablesHistoryViewState extends State<TablesHistoryView> {
                                                     children: [
                                                       Text(
                                                         record.tableName,
-                                                        style:
-                                                            const TextStyle(
+                                                        style: const TextStyle(
                                                           color: AppColors
                                                               .primaryText,
                                                           fontWeight:
@@ -957,43 +976,45 @@ class _TablesHistoryViewState extends State<TablesHistoryView> {
                                                       ),
                                                       Container(
                                                         padding:
-                                                            const EdgeInsets
-                                                                .symmetric(
-                                                          horizontal: 6,
-                                                          vertical: 2,
-                                                        ),
-                                                        decoration:
-                                                            BoxDecoration(
-                                                          color: record
-                                                                  .isReceived
+                                                            const EdgeInsets.symmetric(
+                                                              horizontal: 6,
+                                                              vertical: 2,
+                                                            ),
+                                                        decoration: BoxDecoration(
+                                                          color:
+                                                              record.isReceived
                                                               ? AppColors
-                                                                  .tableAvailable
-                                                                  .withAlpha(30)
+                                                                    .tableAvailable
+                                                                    .withAlpha(
+                                                                      30,
+                                                                    )
                                                               : AppColors
-                                                                  .tableOccupied
-                                                                  .withAlpha(30),
+                                                                    .tableOccupied
+                                                                    .withAlpha(
+                                                                      30,
+                                                                    ),
                                                           borderRadius:
-                                                              BorderRadius
-                                                                  .circular(4),
+                                                              BorderRadius.circular(
+                                                                4,
+                                                              ),
                                                         ),
                                                         child: Text(
                                                           record.isReceived
                                                               ? 'RECEIVED'
-                                                              : (record
-                                                                      .isPartiallyPaid
-                                                                  ? 'DUE (₹${record.dueAmount.toStringAsFixed(0)})'
-                                                                  : 'DUE'),
+                                                              : (record.isPartiallyPaid
+                                                                    ? 'DUE (₹${record.dueAmount.toStringAsFixed(0)})'
+                                                                    : 'DUE'),
                                                           style: TextStyle(
-                                                            color: record
+                                                            color:
+                                                                record
                                                                     .isReceived
                                                                 ? AppColors
-                                                                    .tableAvailable
+                                                                      .tableAvailable
                                                                 : AppColors
-                                                                    .tableOccupied,
+                                                                      .tableOccupied,
                                                             fontSize: 10,
                                                             fontWeight:
-                                                                FontWeight
-                                                                    .w800,
+                                                                FontWeight.w800,
                                                           ),
                                                         ),
                                                       ),
@@ -1008,8 +1029,8 @@ class _TablesHistoryViewState extends State<TablesHistoryView> {
                                                       fontSize: 12,
                                                     ),
                                                     maxLines: 1,
-                                                    overflow: TextOverflow
-                                                        .ellipsis,
+                                                    overflow:
+                                                        TextOverflow.ellipsis,
                                                   ),
                                                 ],
                                               ),
@@ -1027,8 +1048,8 @@ class _TablesHistoryViewState extends State<TablesHistoryView> {
                                                       'dd MMM, hh:mm a',
                                                     ).format(record.closedAt),
                                                     style: const TextStyle(
-                                                      color: AppColors
-                                                          .primaryText,
+                                                      color:
+                                                          AppColors.primaryText,
                                                       fontWeight:
                                                           FontWeight.w600,
                                                       fontSize: 13,
@@ -1114,7 +1135,6 @@ class _TablesHistoryViewState extends State<TablesHistoryView> {
                           },
                         ),
                 ),
-
               ],
             ),
           ),
@@ -1123,6 +1143,7 @@ class _TablesHistoryViewState extends State<TablesHistoryView> {
     );
   }
 
+  // ignore: unused_element
   Widget _buildStatusFilterChip(String status, String label, {Color? color}) {
     final isSelected = _filterStatus == status;
     final chipColor = color ?? AppColors.brandAccentLight;

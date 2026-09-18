@@ -1,18 +1,19 @@
 ---
-name: cueclub-billing-and-history
+name: snooker-billing-and-history
 description: >-
-  Workflows, domain models, and business logic for match history, payment transaction logs, collecting pending due payments, due-amount clamping, financial audits, and CSV reports. Use when updating or debugging billing records, transaction histories, due settlement dialogs, or history views in CueClub OS.
+  Workflows, domain models, and business logic for match history, payment transaction logs, collecting pending due payments, due-amount clamping, financial audits, and CSV reports. Use when updating or debugging billing records, transaction histories, due settlement dialogs, or history views in Snooker (Constants.appName).
 ---
 
-# CueClub Billing & Match History Management
+# Snooker Billing & Match History Management
 
-This skill documents the payment audit trail, due payment collection, financial accounting, and history reporting in CueClub OS.
+This skill documents the payment audit trail, due payment collection, financial accounting, and history reporting in Snooker (Constants.appName).
 
 ## 1. Domain Entities & Firestore Structure
 
 Collection: `companies/{companyId}/tablesHistory/{recordId}`
 
 ### Entities
+
 - **`PaymentTransaction`** (`lib/domain/entities/payment_transaction.dart`):
   - `id`: Unique UUID.
   - `amount`: Monetary value received in this transaction.
@@ -46,6 +47,7 @@ Collection: `companies/{companyId}/tablesHistory/{recordId}`
 When a customer comes back later to pay off a pending bill, staff use `_showRecordPaymentDialog` in `TablesHistoryView` (`lib/presentation/views/history/tables_history_view.dart`):
 
 ### Safety & Validation Rules:
+
 1. **Input Restrictions**:
    - Strictly numerical input: `FilteringTextInputFormatter.allow(RegExp(r'^\d*\.?\d{0,2}'))`.
    - Disallow values `<= 0.0`.
@@ -68,6 +70,7 @@ When a customer comes back later to pay off a pending bill, staff use `_showReco
 ## 3. Match Details & Transaction Audit Trail
 
 In `_showMatchDetailsModal`:
+
 - Shows complete breakdown: Table Charge, Itemized Canteen Purchases, Grand Total, Total Paid, and Current Balance.
 - **Audit List**: Renders every individual transaction with payment method badge (Cash/UPI/Card), formatted timestamp, operator attribution (`"by Marker 1"`), and notes.
 
@@ -76,6 +79,7 @@ In `_showMatchDetailsModal`:
 ## 4. UI Rendering Best Practices for History Views
 
 To prevent Flutter layout exceptions:
+
 - **Vertical RenderFlex Overflows**: Modal sheets and dialogs MUST be wrapped in `SingleChildScrollView` with a responsive constraint:
   ```dart
   constraints: BoxConstraints(
@@ -92,6 +96,7 @@ To prevent Flutter layout exceptions:
 Handled via `HistoryReportExporter` (`lib/core/utils/history_report_exporter.dart`) and `ShareHistoryReportDialog` (`lib/presentation/views/history/share_history_report_dialog.dart`):
 
 ### Presets Supported:
+
 - **This Month (Till Now)** (1st of month to now)
 - **Last 30 Days (Daily)**
 - **This Week** (Monday to now)
@@ -102,6 +107,7 @@ Handled via `HistoryReportExporter` (`lib/core/utils/history_report_exporter.dar
 - **Custom Range...** (via `showDateRangePicker`)
 
 ### Spreadsheet Format (.CSV):
+
 - **Universal RFC-4180 Format**: Instantly opens in Excel, Google Sheets, Apple Numbers.
 - **Header Summary**: Club Name, Report Range, Generated Timestamp, Total Matches, Total Duration, Table Revenue, Canteen Revenue, Grand Total, Total Paid Received, Total Due Pending.
 - **Detailed Data Columns**: Match #, Date, Table Name, Closing Person, Started By, Closed By, Start Time, End Time, Duration, Table Amount, Items Amount, Grand Total, Paid Amount, Due Amount, Payment Status, Payment Method, Itemized Canteen Purchases, and Payment Transactions Audit Log.

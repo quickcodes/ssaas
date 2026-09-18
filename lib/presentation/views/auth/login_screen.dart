@@ -174,10 +174,10 @@ class _LoginScreenState extends State<LoginScreen>
                             ),
                           ),
                           const SizedBox(height: 20),
-                          const Text(
-                            'Snooker',
+                          Text(
+                            Constants.appName,
                             textAlign: TextAlign.center,
-                            style: TextStyle(
+                            style: const TextStyle(
                               color: AppColors.primaryText,
                               fontSize: 24,
                               fontWeight: FontWeight.w800,

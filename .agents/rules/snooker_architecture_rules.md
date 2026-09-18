@@ -1,6 +1,6 @@
-# CueClub OS Architecture & Coding Rules
+# Snooker Architecture & Coding Rules
 
-These guidelines are mandatory for all AI agents working on CueClub OS.
+These guidelines are mandatory for all AI agents working on Snooker (Constants.appName).
 
 ## 1. State Management
 - **BLoC Pattern**: Use `FloorMatrixBloc` for tables, running sessions, pricing, and live orders. Use `AuthBloc` for tenant club context, operator identity, and session authentication.

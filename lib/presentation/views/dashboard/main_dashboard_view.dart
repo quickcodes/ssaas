@@ -1,6 +1,7 @@
 import 'package:flutter/material.dart';
 import 'package:flutter_bloc/flutter_bloc.dart';
 import 'package:intl/intl.dart';
+import '../../../core/utils/app_navigation.dart';
 import '../../../core/theme/app_colors.dart';
 import '../../../core/utils/interactive_feedback.dart';
 import '../../../core/utils/responsive.dart';
@@ -13,6 +14,7 @@ import '../canteen/food_canteen_view.dart';
 import '../equipment/equipment_stock_view.dart';
 import '../floor_matrix/floor_matrix_view.dart';
 import '../history/tables_history_view.dart';
+import '../manual/user_manual_view.dart';
 import '../users/company_users_view.dart';
 import '../../widgets/bouncing_tap.dart';
 import 'user_online_status_dialog.dart';
@@ -548,93 +550,11 @@ class _MainDashboardViewState extends State<MainDashboardView> {
             ),
           ),
 
-          // Bottom Company Details Pill
-          Container(
-            padding: const EdgeInsets.all(14),
-            margin: const EdgeInsets.all(12),
-            decoration: BoxDecoration(
-              color: AppColors.inputSurface,
-              borderRadius: BorderRadius.circular(14),
-              border: Border.all(color: AppColors.cardBorderStroke),
-            ),
-            child: Column(
-              crossAxisAlignment: CrossAxisAlignment.start,
-              children: [
-                Text(
-                  activeCompany.name,
-                  style: const TextStyle(
-                    color: AppColors.primaryText,
-                    fontWeight: FontWeight.w700,
-                    fontSize: 12,
-                  ),
-                  maxLines: 1,
-                  overflow: TextOverflow.ellipsis,
-                ),
-                const SizedBox(height: 4),
-                Row(
-                  children: [
-                    const Icon(
-                      Icons.phone_outlined,
-                      size: 13,
-                      color: AppColors.secondaryText,
-                    ),
-                    const SizedBox(width: 5),
-                    Expanded(
-                      child: Text(
-                        activeCompany.number,
-                        style: const TextStyle(
-                          color: AppColors.secondaryText,
-                          fontSize: 11,
-                        ),
-                        maxLines: 1,
-                        overflow: TextOverflow.ellipsis,
-                      ),
-                    ),
-                  ],
-                ),
-                const SizedBox(height: 4),
-                Row(
-                  children: [
-                    Icon(
-                      Icons.event_outlined,
-                      size: 13,
-                      color: activeCompany.isExpired
-                          ? AppColors.tableOccupied
-                          : AppColors.tableAvailable,
-                    ),
-                    const SizedBox(width: 5),
-                    Expanded(
-                      child: Text.rich(
-                        TextSpan(
-                          text: 'Expires: ',
-                          style: const TextStyle(
-                            color: AppColors.secondaryText,
-                            fontSize: 11,
-                          ),
-                          children: [
-                            TextSpan(
-                              text: DateFormat(
-                                'dd MMM yyyy',
-                              ).format(activeCompany.expiryDate),
-                              style: TextStyle(
-                                color: activeCompany.isExpired
-                                    ? AppColors.tableOccupied
-                                    : AppColors.tableAvailable,
-                                fontWeight: FontWeight.w700,
-                                fontSize: 11,
-                              ),
-                            ),
-                          ],
-                        ),
-                        maxLines: 1,
-                        overflow: TextOverflow.ellipsis,
-                      ),
-                    ),
-                  ],
-                ),
-              ],
-            ),
-          ),
+          // User Manual Action Button
+          _buildUserManualButton(),
+
+          // Bottom Company Details Card
+          _buildCompanyInfoCard(activeCompany),
         ],
       ),
     );
@@ -759,19 +679,132 @@ class _MainDashboardViewState extends State<MainDashboardView> {
             ),
           ),
 
-          // Bottom Details
-          Container(
-            padding: const EdgeInsets.all(14),
-            margin: const EdgeInsets.all(12),
-            decoration: BoxDecoration(
-              color: AppColors.inputSurface,
-              borderRadius: BorderRadius.circular(12),
-              border: Border.all(color: AppColors.cardBorderStroke),
+          // User Manual Action Button
+          _buildUserManualButton(
+            onTap: () => setState(() => _isSideMenuVisible = false),
+          ),
+
+          // Bottom Company Details Card
+          _buildCompanyInfoCard(activeCompany),
+        ],
+      ),
+    );
+  }
+
+  Widget _buildUserManualButton({VoidCallback? onTap}) {
+    return Padding(
+      padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 4),
+      child: InkWell(
+        onTap: () {
+          AppHaptics.selection();
+          onTap?.call();
+          AppNavigation.pushSmooth(context, const UserManualView());
+        },
+        borderRadius: BorderRadius.circular(12),
+        child: Container(
+          padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 10),
+          decoration: BoxDecoration(
+            color: AppColors.brandAccent.withAlpha(22),
+            borderRadius: BorderRadius.circular(12),
+            border: Border.all(
+              color: AppColors.brandAccent.withAlpha(70),
             ),
-            child: Column(
-              crossAxisAlignment: CrossAxisAlignment.start,
-              children: [
-                Text(
+          ),
+          child: const Row(
+            children: [
+              Icon(
+                Icons.menu_book_rounded,
+                color: AppColors.brandAccentLight,
+                size: 20,
+              ),
+              SizedBox(width: 10),
+              Expanded(
+                child: Column(
+                  crossAxisAlignment: CrossAxisAlignment.start,
+                  children: [
+                    Text(
+                      'User Manual',
+                      style: TextStyle(
+                        color: AppColors.primaryText,
+                        fontWeight: FontWeight.w700,
+                        fontSize: 13,
+                      ),
+                    ),
+                    Text(
+                      'Operations & guides',
+                      style: TextStyle(
+                        color: AppColors.secondaryText,
+                        fontSize: 10,
+                      ),
+                    ),
+                  ],
+                ),
+              ),
+              Icon(
+                Icons.arrow_forward_ios_rounded,
+                size: 12,
+                color: AppColors.brandAccentLight,
+              ),
+            ],
+          ),
+        ),
+      ),
+    );
+  }
+
+  Widget _buildCompanyInfoCard(Company activeCompany) {
+    final now = DateTime.now();
+    final expiry = activeCompany.expiryDate;
+    final isExpired = activeCompany.isExpired;
+    final diffDays = expiry.difference(now).inDays;
+    final isNearExpiry = !isExpired && diffDays <= 14;
+
+    final Color statusColor = isExpired
+        ? AppColors.tableOccupied
+        : isNearExpiry
+            ? AppColors.warning
+            : AppColors.tableAvailable;
+
+    final String statusLabel = isExpired
+        ? 'EXPIRED'
+        : isNearExpiry
+            ? 'RENEW SOON'
+            : 'ACTIVE';
+
+    final String formattedDate = DateFormat('dd MMM yyyy').format(expiry);
+    final String expiryText;
+    if (isExpired) {
+      expiryText = 'Expired on $formattedDate';
+    } else if (diffDays <= 0) {
+      expiryText = 'Expires today ($formattedDate)';
+    } else if (diffDays == 1) {
+      expiryText = 'Expires tomorrow ($formattedDate)';
+    } else if (diffDays <= 30) {
+      expiryText = 'Expires in $diffDays days ($formattedDate)';
+    } else {
+      expiryText = 'Valid till $formattedDate';
+    }
+
+    return Container(
+      padding: const EdgeInsets.all(12),
+      margin: const EdgeInsets.all(12),
+      decoration: BoxDecoration(
+        color: AppColors.inputSurface,
+        borderRadius: BorderRadius.circular(14),
+        border: Border.all(
+          color: isNearExpiry || isExpired
+              ? statusColor.withAlpha(90)
+              : AppColors.cardBorderStroke,
+        ),
+      ),
+      child: Column(
+        crossAxisAlignment: CrossAxisAlignment.start,
+        mainAxisSize: MainAxisSize.min,
+        children: [
+          Row(
+            children: [
+              Expanded(
+                child: Text(
                   activeCompany.name,
                   style: const TextStyle(
                     color: AppColors.primaryText,
@@ -781,16 +814,81 @@ class _MainDashboardViewState extends State<MainDashboardView> {
                   maxLines: 1,
                   overflow: TextOverflow.ellipsis,
                 ),
-                const SizedBox(height: 4),
-                Text(
+              ),
+              const SizedBox(width: 6),
+              Container(
+                padding: const EdgeInsets.symmetric(
+                  horizontal: 6,
+                  vertical: 2,
+                ),
+                decoration: BoxDecoration(
+                  color: statusColor.withAlpha(28),
+                  borderRadius: BorderRadius.circular(6),
+                  border: Border.all(
+                    color: statusColor.withAlpha(120),
+                    width: 0.8,
+                  ),
+                ),
+                child: Text(
+                  statusLabel,
+                  style: TextStyle(
+                    color: statusColor,
+                    fontSize: 9,
+                    fontWeight: FontWeight.w800,
+                    letterSpacing: 0.4,
+                  ),
+                ),
+              ),
+            ],
+          ),
+          const SizedBox(height: 5),
+          Row(
+            children: [
+              const Icon(
+                Icons.phone_outlined,
+                size: 13,
+                color: AppColors.secondaryText,
+              ),
+              const SizedBox(width: 5),
+              Expanded(
+                child: Text(
                   activeCompany.number,
                   style: const TextStyle(
                     color: AppColors.secondaryText,
                     fontSize: 11,
                   ),
+                  maxLines: 1,
+                  overflow: TextOverflow.ellipsis,
                 ),
-              ],
-            ),
+              ),
+            ],
+          ),
+          const SizedBox(height: 5),
+          Row(
+            crossAxisAlignment: CrossAxisAlignment.start,
+            children: [
+              Padding(
+                padding: const EdgeInsets.only(top: 1),
+                child: Icon(
+                  Icons.event_outlined,
+                  size: 13,
+                  color: statusColor,
+                ),
+              ),
+              const SizedBox(width: 5),
+              Expanded(
+                child: Text(
+                  expiryText,
+                  style: TextStyle(
+                    color: statusColor,
+                    fontSize: 11,
+                    fontWeight: FontWeight.w600,
+                  ),
+                  maxLines: 2,
+                  overflow: TextOverflow.ellipsis,
+                ),
+              ),
+            ],
           ),
         ],
       ),

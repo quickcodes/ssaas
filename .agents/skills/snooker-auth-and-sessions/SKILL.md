@@ -1,12 +1,12 @@
 ---
-name: cueclub-auth-and-sessions
+name: snooker-auth-and-sessions
 description: >-
-  Workflows, domain models, and business logic for multi-tenant club authentication, 10-day user session persistence, Firestore session timestamps, subscription expiry enforcement, and user administration. Use when modifying or debugging authentication flows, auto-login, local session storage, or user roles in CueClub OS.
+  Workflows, domain models, and business logic for multi-tenant club authentication, 10-day user session persistence, Firestore session timestamps, subscription expiry enforcement, and user administration. Use when modifying or debugging authentication flows, auto-login, local session storage, or user roles in Snooker (Constants.appName).
 ---
 
-# CueClub Authentication & Session Persistence
+# Snooker Authentication & Session Persistence
 
-This skill documents the multi-tenant architecture, user roles, subscription enforcement, and 10-day persistent session system in CueClub OS.
+This skill documents the multi-tenant architecture, user roles, subscription enforcement, and 10-day persistent session system in Snooker (Constants.appName).
 
 ## 1. Domain Entities & Firestore Structure
 
@@ -28,6 +28,7 @@ This skill documents the multi-tenant architecture, user roles, subscription enf
 Sessions persist for **10 days** from the time of login across app restarts and device reboots.
 
 ### Two-Tier Verification System:
+
 1. **Local Storage (`SharedPreferences`)**:
    - Class: `SessionLocalStorage` (`lib/data/datasources/session_local_storage.dart`).
    - Key: `'snooker_club_user_session'`.
@@ -67,6 +68,7 @@ In `AuthBloc` (`lib/presentation/blocs/auth/auth_bloc.dart`):
 ## 4. User Administration & Permissions
 
 In `CompanyUsersView` (`lib/presentation/views/users/company_users_view.dart`):
+
 - Only admins (`currentUser.isAdmin`) can access the Associated Users screen.
 - Displays all registered club operators, markers, and admins.
 - Under each user card, displays live session status:
