@@ -1,9 +1,9 @@
 import 'package:flutter/material.dart';
 import 'package:flutter_bloc/flutter_bloc.dart';
 import 'package:intl/intl.dart';
-import 'package:uuid/uuid.dart';
 import '../../../core/di/service_locator.dart';
 import '../../../core/theme/app_colors.dart';
+import '../../../core/utils/app_navigation.dart';
 import '../../../core/utils/interactive_feedback.dart';
 import '../../../core/utils/responsive.dart';
 import '../../../data/datasources/firestore_service.dart';
@@ -11,6 +11,7 @@ import '../../../domain/entities/stock_item.dart';
 import '../../blocs/auth/auth_bloc.dart';
 import '../../widgets/empty_state_card.dart';
 import '../../widgets/fade_slide_transition.dart';
+import 'add_edit_canteen_item_screen.dart';
 
 class FoodCanteenView extends StatefulWidget {
   const FoodCanteenView({super.key});
@@ -34,231 +35,11 @@ class _FoodCanteenViewState extends State<FoodCanteenView> {
     String companyId, {
     StockItem? existing,
   }) {
-    final nameCtrl = TextEditingController(text: existing?.name ?? '');
-    final stockCtrl = TextEditingController(
-      text: existing != null ? existing.stock.toString() : '10',
-    );
-    final priceCtrl = TextEditingController(
-      text: existing?.price != null
-          ? existing!.price!.toStringAsFixed(0)
-          : '20',
-    );
-    final descCtrl = TextEditingController(text: existing?.desc ?? '');
-    DateTime? expiryDate = existing?.expiryDate;
-
-    showAdaptiveModal(
-      context: context,
-      builder: (dialogCtx) => StatefulBuilder(
-        builder: (ctx, setDialogState) => AlertDialog(
-          backgroundColor: AppColors.cardSurface,
-          shape: RoundedRectangleBorder(
-            borderRadius: BorderRadius.circular(18),
-            side: const BorderSide(color: AppColors.cardBorderStroke),
-          ),
-          title: Row(
-            children: [
-              Icon(
-                existing == null ? Icons.add_circle_outline : Icons.edit_note,
-                color: AppColors.brandAccentLight,
-              ),
-              const SizedBox(width: 10),
-              Text(
-                existing == null
-                    ? 'Add Food / Drink Item'
-                    : 'Edit Food / Drink Item',
-                style: const TextStyle(
-                  color: AppColors.primaryText,
-                  fontWeight: FontWeight.w800,
-                  fontSize: 18,
-                ),
-              ),
-            ],
-          ),
-          content: SizedBox(
-            width: 460,
-            child: SingleChildScrollView(
-              keyboardDismissBehavior: ScrollViewKeyboardDismissBehavior.onDrag,
-              child: Column(
-                mainAxisSize: MainAxisSize.min,
-                crossAxisAlignment: CrossAxisAlignment.stretch,
-                children: [
-                  TextField(
-                    controller: nameCtrl,
-                    decoration: const InputDecoration(
-                      labelText: 'Item Name *',
-                      hintText: 'e.g. Red Bull, Cold Coffee, Lays Chips',
-                    ),
-                  ),
-                  const SizedBox(height: 12),
-                  Row(
-                    children: [
-                      Expanded(
-                        child: TextField(
-                          controller: stockCtrl,
-                          keyboardType: TextInputType.number,
-                          decoration: const InputDecoration(
-                            labelText: 'Current Stock *',
-                            hintText: 'e.g. 24',
-                          ),
-                        ),
-                      ),
-                      const SizedBox(width: 12),
-                      Expanded(
-                        child: TextField(
-                          controller: priceCtrl,
-                          keyboardType: TextInputType.number,
-                          decoration: const InputDecoration(
-                            labelText: 'Selling Price (₹) *',
-                            prefixText: '₹ ',
-                          ),
-                        ),
-                      ),
-                    ],
-                  ),
-                  const SizedBox(height: 12),
-                  TextField(
-                    controller: descCtrl,
-                    decoration: const InputDecoration(
-                      labelText: 'Description (Optional)',
-                      hintText: 'e.g. 250ml Can, Salted flavor',
-                    ),
-                  ),
-                  const SizedBox(height: 16),
-                  // Expiry Date (Optional)
-                  Row(
-                    mainAxisAlignment: MainAxisAlignment.spaceBetween,
-                    children: [
-                      Column(
-                        crossAxisAlignment: CrossAxisAlignment.start,
-                        children: [
-                          const Text(
-                            'Expiry Date (Optional)',
-                            style: TextStyle(
-                              color: AppColors.secondaryText,
-                              fontSize: 12,
-                            ),
-                          ),
-                          Text(
-                            expiryDate != null
-                                ? DateFormat('dd MMM yyyy').format(expiryDate!)
-                                : 'No expiry set',
-                            style: const TextStyle(
-                              color: AppColors.primaryText,
-                              fontWeight: FontWeight.w600,
-                              fontSize: 14,
-                            ),
-                          ),
-                        ],
-                      ),
-                      Row(
-                        children: [
-                          if (expiryDate != null)
-                            IconButton(
-                              onPressed: () =>
-                                  setDialogState(() => expiryDate = null),
-                              icon: const Icon(
-                                Icons.close,
-                                size: 18,
-                                color: AppColors.secondaryText,
-                              ),
-                            ),
-                          ElevatedButton.icon(
-                            onPressed: () async {
-                              final picked = await showDatePicker(
-                                context: context,
-                                initialDate:
-                                    expiryDate ??
-                                    DateTime.now().add(
-                                      const Duration(days: 90),
-                                    ),
-                                firstDate: DateTime.now().subtract(
-                                  const Duration(days: 365),
-                                ),
-                                lastDate: DateTime.now().add(
-                                  const Duration(days: 3650),
-                                ),
-                                builder: (context, child) => Theme(
-                                  data: ThemeData.dark().copyWith(
-                                    colorScheme: const ColorScheme.dark(
-                                      primary: AppColors.brandAccent,
-                                      onPrimary: Colors.white,
-                                      surface: AppColors.cardSurface,
-                                      onSurface: AppColors.primaryText,
-                                    ),
-                                  ),
-                                  child: child!,
-                                ),
-                              );
-                              if (picked != null) {
-                                setDialogState(() => expiryDate = picked);
-                              }
-                            },
-                            icon: const Icon(Icons.calendar_month, size: 16),
-                            label: const Text('Pick Date'),
-                            style: ElevatedButton.styleFrom(
-                              backgroundColor: AppColors.inputSurface,
-                              foregroundColor: AppColors.primaryText,
-                            ),
-                          ),
-                        ],
-                      ),
-                    ],
-                  ),
-                ],
-              ),
-            ),
-          ),
-          actions: [
-            TextButton(
-              onPressed: () => Navigator.of(dialogCtx).pop(),
-              child: const Text('Cancel'),
-            ),
-            ElevatedButton(
-              onPressed: () async {
-                final name = nameCtrl.text.trim();
-                final stock = int.tryParse(stockCtrl.text.trim());
-                final price = double.tryParse(priceCtrl.text.trim());
-
-                if (name.isEmpty || stock == null || price == null) {
-                  return;
-                }
-
-                final item = StockItem(
-                  id: existing?.id ?? const Uuid().v4(),
-                  companyId: companyId,
-                  name: name,
-                  stock: stock,
-                  price: price,
-                  desc: descCtrl.text.trim(),
-                  expiryDate: expiryDate,
-                  category: StockCategory.food,
-                  createdAt: existing?.createdAt ?? DateTime.now(),
-                );
-
-                Navigator.of(dialogCtx).pop();
-                await sl<FirestoreService>().saveFoodItem(item);
-                if (context.mounted) {
-                  AppHaptics.success();
-                  ScaffoldMessenger.of(context).showSnackBar(
-                    SnackBar(
-                      content: Text(
-                        existing == null
-                            ? 'Added "$name" to canteen.'
-                            : 'Updated "$name".',
-                      ),
-                      backgroundColor: AppColors.tableAvailable,
-                      behavior: SnackBarBehavior.floating,
-                    ),
-                  );
-                }
-              },
-              style: ElevatedButton.styleFrom(
-                backgroundColor: AppColors.brandAccent,
-              ),
-              child: Text(existing == null ? 'Add Item' : 'Save Changes'),
-            ),
-          ],
-        ),
+    AppNavigation.pushSmooth(
+      context,
+      AddEditCanteenItemScreen(
+        companyId: companyId,
+        existing: existing,
       ),
     );
   }

@@ -3,6 +3,7 @@ import 'package:flutter/material.dart';
 import 'package:intl/intl.dart';
 import 'package:path_provider/path_provider.dart';
 import 'package:share_plus/share_plus.dart';
+import '../constants/constants.dart';
 import '../../domain/entities/table_history_record.dart';
 
 enum HistoryReportPreset {
@@ -186,7 +187,7 @@ class HistoryReportExporter {
         records.fold<int>(0, (sum, r) => sum + r.durationMinutes);
 
     // 1. Spreadsheet Header & Executive Summary
-    rows.add(['CUECLUB OS - TABLES MATCH HISTORY REPORT']);
+    rows.add(['SNOOKER - MATCH REPORT']);
     rows.add(['Club / Company', companyName]);
     rows.add(['Report Period', dateRange.label]);
     rows.add([
@@ -319,7 +320,7 @@ class HistoryReportExporter {
     final sanitizedRange =
         dateRange.label.replaceAll(RegExp(r'[^a-zA-Z0-9_-]'), '_');
     final timestamp = DateFormat('yyyyMMdd_HHmmss').format(DateTime.now());
-    final fileName = 'CueClub_Match_History_${sanitizedRange}_$timestamp.csv';
+    final fileName = '${companyName}_Match_Report_${sanitizedRange}_$timestamp.csv';
     final file = File('${tempDir.path}/$fileName');
 
     await file.writeAsString(csvContent);
@@ -335,7 +336,7 @@ class HistoryReportExporter {
         files: [xFile],
         subject: '$companyName - Match History Report (${dateRange.label})',
         text:
-            'Please find attached the CueClub Table Match History Report for $companyName (${dateRange.label}). Contains ${records.length} matches.',
+            'Please find attached the ${Constants.appName} Table Match History Report for $companyName (${dateRange.label}). Contains ${records.length} matches.',
         sharePositionOrigin: sharePositionOrigin,
       ),
     );

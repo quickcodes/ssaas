@@ -5,6 +5,7 @@ class AppColors {
 
   // Dark Obsidian Color System
   static const Color backgroundBase = Color(0xFF0D0F12); // Deep obsidian black
+  static const Color background = backgroundBase;        // Convenient alias for backgroundBase
   static const Color cardSurface = Color(0xFF161A20);    // Dark charcoal surface
   static const Color inputSurface = Color(0xFF212731);   // Lighter charcoal for inputs & buttons
   static const Color cardBorderStroke = Color(0xFF2E3646); // Subdued slate stroke (1px)

@@ -1,8 +1,8 @@
 import 'package:flutter/material.dart';
 import 'package:flutter_bloc/flutter_bloc.dart';
-import 'package:uuid/uuid.dart';
 import '../../../core/di/service_locator.dart';
 import '../../../core/theme/app_colors.dart';
+import '../../../core/utils/app_navigation.dart';
 import '../../../core/utils/interactive_feedback.dart';
 import '../../../core/utils/responsive.dart';
 import '../../../data/datasources/firestore_service.dart';
@@ -17,6 +17,7 @@ import '../../blocs/floor_matrix/floor_matrix_bloc.dart';
 import '../../widgets/empty_state_card.dart';
 import '../../widgets/fade_slide_transition.dart';
 import 'add_table_item_dialog.dart';
+import 'add_table_screen.dart';
 import 'checkout_session_dialog.dart';
 import 'start_session_dialog.dart';
 import 'table_card.dart';
@@ -49,98 +50,15 @@ class _FloorMatrixViewState extends State<FloorMatrixView> {
     }
   }
 
-  void _showAddTableDialog(BuildContext context, String companyId) {
-    final nameCtrl = TextEditingController();
-    final priceCtrl = TextEditingController(text: '120');
-    final specsCtrl = TextEditingController();
-
-    showAdaptiveModal(
-      context: context,
-      builder: (dialogCtx) => AlertDialog(
-        backgroundColor: AppColors.cardSurface,
-        shape: RoundedRectangleBorder(
-          borderRadius: BorderRadius.circular(18),
-          side: const BorderSide(color: AppColors.cardBorderStroke),
-        ),
-        title: const Row(
-          children: [
-            Icon(Icons.add_box_outlined, color: AppColors.brandAccentLight),
-            SizedBox(width: 10),
-            Text(
-              'Add Snooker Table',
-              style: TextStyle(
-                color: AppColors.primaryText,
-                fontWeight: FontWeight.w800,
-                fontSize: 18,
-              ),
-            ),
-          ],
-        ),
-        content: SizedBox(
-          width: 440,
-          child: Column(
-            mainAxisSize: MainAxisSize.min,
-            children: [
-              TextField(
-                controller: nameCtrl,
-                decoration: const InputDecoration(
-                  labelText: 'Table Name *',
-                  hintText: 'e.g. Table 1 (Star Tournament)',
-                ),
-              ),
-              const SizedBox(height: 12),
-              TextField(
-                controller: priceCtrl,
-                keyboardType: TextInputType.number,
-                decoration: const InputDecoration(
-                  prefixText: '₹ ',
-                  labelText: 'General Hourly Price *',
-                  hintText: 'e.g. 120',
-                ),
-              ),
-              const SizedBox(height: 12),
-              TextField(
-                controller: specsCtrl,
-                decoration: const InputDecoration(
-                  labelText: 'Specs / Description',
-                  hintText: 'e.g. 12ft Standard Slate Snooker Table',
-                ),
-              ),
-            ],
-          ),
-        ),
-        actions: [
-          TextButton(
-            onPressed: () => Navigator.of(dialogCtx).pop(),
-            child: const Text('Cancel'),
-          ),
-          ElevatedButton(
-            onPressed: () {
-              final general = double.tryParse(priceCtrl.text.trim());
-              if (nameCtrl.text.trim().isEmpty || general == null || general <= 0) {
-                return;
-              }
-
-              final newTable = ClubTable(
-                id: const Uuid().v4(),
-                companyId: companyId,
-                name: nameCtrl.text.trim(),
-                generalPrice: general,
-                specsDescription: specsCtrl.text.trim(),
-                createdAt: DateTime.now(),
-              );
-
-              Navigator.of(dialogCtx).pop();
-              context.read<FloorMatrixBloc>().add(CreateTableEvent(newTable));
-            },
-            style: ElevatedButton.styleFrom(
-              backgroundColor: AppColors.brandAccent,
-            ),
-            child: const Text('Add Table'),
-          ),
-        ],
-      ),
+  void _showAddTableDialog(BuildContext context, String companyId) async {
+    final newTable = await AppNavigation.pushSmooth<ClubTable>(
+      context,
+      AddTableScreen(companyId: companyId),
     );
+
+    if (newTable != null && context.mounted) {
+      context.read<FloorMatrixBloc>().add(CreateTableEvent(newTable));
+    }
   }
 
   @override
@@ -632,9 +550,9 @@ class _FloorMatrixViewState extends State<FloorMatrixView> {
     ClubTable table,
     UserAccount activeUser,
   ) async {
-    final session = await showAdaptiveModal<TableSession>(
-      context: context,
-      builder: (_) => StartSessionDialog(
+    final session = await AppNavigation.pushSmooth<TableSession>(
+      context,
+      StartSessionScreen(
         table: table,
         activeOperator: activeUser,
       ),
@@ -652,9 +570,9 @@ class _FloorMatrixViewState extends State<FloorMatrixView> {
   ) async {
     if (session == null) return;
 
-    final item = await showAdaptiveModal<TableBillingItem>(
-      context: context,
-      builder: (_) => AddTableItemDialog(
+    final item = await AppNavigation.pushSmooth<TableBillingItem>(
+      context,
+      AddTableItemScreen(
         canteenItems: _canteenItems,
         tableName: session.tableName,
       ),
@@ -681,9 +599,9 @@ class _FloorMatrixViewState extends State<FloorMatrixView> {
   ) async {
     if (session == null) return;
 
-    final historyRecord = await showAdaptiveModal<TableHistoryRecord>(
-      context: context,
-      builder: (_) => CheckoutSessionDialog(
+    final historyRecord = await AppNavigation.pushSmooth<TableHistoryRecord>(
+      context,
+      CheckoutSessionScreen(
         session: session,
         now: now,
         activeOperator: activeUser,
@@ -702,9 +620,9 @@ class _FloorMatrixViewState extends State<FloorMatrixView> {
   }
 
   void _handleConfigureRates(BuildContext context, ClubTable table) async {
-    final updated = await showAdaptiveModal<ClubTable>(
-      context: context,
-      builder: (_) => TableConfigurationDialog(table: table),
+    final updated = await AppNavigation.pushSmooth<ClubTable>(
+      context,
+      TableConfigurationScreen(table: table),
     );
 
     if (updated != null && context.mounted) {

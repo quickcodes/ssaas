@@ -2,6 +2,7 @@ import 'package:firebase_core/firebase_core.dart';
 import 'package:flutter/material.dart';
 import 'package:flutter_bloc/flutter_bloc.dart';
 import 'package:snooker/firebase_options.dart';
+import 'core/constants/constants.dart';
 import 'core/di/service_locator.dart';
 import 'core/theme/app_theme.dart';
 import 'data/datasources/firestore_service.dart';
@@ -38,7 +39,7 @@ class SnookerClubApp extends StatelessWidget {
         ),
       ],
       child: MaterialApp(
-        title: 'CueClub OS - Snooker & Billiards Management',
+        title: '${Constants.appName} - Snooker & Billiards Management',
         debugShowCheckedModeBanner: false,
         theme: AppTheme.darkTheme,
         home: const MainDashboardView(),

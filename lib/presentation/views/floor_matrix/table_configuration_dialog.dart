@@ -191,213 +191,274 @@ class _TableConfigurationDialogState extends State<TableConfigurationDialog> {
 
   @override
   Widget build(BuildContext context) {
-    return AlertDialog(
-      backgroundColor: AppColors.cardSurface,
-      shape: RoundedRectangleBorder(
-        borderRadius: BorderRadius.circular(18),
-        side: const BorderSide(color: AppColors.cardBorderStroke),
-      ),
-      title: Row(
-        children: [
-          const Icon(Icons.tune, color: AppColors.brandAccentLight),
-          const SizedBox(width: 10),
-          Expanded(
-            child: Text(
-              'Configure Table & Dynamic Rates',
-              style: const TextStyle(
-                color: AppColors.primaryText,
-                fontWeight: FontWeight.w700,
-                fontSize: 18,
+    final isMobile = MediaQuery.of(context).size.width < 680;
+
+    return Scaffold(
+      backgroundColor: AppColors.background,
+      appBar: AppBar(
+        backgroundColor: AppColors.cardSurface,
+        elevation: 0,
+        leading: IconButton(
+          icon: const Icon(Icons.arrow_back, color: AppColors.primaryText),
+          onPressed: () => Navigator.of(context).pop(),
+        ),
+        title: Column(
+          crossAxisAlignment: CrossAxisAlignment.start,
+          children: [
+            const Text(
+              'TABLE CONFIGURATION',
+              style: TextStyle(
+                color: AppColors.brandAccentLight,
+                fontSize: 11,
+                fontWeight: FontWeight.w800,
+                letterSpacing: 1.1,
               ),
             ),
-          ),
-        ],
+            Text(
+              widget.table.name,
+              style: const TextStyle(
+                color: AppColors.primaryText,
+                fontSize: 18,
+                fontWeight: FontWeight.w800,
+              ),
+            ),
+          ],
+        ),
       ),
-      content: SizedBox(
-        width: 540,
-        child: SingleChildScrollView(
-          child: Column(
-            crossAxisAlignment: CrossAxisAlignment.stretch,
-            children: [
-              TextField(
-                controller: _name,
-                decoration: const InputDecoration(labelText: 'Table Name *'),
+      body: SafeArea(
+        child: Center(
+          child: ConstrainedBox(
+            constraints: const BoxConstraints(maxWidth: 580),
+            child: SingleChildScrollView(
+              keyboardDismissBehavior:
+                  ScrollViewKeyboardDismissBehavior.onDrag,
+              padding: EdgeInsets.symmetric(
+                horizontal: isMobile ? 16 : 24,
+                vertical: 20,
               ),
-              const SizedBox(height: 12),
-              TextField(
-                controller: _generalPrice,
-                keyboardType: TextInputType.number,
-                decoration: const InputDecoration(
-                  prefixText: '₹ ',
-                  labelText: 'General Hourly Price (Default) *',
-                  helperText:
-                      'Used whenever no custom time/day schedule applies',
+              child: Container(
+                decoration: BoxDecoration(
+                  color: AppColors.cardSurface,
+                  borderRadius: BorderRadius.circular(20),
+                  border: Border.all(color: AppColors.cardBorderStroke),
                 ),
-              ),
-              const SizedBox(height: 12),
-              TextField(
-                controller: _specs,
-                decoration: const InputDecoration(
-                  labelText: 'Specs / Description',
-                  hintText: 'e.g. 12ft Tournament Slate Table, Strachan Cloth',
-                ),
-              ),
-              const SizedBox(height: 24),
-              Wrap(
-                alignment: WrapAlignment.spaceBetween,
-                crossAxisAlignment: WrapCrossAlignment.center,
-                spacing: 8,
-                runSpacing: 4,
-                children: [
-                  const Text(
-                    'CUSTOM PRICINGS (TIME & DAYS)',
-                    style: TextStyle(
-                      color: AppColors.brandAccentLight,
-                      fontWeight: FontWeight.w800,
-                      fontSize: 12,
-                      letterSpacing: 1.0,
+                padding: EdgeInsets.all(isMobile ? 18 : 24),
+                child: Column(
+                  crossAxisAlignment: CrossAxisAlignment.stretch,
+                  children: [
+                    TextField(
+                      controller: _name,
+                      decoration:
+                          const InputDecoration(labelText: 'Table Name *'),
                     ),
-                  ),
-                  TextButton.icon(
-                    onPressed: _addCustomPricing,
-                    icon: const Icon(Icons.add, size: 18),
-                    label: const Text('Add Custom Pricing'),
-                    style: TextButton.styleFrom(
-                      padding: const EdgeInsets.symmetric(horizontal: 8),
+                    const SizedBox(height: 14),
+                    TextField(
+                      controller: _generalPrice,
+                      keyboardType: TextInputType.number,
+                      decoration: const InputDecoration(
+                        prefixText: '₹ ',
+                        labelText: 'General Hourly Price (Default) *',
+                        helperText:
+                            'Used whenever no custom time/day schedule applies',
+                      ),
                     ),
-                  ),
-                ],
-              ),
-              const SizedBox(height: 4),
-              const Text(
-                'Add different prices based on time of day and specific weekdays (Mon..Sun).',
-                style: TextStyle(color: AppColors.secondaryText, fontSize: 12),
-              ),
-              const SizedBox(height: 10),
-              if (_customPricings.isEmpty)
-                Container(
-                  padding: const EdgeInsets.all(16),
-                  alignment: Alignment.center,
-                  decoration: BoxDecoration(
-                    color: AppColors.inputSurface,
-                    borderRadius: BorderRadius.circular(10),
-                    border: Border.all(color: AppColors.cardBorderStroke),
-                  ),
-                  child: const Text(
-                    'No custom pricings configured. General price will always apply.',
-                    style: TextStyle(
-                      color: AppColors.secondaryText,
-                      fontSize: 12,
+                    const SizedBox(height: 14),
+                    TextField(
+                      controller: _specs,
+                      decoration: const InputDecoration(
+                        labelText: 'Specs / Description',
+                        hintText:
+                            'e.g. 12ft Tournament Slate Table, Strachan Cloth',
+                      ),
                     ),
-                  ),
-                )
-              else
-                ..._customPricings.map((slot) {
-                  return Container(
-                    margin: const EdgeInsets.only(bottom: 8),
-                    padding: const EdgeInsets.all(12),
-                    decoration: BoxDecoration(
-                      color: AppColors.inputSurface,
-                      borderRadius: BorderRadius.circular(10),
-                      border: Border.all(color: AppColors.cardBorderStroke),
-                    ),
-                    child: Row(
+                    const SizedBox(height: 24),
+                    Wrap(
+                      alignment: WrapAlignment.spaceBetween,
+                      crossAxisAlignment: WrapCrossAlignment.center,
+                      spacing: 8,
+                      runSpacing: 4,
                       children: [
-                        Expanded(
-                          child: Column(
-                            crossAxisAlignment: CrossAxisAlignment.start,
-                            children: [
-                              Row(
-                                children: [
-                                  Flexible(
-                                    child: Text(
-                                      slot.label,
-                                      maxLines: 1,
-                                      overflow: TextOverflow.ellipsis,
-                                      style: const TextStyle(
-                                        color: AppColors.primaryText,
-                                        fontWeight: FontWeight.w700,
-                                        fontSize: 13,
-                                      ),
-                                    ),
-                                  ),
-                                  const SizedBox(width: 8),
-                                  Container(
-                                    padding: const EdgeInsets.symmetric(
-                                      horizontal: 6,
-                                      vertical: 2,
-                                    ),
-                                    decoration: BoxDecoration(
-                                      color: AppColors.brandAccent.withAlpha(30),
-                                      borderRadius: BorderRadius.circular(4),
-                                    ),
-                                    child: Text(
-                                      '₹${slot.hourlyRate.toStringAsFixed(0)} / hr',
-                                      style: const TextStyle(
-                                        color: AppColors.brandAccentLight,
-                                        fontWeight: FontWeight.w700,
-                                        fontSize: 11,
-                                      ),
-                                    ),
-                                  ),
-                                ],
-                              ),
-                              const SizedBox(height: 4),
-                              Text(
-                                '${_formatMinute(slot.startMinuteOfDay)} – ${_formatMinute(slot.endMinuteOfDay)}  •  ${slot.weekdayDisplay}',
-                                style: const TextStyle(
-                                  color: AppColors.secondaryText,
-                                  fontSize: 12,
-                                ),
-                              ),
-                            ],
+                        const Text(
+                          'CUSTOM PRICINGS (TIME & DAYS)',
+                          style: TextStyle(
+                            color: AppColors.brandAccentLight,
+                            fontWeight: FontWeight.w800,
+                            fontSize: 12,
+                            letterSpacing: 1.0,
                           ),
                         ),
-                        IconButton(
-                          icon: const Icon(
-                            Icons.delete_outline,
-                            color: AppColors.tableOccupied,
-                            size: 20,
+                        TextButton.icon(
+                          onPressed: _addCustomPricing,
+                          icon: const Icon(Icons.add, size: 16),
+                          label: const Text('Add Rule'),
+                          style: TextButton.styleFrom(
+                            foregroundColor: AppColors.brandAccentLight,
+                            visualDensity: VisualDensity.compact,
                           ),
-                          onPressed: () {
-                            setState(() => _customPricings.remove(slot));
-                          },
                         ),
                       ],
                     ),
-                  );
-                }),
+                    const SizedBox(height: 8),
+                    if (_customPricings.isEmpty)
+                      Container(
+                        padding: const EdgeInsets.all(14),
+                        decoration: BoxDecoration(
+                          color: AppColors.inputSurface.withAlpha(120),
+                          borderRadius: BorderRadius.circular(12),
+                          border:
+                              Border.all(color: AppColors.cardBorderStroke),
+                        ),
+                        child: const Text(
+                          'No dynamic rate schedules configured. General price applies all week and all hours.',
+                          style: TextStyle(
+                            color: AppColors.secondaryText,
+                            fontSize: 12,
+                          ),
+                        ),
+                      )
+                    else
+                      ..._customPricings.map((slot) {
+                        return Container(
+                          margin: const EdgeInsets.only(bottom: 8),
+                          padding: const EdgeInsets.all(12),
+                          decoration: BoxDecoration(
+                            color: AppColors.inputSurface,
+                            borderRadius: BorderRadius.circular(12),
+                            border:
+                                Border.all(color: AppColors.cardBorderStroke),
+                          ),
+                          child: Row(
+                            children: [
+                              Container(
+                                padding: const EdgeInsets.all(8),
+                                decoration: BoxDecoration(
+                                  color: AppColors.brandAccent.withAlpha(30),
+                                  borderRadius: BorderRadius.circular(8),
+                                ),
+                                child: const Icon(
+                                  Icons.schedule,
+                                  color: AppColors.brandAccentLight,
+                                  size: 18,
+                                ),
+                              ),
+                              const SizedBox(width: 12),
+                              Expanded(
+                                child: Column(
+                                  crossAxisAlignment:
+                                      CrossAxisAlignment.start,
+                                  children: [
+                                    Row(
+                                      children: [
+                                        Text(
+                                          slot.label,
+                                          style: const TextStyle(
+                                            color: AppColors.primaryText,
+                                            fontWeight: FontWeight.w700,
+                                            fontSize: 13,
+                                          ),
+                                        ),
+                                        const SizedBox(width: 8),
+                                        Text(
+                                          '₹${slot.hourlyRate.toStringAsFixed(0)}/hr',
+                                          style: const TextStyle(
+                                            color: AppColors.brandAccentLight,
+                                            fontWeight: FontWeight.w800,
+                                            fontSize: 13,
+                                          ),
+                                        ),
+                                      ],
+                                    ),
+                                    const SizedBox(height: 2),
+                                    Text(
+                                      '${_formatMinute(slot.startMinuteOfDay)} - ${_formatMinute(slot.endMinuteOfDay)} • ${slot.weekdayDisplay}',
+                                      style: const TextStyle(
+                                        color: AppColors.secondaryText,
+                                        fontSize: 12,
+                                      ),
+                                    ),
+                                  ],
+                                ),
+                              ),
+                              IconButton(
+                                icon: const Icon(
+                                  Icons.delete_outline,
+                                  color: AppColors.tableOccupied,
+                                  size: 20,
+                                ),
+                                onPressed: () {
+                                  setState(
+                                      () => _customPricings.remove(slot));
+                                },
+                              ),
+                            ],
+                          ),
+                        );
+                      }),
+                  ],
+                ),
+              ),
+            ),
+          ),
+        ),
+      ),
+      bottomNavigationBar: SafeArea(
+        child: Container(
+          padding: EdgeInsets.symmetric(
+            horizontal: isMobile ? 16 : 24,
+            vertical: 12,
+          ),
+          decoration: const BoxDecoration(
+            color: AppColors.cardSurface,
+            border: Border(top: BorderSide(color: AppColors.cardBorderStroke)),
+          ),
+          child: Row(
+            children: [
+              Expanded(
+                child: OutlinedButton(
+                  onPressed: () => Navigator.pop(context),
+                  style: OutlinedButton.styleFrom(
+                    padding: const EdgeInsets.symmetric(vertical: 14),
+                  ),
+                  child: const Text('Cancel'),
+                ),
+              ),
+              const SizedBox(width: 12),
+              Expanded(
+                flex: 2,
+                child: ElevatedButton(
+                  onPressed: () {
+                    final general = double.tryParse(_generalPrice.text.trim());
+                    if (_name.text.trim().isEmpty ||
+                        general == null ||
+                        general <= 0) {
+                      return;
+                    }
+                    Navigator.pop(
+                      context,
+                      widget.table.copyWith(
+                        name: _name.text.trim(),
+                        generalPrice: general,
+                        specsDescription: _specs.text.trim(),
+                        customPricings: _customPricings,
+                      ),
+                    );
+                  },
+                  style: ElevatedButton.styleFrom(
+                    backgroundColor: AppColors.brandAccent,
+                    padding: const EdgeInsets.symmetric(vertical: 14),
+                  ),
+                  child: const Text(
+                    'SAVE TABLE',
+                    style: TextStyle(fontWeight: FontWeight.w800),
+                  ),
+                ),
+              ),
             ],
           ),
         ),
       ),
-      actions: [
-        TextButton(
-          onPressed: () => Navigator.pop(context),
-          child: const Text('Cancel'),
-        ),
-        ElevatedButton(
-          onPressed: () {
-            final general = double.tryParse(_generalPrice.text.trim());
-            if (_name.text.trim().isEmpty || general == null || general <= 0) {
-              return;
-            }
-            Navigator.pop(
-              context,
-              widget.table.copyWith(
-                name: _name.text.trim(),
-                generalPrice: general,
-                specsDescription: _specs.text.trim(),
-                customPricings: _customPricings,
-              ),
-            );
-          },
-          style: ElevatedButton.styleFrom(
-            backgroundColor: AppColors.brandAccent,
-          ),
-          child: const Text('SAVE TABLE'),
-        ),
-      ],
     );
   }
 }
+
+typedef TableConfigurationScreen = TableConfigurationDialog;

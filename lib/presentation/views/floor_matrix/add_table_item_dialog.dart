@@ -58,77 +58,41 @@ class _AddTableItemDialogState extends State<AddTableItemDialog>
   Widget build(BuildContext context) {
     final isMobile = Responsive.isMobile(context);
 
-    final content = Container(
-      constraints: BoxConstraints(
-        maxWidth: 500,
-        maxHeight: isMobile
-            ? MediaQuery.sizeOf(context).height * 0.88
-            : MediaQuery.sizeOf(context).height * 0.9,
-      ),
-      decoration: BoxDecoration(
-        color: AppColors.cardSurface,
-        borderRadius: isMobile
-            ? const BorderRadius.vertical(top: Radius.circular(24))
-            : BorderRadius.circular(20),
-        border: Border.all(color: AppColors.cardBorderStroke),
-      ),
-      padding: EdgeInsets.symmetric(
-        horizontal: isMobile ? 20 : 26,
-        vertical: isMobile ? 16 : 24,
-      ),
-      child: Column(
-        mainAxisSize: MainAxisSize.min,
-        crossAxisAlignment: CrossAxisAlignment.stretch,
-        children: [
-          if (isMobile)
-            Center(
-              child: Container(
-                width: 44,
-                height: 4,
-                margin: const EdgeInsets.only(bottom: 14),
-                decoration: BoxDecoration(
-                  color: Colors.white24,
-                  borderRadius: BorderRadius.circular(2),
-                ),
+    return Scaffold(
+      backgroundColor: AppColors.background,
+      appBar: AppBar(
+        backgroundColor: AppColors.cardSurface,
+        elevation: 0,
+        leading: IconButton(
+          icon: const Icon(Icons.arrow_back, color: AppColors.primaryText),
+          onPressed: () => Navigator.of(context).pop(),
+        ),
+        title: Column(
+          crossAxisAlignment: CrossAxisAlignment.start,
+          children: [
+            const Text(
+              'ADD TO TABLE BILLING',
+              style: TextStyle(
+                color: AppColors.brandAccentLight,
+                fontSize: 11,
+                fontWeight: FontWeight.w800,
+                letterSpacing: 1.1,
               ),
             ),
-          // Header
-          Row(
-            mainAxisAlignment: MainAxisAlignment.spaceBetween,
-            children: [
-              Column(
-                crossAxisAlignment: CrossAxisAlignment.start,
-                children: [
-                  const Text(
-                    'ADD TO TABLE BILLING',
-                    style: TextStyle(
-                      color: AppColors.brandAccentLight,
-                      fontSize: 11,
-                      fontWeight: FontWeight.w800,
-                      letterSpacing: 1.1,
-                    ),
-                  ),
-                  const SizedBox(height: 4),
-                  Text(
-                    widget.tableName,
-                    style: const TextStyle(
-                      color: AppColors.primaryText,
-                      fontSize: 18,
-                      fontWeight: FontWeight.w800,
-                    ),
-                  ),
-                ],
+            Text(
+              widget.tableName,
+              style: const TextStyle(
+                color: AppColors.primaryText,
+                fontSize: 18,
+                fontWeight: FontWeight.w800,
               ),
-              IconButton(
-                onPressed: () => Navigator.of(context).pop(),
-                icon: const Icon(Icons.close, color: AppColors.secondaryText),
-              ),
-            ],
-          ),
-          const SizedBox(height: 16),
-
-          // Modern Segmented Tabs
-          Container(
+            ),
+          ],
+        ),
+        bottom: PreferredSize(
+          preferredSize: const Size.fromHeight(56),
+          child: Container(
+            margin: const EdgeInsets.symmetric(horizontal: 16, vertical: 6),
             height: 44,
             padding: const EdgeInsets.all(4),
             decoration: BoxDecoration(
@@ -202,36 +166,55 @@ class _AddTableItemDialogState extends State<AddTableItemDialog>
               ],
             ),
           ),
-          const SizedBox(height: 18),
-
-          Flexible(
-            child: SizedBox(
-              height: 280,
-              child: TabBarView(
-                controller: _tabController,
-                children: [
-                  // Tab 1: Canteen Stock
-                  _buildCanteenStockTab(),
-                  // Tab 2: Custom Item
-                  _buildCustomItemTab(),
-                ],
-              ),
+        ),
+      ),
+      body: SafeArea(
+        child: Center(
+          child: ConstrainedBox(
+            constraints: const BoxConstraints(maxWidth: 560),
+            child: TabBarView(
+              controller: _tabController,
+              children: [
+                SingleChildScrollView(
+                  keyboardDismissBehavior:
+                      ScrollViewKeyboardDismissBehavior.onDrag,
+                  padding: EdgeInsets.symmetric(
+                    horizontal: isMobile ? 16 : 24,
+                    vertical: 20,
+                  ),
+                  child: Container(
+                    decoration: BoxDecoration(
+                      color: AppColors.cardSurface,
+                      borderRadius: BorderRadius.circular(20),
+                      border: Border.all(color: AppColors.cardBorderStroke),
+                    ),
+                    padding: EdgeInsets.all(isMobile ? 18 : 24),
+                    child: _buildCanteenStockTab(),
+                  ),
+                ),
+                SingleChildScrollView(
+                  keyboardDismissBehavior:
+                      ScrollViewKeyboardDismissBehavior.onDrag,
+                  padding: EdgeInsets.symmetric(
+                    horizontal: isMobile ? 16 : 24,
+                    vertical: 20,
+                  ),
+                  child: Container(
+                    decoration: BoxDecoration(
+                      color: AppColors.cardSurface,
+                      borderRadius: BorderRadius.circular(20),
+                      border: Border.all(color: AppColors.cardBorderStroke),
+                    ),
+                    padding: EdgeInsets.all(isMobile ? 18 : 24),
+                    child: _buildCustomItemTab(),
+                  ),
+                ),
+              ],
             ),
           ),
-        ],
+        ),
       ),
     );
-
-    if (isMobile) {
-      return content;
-    } else {
-      return Dialog(
-        backgroundColor: Colors.transparent,
-        elevation: 0,
-        insetPadding: const EdgeInsets.symmetric(horizontal: 20, vertical: 24),
-        child: content,
-      );
-    }
   }
 
   Widget _buildCanteenStockTab() {
@@ -329,7 +312,7 @@ class _AddTableItemDialogState extends State<AddTableItemDialog>
             ),
           ],
         ),
-        const Spacer(),
+        const SizedBox(height: 24),
 
         // Add Button
         BouncingTap(
@@ -502,3 +485,6 @@ class _AddTableItemDialogState extends State<AddTableItemDialog>
     );
   }
 }
+
+typedef AddTableItemScreen = AddTableItemDialog;
+

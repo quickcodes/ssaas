@@ -1,4 +1,5 @@
 import 'package:flutter/material.dart';
+import '../../core/constants/constants.dart';
 import '../../core/di/service_locator.dart';
 import '../../core/services/network_connectivity_service.dart';
 import '../../core/theme/app_colors.dart';
@@ -96,7 +97,7 @@ class NetworkAwareOverlay extends StatelessWidget {
 
                             // Subtitle
                             const Text(
-                              'CueClub OS requires an active internet connection to synchronize tables, match timers, billing, and cloud records.\n\nPlease check your Wi-Fi or mobile data network to continue.',
+                              '${Constants.appName} requires an active internet connection to synchronize tables, match timers, billing, and cloud records.\n\nPlease check your Wi-Fi or mobile data network to continue.',
                               textAlign: TextAlign.center,
                               style: TextStyle(
                                 color: AppColors.secondaryText,
