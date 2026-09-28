@@ -1,7 +1,7 @@
 import 'package:firebase_core/firebase_core.dart';
 import 'package:flutter/material.dart';
 import 'package:flutter_bloc/flutter_bloc.dart';
-import 'package:snooker/firebase_options.dart';
+import 'firebase_options.dart';
 import 'core/constants/constants.dart';
 import 'core/di/service_locator.dart';
 import 'core/theme/app_theme.dart';
@@ -16,11 +16,11 @@ void main() async {
   WidgetsFlutterBinding.ensureInitialized();
   await Firebase.initializeApp(options: DefaultFirebaseOptions.currentPlatform);
   setupServiceLocator();
-  runApp(const SnookerClubApp());
+  runApp(const SsaasApp());
 }
 
-class SnookerClubApp extends StatelessWidget {
-  const SnookerClubApp({super.key});
+class SsaasApp extends StatelessWidget {
+  const SsaasApp({super.key});
 
   @override
   Widget build(BuildContext context) {
@@ -50,3 +50,6 @@ class SnookerClubApp extends StatelessWidget {
     );
   }
 }
+
+/// Backward compatibility alias for [SsaasApp].
+typedef SnookerClubApp = SsaasApp;

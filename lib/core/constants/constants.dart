@@ -1,6 +1,6 @@
 class Constants {
   /// Application display name
-  static const String appName = 'Snooker';
+  static const String appName = 'SSAAS';
 
   /// Dev-only flag for company creation.
   /// When true: The "Create Company" button appears on the Login screen and
@@ -12,4 +12,9 @@ class Constants {
   /// If the remaining due amount is strictly less than this buffer amount,
   /// it is automatically waived and marked as "Received" / settled.
   static const double dueBufferAmount = 5.0;
+
+  /// Business Onboarding, Subscription & Support Contact Details
+  static const String contactPerson = 'Dhruv Soni';
+  static const String contactPhone = '9009395674';
+  static const String contactPhoneFormatted = '+91 9009395674';
 }

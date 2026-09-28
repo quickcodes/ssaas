@@ -1,12 +1,12 @@
 ---
-name: snooker-auth-and-sessions
+name: ssaas-auth-and-sessions
 description: >-
-  Workflows, domain models, and business logic for multi-tenant club authentication, 10-day user session persistence, Firestore session timestamps, subscription expiry enforcement, and user administration. Use when modifying or debugging authentication flows, auto-login, local session storage, or user roles in Snooker (Constants.appName).
+  Workflows, domain models, and business logic for multi-tenant club authentication, 10-day user session persistence, Firestore session timestamps, subscription expiry enforcement, and user administration. Use when modifying or debugging authentication flows, auto-login, local session storage, or user roles in SSAAS (Constants.appName).
 ---
 
-# Snooker Authentication & Session Persistence
+# SSAAS Authentication & Session Persistence
 
-This skill documents the multi-tenant architecture, user roles, subscription enforcement, and 10-day persistent session system in Snooker (Constants.appName).
+This skill documents the multi-tenant architecture, user roles, subscription enforcement, and 10-day persistent session system in SSAAS (Constants.appName).
 
 ## 1. Domain Entities & Firestore Structure
 
@@ -31,7 +31,7 @@ Sessions persist for **10 days** from the time of login across app restarts and 
 
 1. **Local Storage (`SharedPreferences`)**:
    - Class: `SessionLocalStorage` (`lib/data/datasources/session_local_storage.dart`).
-   - Key: `'snooker_club_user_session'`.
+   - Key: `'ssaas_club_user_session'` (with fallback to `'snooker_club_user_session'`).
    - Payload: `{ "companyId": "...", "userId": "...", "expiresAt": "2026-09-26T..." }`.
    - Native storage on Android (`SharedPreferences`), macOS/iOS (`NSUserDefaults`), and Web (`localStorage`).
 2. **Remote Cloud Verification (Firestore)**:

@@ -4,8 +4,10 @@ import '../../../core/constants/constants.dart';
 import '../../../core/theme/app_colors.dart';
 import '../../../core/utils/interactive_feedback.dart';
 import '../../../core/utils/responsive.dart';
+import '../../../core/utils/app_navigation.dart';
 import '../../blocs/auth/auth_bloc.dart';
 import '../../widgets/bouncing_tap.dart';
+import '../contact_and_pricing/pricing_and_contact_view.dart';
 import 'create_company_screen.dart';
 
 class LoginScreen extends StatefulWidget {
@@ -34,9 +36,10 @@ class _LoginScreenState extends State<LoginScreen>
       duration: const Duration(milliseconds: 2400),
     )..repeat(reverse: true);
 
-    _logoScaleAnim = Tween<double>(begin: 1.0, end: 1.05).animate(
-      CurvedAnimation(parent: _logoAnimCtrl, curve: Curves.easeInOut),
-    );
+    _logoScaleAnim = Tween<double>(
+      begin: 1.0,
+      end: 1.05,
+    ).animate(CurvedAnimation(parent: _logoAnimCtrl, curve: Curves.easeInOut));
   }
 
   @override
@@ -156,7 +159,9 @@ class _LoginScreenState extends State<LoginScreen>
                                   shape: BoxShape.circle,
                                   boxShadow: [
                                     BoxShadow(
-                                      color: AppColors.brandAccent.withAlpha(60),
+                                      color: AppColors.brandAccent.withAlpha(
+                                        60,
+                                      ),
                                       blurRadius: 28,
                                       spreadRadius: 4,
                                     ),
@@ -214,7 +219,8 @@ class _LoginScreenState extends State<LoginScreen>
                               hintText: 'e.g. CCD01, MATRIX',
                               prefixIcon: Icon(Icons.apartment_outlined),
                             ),
-                            validator: (val) => val == null || val.trim().isEmpty
+                            validator: (val) =>
+                                val == null || val.trim().isEmpty
                                 ? 'Please enter your company / club code'
                                 : null,
                           ),
@@ -225,10 +231,11 @@ class _LoginScreenState extends State<LoginScreen>
                             controller: _identifierCtrl,
                             decoration: const InputDecoration(
                               labelText: 'Email Address or Phone Number *',
-                              hintText: 'e.g. admin@club.com or 9876543210',
+                              hintText: 'e.g. admin@club.com or 9009395674',
                               prefixIcon: Icon(Icons.person_outline),
                             ),
-                            validator: (val) => val == null || val.trim().isEmpty
+                            validator: (val) =>
+                                val == null || val.trim().isEmpty
                                 ? 'Enter your email or phone number'
                                 : null,
                           ),
@@ -268,7 +275,9 @@ class _LoginScreenState extends State<LoginScreen>
                               onPressed: state.isLoading ? null : _submitLogin,
                               style: ElevatedButton.styleFrom(
                                 backgroundColor: AppColors.brandAccent,
-                                padding: const EdgeInsets.symmetric(vertical: 16),
+                                padding: const EdgeInsets.symmetric(
+                                  vertical: 16,
+                                ),
                                 shape: RoundedRectangleBorder(
                                   borderRadius: BorderRadius.circular(12),
                                 ),
@@ -293,6 +302,110 @@ class _LoginScreenState extends State<LoginScreen>
                             ),
                           ),
 
+                          const SizedBox(height: 20),
+
+                          // New Business & Subscription Pricing Card
+                          Container(
+                            padding: const EdgeInsets.symmetric(
+                              horizontal: 14,
+                              vertical: 12,
+                            ),
+                            decoration: BoxDecoration(
+                              color: AppColors.inputSurface.withAlpha(150),
+                              borderRadius: BorderRadius.circular(14),
+                              border: Border.all(
+                                color: AppColors.brandAccent.withAlpha(90),
+                              ),
+                            ),
+                            child: Row(
+                              children: [
+                                Container(
+                                  padding: const EdgeInsets.all(8),
+                                  decoration: BoxDecoration(
+                                    color: AppColors.brandAccent.withAlpha(40),
+                                    shape: BoxShape.circle,
+                                  ),
+                                  child: const Icon(
+                                    Icons.storefront_outlined,
+                                    size: 18,
+                                    color: AppColors.brandAccentLight,
+                                  ),
+                                ),
+                                const SizedBox(width: 12),
+                                Expanded(
+                                  child: Column(
+                                    crossAxisAlignment:
+                                        CrossAxisAlignment.start,
+                                    children: [
+                                      const Text(
+                                        'New Club or Subscription?',
+                                        style: TextStyle(
+                                          color: AppColors.primaryText,
+                                          fontSize: 12,
+                                          fontWeight: FontWeight.w700,
+                                        ),
+                                        maxLines: 1,
+                                        overflow: TextOverflow.ellipsis,
+                                      ),
+                                      const SizedBox(height: 2),
+                                      Text(
+                                        'Plans from ₹489 • Contact ${Constants.contactPerson}',
+                                        style: const TextStyle(
+                                          color: AppColors.secondaryText,
+                                          fontSize: 11,
+                                        ),
+                                        maxLines: 1,
+                                        overflow: TextOverflow.ellipsis,
+                                      ),
+                                    ],
+                                  ),
+                                ),
+                                const SizedBox(width: 8),
+                                BouncingTap(
+                                  onTap: () {
+                                    AppHaptics.light();
+                                    AppNavigation.pushSmooth(
+                                      context,
+                                      const PricingAndContactView(),
+                                    );
+                                  },
+                                  child: TextButton(
+                                    onPressed: () {
+                                      AppHaptics.light();
+                                      AppNavigation.pushSmooth(
+                                        context,
+                                        const PricingAndContactView(),
+                                      );
+                                    },
+                                    style: TextButton.styleFrom(
+                                      backgroundColor: AppColors.brandAccent
+                                          .withAlpha(35),
+                                      padding: const EdgeInsets.symmetric(
+                                        horizontal: 10,
+                                        vertical: 6,
+                                      ),
+                                      shape: RoundedRectangleBorder(
+                                        borderRadius: BorderRadius.circular(8),
+                                        side: BorderSide(
+                                          color: AppColors.brandAccent
+                                              .withAlpha(100),
+                                        ),
+                                      ),
+                                    ),
+                                    child: const Text(
+                                      'View Plans',
+                                      style: TextStyle(
+                                        color: AppColors.brandAccentLight,
+                                        fontSize: 11,
+                                        fontWeight: FontWeight.w800,
+                                      ),
+                                    ),
+                                  ),
+                                ),
+                              ],
+                            ),
+                          ),
+
                           // Dev-only Company Creation Option
                           if (Constants.isAdmin) ...[
                             const SizedBox(height: 24),
@@ -312,18 +425,23 @@ class _LoginScreenState extends State<LoginScreen>
                                   AppHaptics.light();
                                   Navigator.of(context).push(
                                     MaterialPageRoute(
-                                      builder: (_) => const CreateCompanyScreen(),
+                                      builder: (_) =>
+                                          const CreateCompanyScreen(),
                                     ),
                                   );
                                 },
                                 icon: const Icon(Icons.add_business_outlined),
-                                label: const Text('Create New Company (Dev Mode)'),
+                                label: const Text(
+                                  'Create New Company (Dev Mode)',
+                                ),
                                 style: OutlinedButton.styleFrom(
                                   foregroundColor: AppColors.brandAccentLight,
                                   side: const BorderSide(
                                     color: AppColors.brandAccent,
                                   ),
-                                  padding: const EdgeInsets.symmetric(vertical: 14),
+                                  padding: const EdgeInsets.symmetric(
+                                    vertical: 14,
+                                  ),
                                   shape: RoundedRectangleBorder(
                                     borderRadius: BorderRadius.circular(12),
                                   ),
@@ -382,6 +500,25 @@ class _LoginScreenState extends State<LoginScreen>
           style: const TextStyle(color: AppColors.secondaryText, fontSize: 14),
         ),
         actions: [
+          if (isSubscriptionExpired) ...[
+            TextButton(
+              onPressed: () {
+                Navigator.of(dialogCtx).pop();
+                context.read<AuthBloc>().add(ClearAuthErrorEvent());
+                AppNavigation.pushSmooth(
+                  context,
+                  const PricingAndContactView(),
+                );
+              },
+              child: const Text(
+                'View Plans & Contact',
+                style: TextStyle(
+                  color: AppColors.brandAccentLight,
+                  fontWeight: FontWeight.w700,
+                ),
+              ),
+            ),
+          ],
           ElevatedButton(
             onPressed: () {
               Navigator.of(dialogCtx).pop();
@@ -397,4 +534,3 @@ class _LoginScreenState extends State<LoginScreen>
     );
   }
 }
-

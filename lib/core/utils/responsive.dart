@@ -1,6 +1,6 @@
 import 'package:flutter/material.dart';
 
-/// Screen breakpoint helpers and adaptive layout utilities for Snooker.
+/// Screen breakpoint helpers and adaptive layout utilities for SSAAS.
 class Responsive {
   Responsive._();
 

@@ -187,7 +187,7 @@ class HistoryReportExporter {
         records.fold<int>(0, (sum, r) => sum + r.durationMinutes);
 
     // 1. Spreadsheet Header & Executive Summary
-    rows.add(['SNOOKER - MATCH REPORT']);
+    rows.add(['${Constants.appName} - MATCH REPORT']);
     rows.add(['Club / Company', companyName]);
     rows.add(['Report Period', dateRange.label]);
     rows.add([

@@ -1,6 +1,6 @@
-# Snooker Project - AI Agent Guidelines
+# SSAAS Project - AI Agent Guidelines
 
-This document contains mandatory guidelines for all AI agents working on the Snooker (Constants.appName) Flutter project. These rules are enforced and should be followed in all code modifications, bug fixes, and feature implementations.
+This document contains mandatory guidelines for all AI agents working on the SSAAS (Constants.appName) Flutter project. These rules are enforced and should be followed in all code modifications, bug fixes, and feature implementations.
 
 ---
 
@@ -80,7 +80,7 @@ child: SingleChildScrollView(
 ### Duration & Storage
 - User sessions last **10 days** from login time
 - Sessions are stored in TWO places:
-  1. **Local**: `SharedPreferences` key `'snooker_club_user_session'` with payload `{ "companyId": "...", "userId": "...", "expiresAt": "2026-09-26T..." }`
+  1. **Local**: `SharedPreferences` key `'ssaas_club_user_session'` (with fallback to `'snooker_club_user_session'`) with payload `{ "companyId": "...", "userId": "...", "expiresAt": "2026-09-26T..." }`
   2. **Remote**: Firestore document `users/{userId}` field `sessionExpiresAt` as a `Timestamp`
 
 ### Auto-Login Flow

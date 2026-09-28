@@ -84,7 +84,7 @@ class ManualSectionsData {
       themeColor: AppColors.info,
       tags: ['Formulas', 'Per-Minute Rate', 'Minimum Charge', 'Due Buffer'],
       overview:
-          'The Snooker system uses a high-precision, fair-pricing calculation engine that computes table charges based on actual elapsed minutes, configured table rates, minimum billing charges, and storewide due buffers.',
+          'The ${Constants.appName} system uses a high-precision, fair-pricing calculation engine that computes table charges based on actual elapsed minutes, configured table rates, minimum billing charges, and storewide due buffers.',
       keyObjectives: [
         'Ensure transparent, minute-by-minute billing for customers.',
         'Enforce minimum table charge thresholds to prevent zero-revenue short sessions.',

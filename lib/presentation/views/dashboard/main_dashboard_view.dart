@@ -15,6 +15,7 @@ import '../equipment/equipment_stock_view.dart';
 import '../floor_matrix/floor_matrix_view.dart';
 import '../history/tables_history_view.dart';
 import '../manual/user_manual_view.dart';
+import '../contact_and_pricing/pricing_and_contact_view.dart';
 import '../users/company_users_view.dart';
 import '../../widgets/bouncing_tap.dart';
 import 'user_online_status_dialog.dart';
@@ -550,6 +551,9 @@ class _MainDashboardViewState extends State<MainDashboardView> {
             ),
           ),
 
+          // Pricing & Subscription Plans Button
+          _buildPricingAndContactButton(),
+
           // User Manual Action Button
           _buildUserManualButton(),
 
@@ -679,6 +683,11 @@ class _MainDashboardViewState extends State<MainDashboardView> {
             ),
           ),
 
+          // Pricing & Subscription Plans Button
+          _buildPricingAndContactButton(
+            onTap: () => setState(() => _isSideMenuVisible = false),
+          ),
+
           // User Manual Action Button
           _buildUserManualButton(
             onTap: () => setState(() => _isSideMenuVisible = false),
@@ -687,6 +696,67 @@ class _MainDashboardViewState extends State<MainDashboardView> {
           // Bottom Company Details Card
           _buildCompanyInfoCard(activeCompany),
         ],
+      ),
+    );
+  }
+
+  Widget _buildPricingAndContactButton({VoidCallback? onTap}) {
+    return Padding(
+      padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 3),
+      child: InkWell(
+        onTap: () {
+          AppHaptics.selection();
+          onTap?.call();
+          AppNavigation.pushSmooth(context, const PricingAndContactView());
+        },
+        borderRadius: BorderRadius.circular(12),
+        child: Container(
+          padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 10),
+          decoration: BoxDecoration(
+            color: AppColors.brandAccent.withAlpha(26),
+            borderRadius: BorderRadius.circular(12),
+            border: Border.all(
+              color: AppColors.brandAccent.withAlpha(85),
+            ),
+          ),
+          child: const Row(
+            children: [
+              Icon(
+                Icons.sell_outlined,
+                color: AppColors.brandAccentLight,
+                size: 20,
+              ),
+              SizedBox(width: 10),
+              Expanded(
+                child: Column(
+                  crossAxisAlignment: CrossAxisAlignment.start,
+                  children: [
+                    Text(
+                      'Pricing & Contact',
+                      style: TextStyle(
+                        color: AppColors.primaryText,
+                        fontWeight: FontWeight.w700,
+                        fontSize: 13,
+                      ),
+                    ),
+                    Text(
+                      'Plans from ₹489 • Support',
+                      style: TextStyle(
+                        color: AppColors.secondaryText,
+                        fontSize: 10,
+                      ),
+                    ),
+                  ],
+                ),
+              ),
+              Icon(
+                Icons.arrow_forward_ios_rounded,
+                size: 12,
+                color: AppColors.brandAccentLight,
+              ),
+            ],
+          ),
+        ),
       ),
     );
   }
@@ -890,6 +960,43 @@ class _MainDashboardViewState extends State<MainDashboardView> {
               ),
             ],
           ),
+          if (isNearExpiry || isExpired) ...[
+            const SizedBox(height: 10),
+            InkWell(
+              onTap: () {
+                AppHaptics.selection();
+                AppNavigation.pushSmooth(
+                  context,
+                  const PricingAndContactView(),
+                );
+              },
+              borderRadius: BorderRadius.circular(8),
+              child: Container(
+                width: double.infinity,
+                padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 6),
+                decoration: BoxDecoration(
+                  color: statusColor.withAlpha(30),
+                  borderRadius: BorderRadius.circular(8),
+                  border: Border.all(color: statusColor.withAlpha(100), width: 0.8),
+                ),
+                child: Row(
+                  mainAxisAlignment: MainAxisAlignment.center,
+                  children: [
+                    Icon(Icons.autorenew_rounded, size: 14, color: statusColor),
+                    const SizedBox(width: 6),
+                    Text(
+                      'Renew License / View Plans',
+                      style: TextStyle(
+                        color: statusColor,
+                        fontSize: 11,
+                        fontWeight: FontWeight.w800,
+                      ),
+                    ),
+                  ],
+                ),
+              ),
+            ),
+          ],
         ],
       ),
     );

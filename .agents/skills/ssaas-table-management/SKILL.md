@@ -1,12 +1,12 @@
 ---
-name: snooker-table-management
+name: ssaas-table-management
 description: >-
-  Workflows, domain models, and business logic for managing snooker/billiards tables, running live matches, adding canteen/stock items to tables, configuring rates, and executing checkout with multi-mode payment settlement. Use when modifying or debugging table sessions, pricing rules, live duration timers, or checkout dialogs in Snooker (Constants.appName).
+  Workflows, domain models, and business logic for managing snooker/billiards tables, running live matches, adding canteen/stock items to tables, configuring rates, and executing checkout with multi-mode payment settlement. Use when modifying or debugging table sessions, pricing rules, live duration timers, or checkout dialogs in SSAAS (Constants.appName).
 ---
 
-# Snooker Table & Live Session Management
+# SSAAS Table & Live Session Management
 
-This skill documents the table management system, pricing models, running session timers, and checkout procedures in Snooker (Constants.appName).
+This skill documents the table management system, pricing models, running session timers, and checkout procedures in SSAAS (Constants.appName).
 
 ## 1. Domain Entities & Firestore Structure
 

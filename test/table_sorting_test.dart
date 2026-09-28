@@ -1,5 +1,6 @@
+// ignore_for_file: avoid_relative_lib_imports
 import 'package:flutter_test/flutter_test.dart';
-import 'package:snooker/core/utils/formatters.dart';
+import '../lib/core/utils/formatters.dart';
 
 void main() {
   group('AppFormatters.naturalCompare', () {

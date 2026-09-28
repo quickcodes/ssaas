@@ -32,7 +32,8 @@ class SessionData {
 }
 
 class SessionLocalStorage {
-  static const String _sessionKey = 'snooker_club_user_session';
+  static const String _sessionKey = 'ssaas_club_user_session';
+  static const String _legacySessionKey = 'snooker_club_user_session';
 
   Future<void> saveSession({
     required String companyId,
@@ -57,7 +58,11 @@ class SessionLocalStorage {
   Future<SessionData?> getSession() async {
     try {
       final prefs = await SharedPreferences.getInstance();
-      final contents = prefs.getString(_sessionKey);
+      var contents = prefs.getString(_sessionKey);
+      if (contents == null || contents.trim().isEmpty) {
+        // Fallback to legacy session key if present
+        contents = prefs.getString(_legacySessionKey);
+      }
       if (contents == null || contents.trim().isEmpty) {
         debugPrint('[SessionLocalStorage] No active session found.');
         return null;
@@ -78,6 +83,7 @@ class SessionLocalStorage {
     try {
       final prefs = await SharedPreferences.getInstance();
       await prefs.remove(_sessionKey);
+      await prefs.remove(_legacySessionKey);
       debugPrint('[SessionLocalStorage] Session CLEARED.');
     } catch (e) {
       debugPrint('[SessionLocalStorage] Error clearing session: $e');

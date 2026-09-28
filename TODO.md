@@ -1,4 +1,4 @@
-# Snooker Club OS - Migration & Functional Requirement Overhaul TODO
+# SSAAS Club OS - Migration & Functional Requirement Overhaul TODO
 
 ## Phase 1: Setup, Dependencies & Constants
 - [x] Add `cloud_firestore` to `pubspec.yaml` and install dependencies
@@ -60,3 +60,20 @@
 ## Phase 9: Verification & Quality Assurance
 - [x] Verify build and code correctness with `flutter analyze`
 - [x] Fix any compile/lint errors and ensure seamless experience
+
+## Phase 10: Pricing & Contact Information (New Businesses & License Renewals)
+- [x] Add contact constants to `Constants` (`lib/core/constants/constants.dart`)
+- [x] Create `PricingAndContactView` (`lib/presentation/views/contact_and_pricing/pricing_and_contact_view.dart`)
+  - Contact Details: Dhruv Soni (`9009395674`) with one-tap Direct Call, WhatsApp chat, and Copy Number
+  - Subscription Plans:
+    - 28 Days = ₹489 (Starter / Monthly)
+    - 84 Days = ₹1,389 (Quarterly / 3 cycles: ₹489 × 3 = ₹1,467 → Save ₹78) [Most Popular]
+    - 168 Days = ₹2,889 (Half-Yearly / 6 cycles: ₹489 × 6 = ₹2,934 → Save ₹45) [Best Value]
+  - Feature highlights & 3-step rapid onboarding guide
+- [x] Add navigation on `LoginScreen` (`lib/presentation/views/auth/login_screen.dart`)
+  - "New Club or Subscription?" interactive card with "View Plans" button
+  - "View Plans & Contact" button in subscription expiry dialog
+- [x] Add navigation in drawer & sidebar (`lib/presentation/views/dashboard/main_dashboard_view.dart`)
+  - Desktop sidebar: dedicated "Pricing & Contact" button
+  - Mobile side drawer: dedicated "Pricing & Contact" button
+  - Company expiry card: quick "Renew License / View Plans" action

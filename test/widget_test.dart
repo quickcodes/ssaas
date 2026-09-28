@@ -1,6 +1,7 @@
+// ignore_for_file: avoid_relative_lib_imports
 import 'package:flutter_test/flutter_test.dart';
-import 'package:snooker/core/di/service_locator.dart';
-import 'package:snooker/main.dart';
+import '../lib/core/di/service_locator.dart';
+import '../lib/main.dart';
 
 void main() {
   setUp(() {
@@ -10,7 +11,7 @@ void main() {
   testWidgets('empty club workspace renders without demo data', (
     WidgetTester tester,
   ) async {
-    await tester.pumpWidget(const SnookerClubApp());
+    await tester.pumpWidget(const SsaasApp());
     await tester.pump();
 
     expect(find.text('Your club workspace is ready'), findsOneWidget);

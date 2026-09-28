@@ -1,12 +1,12 @@
 ---
-name: snooker-billing-and-history
+name: ssaas-billing-and-history
 description: >-
-  Workflows, domain models, and business logic for match history, payment transaction logs, collecting pending due payments, due-amount clamping, financial audits, and CSV reports. Use when updating or debugging billing records, transaction histories, due settlement dialogs, or history views in Snooker (Constants.appName).
+  Workflows, domain models, and business logic for match history, payment transaction logs, collecting pending due payments, due-amount clamping, financial audits, and CSV reports. Use when updating or debugging billing records, transaction histories, due settlement dialogs, or history views in SSAAS (Constants.appName).
 ---
 
-# Snooker Billing & Match History Management
+# SSAAS Billing & Match History Management
 
-This skill documents the payment audit trail, due payment collection, financial accounting, and history reporting in Snooker (Constants.appName).
+This skill documents the payment audit trail, due payment collection, financial accounting, and history reporting in SSAAS (Constants.appName).
 
 ## 1. Domain Entities & Firestore Structure
 

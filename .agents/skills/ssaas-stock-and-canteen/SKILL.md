@@ -1,12 +1,12 @@
 ---
-name: snooker-stock-and-canteen
+name: ssaas-stock-and-canteen
 description: >-
-  Workflows, domain models, and UI patterns for managing food canteen inventory, beverages, snacks, snooker equipment stock, cue maintenance, and ordering items to live table sessions. Use when modifying or debugging canteen menus, stock counts, equipment tracking, or table item dialogs in Snooker (Constants.appName).
+  Workflows, domain models, and UI patterns for managing food canteen inventory, beverages, snacks, snooker equipment stock, cue maintenance, and ordering items to live table sessions. Use when modifying or debugging canteen menus, stock counts, equipment tracking, or table item dialogs in SSAAS (Constants.appName).
 ---
 
-# Snooker Canteen & Equipment Stock Management
+# SSAAS Canteen & Equipment Stock Management
 
-This skill documents the canteen POS, inventory tracking, equipment maintenance, and stock integration with table billing in Snooker (Constants.appName).
+This skill documents the canteen POS, inventory tracking, equipment maintenance, and stock integration with table billing in SSAAS (Constants.appName).
 
 ## 1. Domain Entities & Firestore Structure
 
