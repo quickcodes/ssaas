@@ -44,8 +44,6 @@ class TableCard extends StatelessWidget {
         return AppColors.tableOccupied;
       case TableStatus.maintenance:
         return AppColors.tableMaintenance;
-      case TableStatus.reserved:
-        return AppColors.tableReserved;
     }
   }
 
@@ -187,9 +185,7 @@ class TableCard extends StatelessWidget {
                   ),
                   itemBuilder: (context) => TableStatus.values
                       .where(
-                        (e) =>
-                            e.displayName != "Running" &&
-                            e.displayName != "Booked",
+                        (e) => e != TableStatus.occupied,
                       )
                       .map((s) {
                         return PopupMenuItem<TableStatus>(
@@ -508,9 +504,7 @@ class TableCard extends StatelessWidget {
                   const SizedBox(height: 18),
 
                   // Start Match Button
-                  if (table.status != TableStatus.maintenance &&
-                      table.status != TableStatus.occupied &&
-                      table.status != TableStatus.reserved)
+                  if (table.status == TableStatus.available)
                     BouncingTap(
                       onTap: () {
                         AppHaptics.medium();
@@ -572,8 +566,6 @@ class TableCard extends StatelessWidget {
         return AppColors.tableOccupied;
       case TableStatus.maintenance:
         return AppColors.tableMaintenance;
-      case TableStatus.reserved:
-        return AppColors.tableReserved;
     }
   }
 }

@@ -1,6 +1,7 @@
 import 'package:cloud_firestore/cloud_firestore.dart';
 import 'package:uuid/uuid.dart';
 import '../../core/constants/constants.dart';
+import '../../domain/entities/club_reminder.dart';
 import '../../domain/entities/club_table.dart';
 import '../../domain/entities/company.dart';
 import '../../domain/entities/stock_item.dart';
@@ -594,6 +595,44 @@ class FirestoreService {
     await _historyCol(record.companyId)
         .doc(record.id)
         .set(record.toMap(), SetOptions(merge: true));
+  }
+
+  // -------------------------------------------------------------
+  // REMINDERS SUBCOLLECTION: companies/{companyId}/reminders
+  // -------------------------------------------------------------
+
+  CollectionReference<Map<String, dynamic>> _remindersCol(String companyId) =>
+      _companiesCol.doc(companyId).collection('reminders');
+
+  Stream<List<ClubReminder>> watchCompanyReminders(String companyId) {
+    return _remindersCol(companyId)
+        .orderBy('remindAt', descending: false)
+        .snapshots()
+        .map((snapshot) {
+      return snapshot.docs
+          .map((doc) => ClubReminder.fromMap(doc.id, doc.data()))
+          .toList();
+    });
+  }
+
+  Future<void> saveReminder(String companyId, ClubReminder reminder) async {
+    final docId = reminder.id.isEmpty
+        ? _remindersCol(companyId).doc().id
+        : reminder.id;
+    final toSave = reminder.copyWith(id: docId, companyId: companyId);
+    await _remindersCol(companyId)
+        .doc(docId)
+        .set(toSave.toMap(), SetOptions(merge: true));
+  }
+
+  Future<void> dismissReminder(String companyId, String reminderId) async {
+    await _remindersCol(companyId)
+        .doc(reminderId)
+        .set({'isDismissed': true}, SetOptions(merge: true));
+  }
+
+  Future<void> deleteReminder(String companyId, String reminderId) async {
+    await _remindersCol(companyId).doc(reminderId).delete();
   }
 }
 

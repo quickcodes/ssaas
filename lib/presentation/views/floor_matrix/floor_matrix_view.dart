@@ -1,5 +1,6 @@
 import 'package:flutter/material.dart';
 import 'package:flutter_bloc/flutter_bloc.dart';
+import 'package:intl/intl.dart';
 import '../../../core/constants/constants.dart';
 import '../../../core/di/service_locator.dart';
 import '../../../core/theme/app_colors.dart';
@@ -7,7 +8,9 @@ import '../../../core/utils/app_navigation.dart';
 import '../../../core/utils/interactive_feedback.dart';
 import '../../../core/utils/responsive.dart';
 import '../../../data/datasources/firestore_service.dart';
+import '../../../domain/entities/club_reminder.dart';
 import '../../../domain/entities/club_table.dart';
+import '../../../domain/entities/company.dart';
 import '../../../domain/entities/stock_item.dart';
 import '../../../domain/entities/table_billing_item.dart';
 import '../../../domain/entities/table_history_record.dart';
@@ -23,6 +26,7 @@ import 'checkout_session_dialog.dart';
 import 'start_session_dialog.dart';
 import 'table_card.dart';
 import 'table_configuration_dialog.dart';
+import '../dashboard/reminder_details_dialog.dart';
 import '../dashboard/user_online_status_dialog.dart';
 
 class FloorMatrixView extends StatefulWidget {
@@ -128,9 +132,6 @@ class _FloorMatrixViewState extends State<FloorMatrixView> {
             final maintenanceCount = allTables
                 .where((t) => t.status == TableStatus.maintenance)
                 .length;
-            final reservedCount = allTables
-                .where((t) => t.status == TableStatus.reserved)
-                .length;
 
             final isMobile = Responsive.isMobile(context);
 
@@ -142,6 +143,17 @@ class _FloorMatrixViewState extends State<FloorMatrixView> {
               child: Column(
                 crossAxisAlignment: CrossAxisAlignment.stretch,
                 children: [
+                  // Upcoming Reminders (Alert Banner: appears before 1 hour of scheduled time)
+                  if (matrixState.activeUpcomingReminders.isNotEmpty) ...[
+                    _buildUpcomingRemindersBanner(
+                      context,
+                      matrixState.activeUpcomingReminders,
+                      activeCompany,
+                      activeUser,
+                    ),
+                    const SizedBox(height: 14),
+                  ],
+
                   // Top Row: Summary & Admin Add Table
                   if (isMobile) ...[
                     if (activeUser.isAdmin)
@@ -165,7 +177,6 @@ class _FloorMatrixViewState extends State<FloorMatrixView> {
                       available: availableCount,
                       occupied: occupiedCount,
                       maintenance: maintenanceCount,
-                      reserved: reservedCount,
                     ),
                   ] else ...[
                     Row(
@@ -175,7 +186,6 @@ class _FloorMatrixViewState extends State<FloorMatrixView> {
                             available: availableCount,
                             occupied: occupiedCount,
                             maintenance: maintenanceCount,
-                            reserved: reservedCount,
                           ),
                         ),
                         if (activeUser.isAdmin) ...[
@@ -212,7 +222,6 @@ class _FloorMatrixViewState extends State<FloorMatrixView> {
                     availableCount: availableCount,
                     occupiedCount: occupiedCount,
                     maintenanceCount: maintenanceCount,
-                    reservedCount: reservedCount,
                   ),
                   const SizedBox(height: 20),
 
@@ -336,7 +345,6 @@ class _FloorMatrixViewState extends State<FloorMatrixView> {
     required int available,
     required int occupied,
     required int maintenance,
-    required int reserved,
   }) {
     return Container(
       padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 14),
@@ -375,13 +383,6 @@ class _FloorMatrixViewState extends State<FloorMatrixView> {
               maintenance.toString(),
               AppColors.tableMaintenance,
               Icons.build_circle_outlined,
-            ),
-            _buildMetricDivider(),
-            _buildMetricPill(
-              'Booked',
-              reserved.toString(),
-              AppColors.tableReserved,
-              Icons.bookmark_border,
             ),
           ],
         ),
@@ -447,7 +448,6 @@ class _FloorMatrixViewState extends State<FloorMatrixView> {
     required int availableCount,
     required int occupiedCount,
     required int maintenanceCount,
-    required int reservedCount,
   }) {
     return SingleChildScrollView(
       scrollDirection: Axis.horizontal,
@@ -482,14 +482,6 @@ class _FloorMatrixViewState extends State<FloorMatrixView> {
             'Maintenance ($maintenanceCount)',
             currentFilter == TableStatus.maintenance,
             color: AppColors.tableMaintenance,
-          ),
-          const SizedBox(width: 8),
-          _buildFilterChip(
-            context,
-            TableStatus.reserved,
-            'Booked ($reservedCount)',
-            currentFilter == TableStatus.reserved,
-            color: AppColors.tableReserved,
           ),
         ],
       ),
@@ -689,5 +681,216 @@ class _FloorMatrixViewState extends State<FloorMatrixView> {
     if (updated != null && context.mounted) {
       context.read<FloorMatrixBloc>().add(SaveTableConfigurationEvent(updated));
     }
+  }
+
+  Widget _buildUpcomingRemindersBanner(
+    BuildContext context,
+    List<ClubReminder> upcomingReminders,
+    Company company,
+    UserAccount user,
+  ) {
+    if (upcomingReminders.isEmpty) return const SizedBox.shrink();
+
+    return Column(
+      crossAxisAlignment: CrossAxisAlignment.stretch,
+      mainAxisSize: MainAxisSize.min,
+      children: upcomingReminders.map((reminder) {
+        final now = DateTime.now();
+        final diff = reminder.remindAt.difference(now);
+        final String countdownText;
+        if (diff.isNegative) {
+          final pastMinutes = diff.inMinutes.abs();
+          if (pastMinutes < 60) {
+            countdownText = 'Started $pastMinutes mins ago';
+          } else {
+            countdownText = 'Started ${diff.inHours.abs()}h ago';
+          }
+        } else {
+          final remainingMinutes = diff.inMinutes;
+          if (remainingMinutes == 0) {
+            countdownText = 'Starting now!';
+          } else if (remainingMinutes < 60) {
+            countdownText = 'In $remainingMinutes mins';
+          } else {
+            final hours = diff.inHours;
+            final mins = remainingMinutes % 60;
+            countdownText = 'In ${hours}h ${mins}m';
+          }
+        }
+
+        final timeFormatted = DateFormat('hh:mm a').format(reminder.remindAt);
+
+        return Container(
+          margin: const EdgeInsets.only(bottom: 8),
+          decoration: BoxDecoration(
+            color: const Color(0xFFFFB300).withAlpha(20),
+            borderRadius: BorderRadius.circular(14),
+            border: Border.all(
+              color: const Color(0xFFFFB300).withAlpha(120),
+              width: 1.2,
+            ),
+            boxShadow: [
+              BoxShadow(
+                color: const Color(0xFFFFB300).withAlpha(15),
+                blurRadius: 10,
+                offset: const Offset(0, 3),
+              ),
+            ],
+          ),
+          child: Material(
+            color: Colors.transparent,
+            borderRadius: BorderRadius.circular(14),
+            child: InkWell(
+              onTap: () {
+                AppHaptics.light();
+                ReminderDetailsDialog.show(
+                  context,
+                  reminder: reminder,
+                  activeCompany: company,
+                  currentUser: user,
+                );
+              },
+              borderRadius: BorderRadius.circular(14),
+              child: Padding(
+                padding: const EdgeInsets.symmetric(horizontal: 14, vertical: 12),
+                child: Row(
+                  crossAxisAlignment: CrossAxisAlignment.center,
+                  children: [
+                    Container(
+                      width: 34,
+                      height: 34,
+                      decoration: BoxDecoration(
+                        color: const Color(0xFFFFB300).withAlpha(35),
+                        shape: BoxShape.circle,
+                        border: Border.all(
+                          color: const Color(0xFFFFB300).withAlpha(140),
+                        ),
+                      ),
+                      child: const Icon(
+                        Icons.notifications_active_rounded,
+                        color: Color(0xFFFFB300),
+                        size: 18,
+                      ),
+                    ),
+                    const SizedBox(width: 12),
+                    Expanded(
+                      child: Column(
+                        crossAxisAlignment: CrossAxisAlignment.start,
+                        mainAxisSize: MainAxisSize.min,
+                        children: [
+                          Row(
+                            children: [
+                              const Flexible(
+                                child: Text(
+                                  'UPCOMING BOOKING / REMINDER',
+                                  style: TextStyle(
+                                    color: Color(0xFFFFB300),
+                                    fontSize: 10,
+                                    fontWeight: FontWeight.w800,
+                                    letterSpacing: 0.6,
+                                  ),
+                                  maxLines: 1,
+                                  overflow: TextOverflow.ellipsis,
+                                ),
+                              ),
+                              const SizedBox(width: 8),
+                              Container(
+                                padding: const EdgeInsets.symmetric(
+                                  horizontal: 6,
+                                  vertical: 1.5,
+                                ),
+                                decoration: BoxDecoration(
+                                  color: const Color(0xFFFFB300).withAlpha(40),
+                                  borderRadius: BorderRadius.circular(4),
+                                ),
+                                child: Text(
+                                  '$countdownText ($timeFormatted)',
+                                  style: const TextStyle(
+                                    color: Color(0xFFFFB300),
+                                    fontSize: 9.5,
+                                    fontWeight: FontWeight.w700,
+                                  ),
+                                ),
+                              ),
+                            ],
+                          ),
+                          const SizedBox(height: 3),
+                          Text(
+                            reminder.description,
+                            style: const TextStyle(
+                              color: AppColors.primaryText,
+                              fontSize: 13,
+                              fontWeight: FontWeight.w600,
+                              height: 1.3,
+                            ),
+                            maxLines: 2,
+                            overflow: TextOverflow.ellipsis,
+                          ),
+                        ],
+                      ),
+                    ),
+                    const SizedBox(width: 8),
+                    // Dismiss button
+                    Tooltip(
+                      message: 'Mark as done / Dismiss',
+                      child: InkWell(
+                        onTap: () {
+                          AppHaptics.light();
+                          context.read<FloorMatrixBloc>().add(
+                                DismissReminderEvent(
+                                  companyId: company.id,
+                                  reminderId: reminder.id,
+                                ),
+                              );
+                        },
+                        borderRadius: BorderRadius.circular(8),
+                        child: Container(
+                          padding: const EdgeInsets.symmetric(
+                            horizontal: 10,
+                            vertical: 6,
+                          ),
+                          decoration: BoxDecoration(
+                            color: AppColors.inputSurface,
+                            borderRadius: BorderRadius.circular(8),
+                            border: Border.all(
+                              color: AppColors.cardBorderStroke,
+                            ),
+                          ),
+                          child: const Row(
+                            mainAxisSize: MainAxisSize.min,
+                            children: [
+                              Icon(
+                                Icons.done,
+                                size: 14,
+                                color: AppColors.tableAvailable,
+                              ),
+                              SizedBox(width: 4),
+                              Text(
+                                'Dismiss',
+                                style: TextStyle(
+                                  color: AppColors.secondaryText,
+                                  fontSize: 11,
+                                  fontWeight: FontWeight.w600,
+                                ),
+                              ),
+                            ],
+                          ),
+                        ),
+                      ),
+                    ),
+                    const SizedBox(width: 4),
+                    const Icon(
+                      Icons.chevron_right_rounded,
+                      size: 18,
+                      color: Color(0xFFFFB300),
+                    ),
+                  ],
+                ),
+              ),
+            ),
+          ),
+        );
+      }).toList(),
+    );
   }
 }

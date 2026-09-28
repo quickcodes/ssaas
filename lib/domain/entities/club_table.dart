@@ -5,8 +5,7 @@ import 'rate_schedule.dart';
 enum TableStatus {
   available,
   occupied,
-  maintenance,
-  reserved;
+  maintenance;
 
   String get displayName {
     switch (this) {
@@ -16,8 +15,6 @@ enum TableStatus {
         return 'Running';
       case TableStatus.maintenance:
         return 'Maintenance';
-      case TableStatus.reserved:
-        return 'Booked';
     }
   }
 
@@ -26,7 +23,6 @@ enum TableStatus {
     final lower = val.toLowerCase();
     if (lower == 'running' || lower == 'occupied') return TableStatus.occupied;
     if (lower == 'maintenance') return TableStatus.maintenance;
-    if (lower == 'booked' || lower == 'reserved') return TableStatus.reserved;
     return TableStatus.available;
   }
 }

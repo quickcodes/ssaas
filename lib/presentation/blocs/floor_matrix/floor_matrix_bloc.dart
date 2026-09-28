@@ -3,6 +3,7 @@ import 'package:equatable/equatable.dart';
 import 'package:flutter_bloc/flutter_bloc.dart';
 import '../../../core/utils/formatters.dart';
 import '../../../data/datasources/firestore_service.dart';
+import '../../../domain/entities/club_reminder.dart';
 import '../../../domain/entities/club_table.dart';
 import '../../../domain/entities/table_billing_item.dart';
 import '../../../domain/entities/table_history_record.dart';
@@ -134,6 +135,43 @@ class UpdateTableStatusDirectEvent extends FloorMatrixEvent {
   List<Object?> get props => [companyId, tableId, status];
 }
 
+class _RemindersUpdatedEvent extends FloorMatrixEvent {
+  final List<ClubReminder> reminders;
+  const _RemindersUpdatedEvent(this.reminders);
+  @override
+  List<Object?> get props => [reminders];
+}
+
+class AddReminderEvent extends FloorMatrixEvent {
+  final String companyId;
+  final ClubReminder reminder;
+  const AddReminderEvent({required this.companyId, required this.reminder});
+  @override
+  List<Object?> get props => [companyId, reminder];
+}
+
+class DismissReminderEvent extends FloorMatrixEvent {
+  final String companyId;
+  final String reminderId;
+  const DismissReminderEvent({
+    required this.companyId,
+    required this.reminderId,
+  });
+  @override
+  List<Object?> get props => [companyId, reminderId];
+}
+
+class DeleteReminderEvent extends FloorMatrixEvent {
+  final String companyId;
+  final String reminderId;
+  const DeleteReminderEvent({
+    required this.companyId,
+    required this.reminderId,
+  });
+  @override
+  List<Object?> get props => [companyId, reminderId];
+}
+
 class ClearFloorMatrixMessagesEvent extends FloorMatrixEvent {
   const ClearFloorMatrixMessagesEvent();
 }
@@ -145,6 +183,7 @@ class ClearFloorMatrixMessagesEvent extends FloorMatrixEvent {
 class FloorMatrixState extends Equatable {
   final List<ClubTable> tables;
   final List<TableSession> activeSessions;
+  final List<ClubReminder> reminders;
   final ClubTable? selectedTable;
   final TableStatus? filterStatus;
   final DateTime currentTickerTime;
@@ -155,6 +194,7 @@ class FloorMatrixState extends Equatable {
   const FloorMatrixState({
     this.tables = const [],
     this.activeSessions = const [],
+    this.reminders = const [],
     this.selectedTable,
     this.filterStatus,
     required this.currentTickerTime,
@@ -162,6 +202,16 @@ class FloorMatrixState extends Equatable {
     this.errorMessage,
     this.successMessage,
   });
+
+  /// Reminders whose remindAt is within 1 hour ahead from now
+  /// and not dismissed or expired
+  List<ClubReminder> get activeUpcomingReminders {
+    final now = currentTickerTime;
+    return reminders
+        .where((r) => r.isDueSoon(now))
+        .toList()
+      ..sort((a, b) => a.remindAt.compareTo(b.remindAt));
+  }
 
   List<ClubTable> get filteredTables {
     final sorted = List<ClubTable>.from(tables)
@@ -181,6 +231,7 @@ class FloorMatrixState extends Equatable {
   FloorMatrixState copyWith({
     List<ClubTable>? tables,
     List<TableSession>? activeSessions,
+    List<ClubReminder>? reminders,
     ClubTable? selectedTable,
     TableStatus? filterStatus,
     DateTime? currentTickerTime,
@@ -194,6 +245,7 @@ class FloorMatrixState extends Equatable {
     return FloorMatrixState(
       tables: tables ?? this.tables,
       activeSessions: activeSessions ?? this.activeSessions,
+      reminders: reminders ?? this.reminders,
       selectedTable: clearSelectedTable
           ? null
           : (selectedTable ?? this.selectedTable),
@@ -210,6 +262,7 @@ class FloorMatrixState extends Equatable {
   List<Object?> get props => [
         tables,
         activeSessions,
+        reminders,
         selectedTable,
         filterStatus,
         currentTickerTime,
@@ -227,6 +280,7 @@ class FloorMatrixBloc extends Bloc<FloorMatrixEvent, FloorMatrixState> {
   final FirestoreService _firestoreService;
   StreamSubscription<List<ClubTable>>? _tablesSub;
   StreamSubscription<List<TableSession>>? _sessionsSub;
+  StreamSubscription<List<ClubReminder>>? _remindersSub;
   Timer? _tickerTimer;
 
   FloorMatrixBloc({required FirestoreService firestoreService})
@@ -240,6 +294,7 @@ class FloorMatrixBloc extends Bloc<FloorMatrixEvent, FloorMatrixState> {
     on<LoadFloorMatrixEvent>(_onLoadFloorMatrix);
     on<_TablesUpdatedEvent>(_onTablesUpdated);
     on<_SessionsUpdatedEvent>(_onSessionsUpdated);
+    on<_RemindersUpdatedEvent>(_onRemindersUpdated);
     on<TimerTickEvent>(_onTimerTick);
     on<TableSelectedEvent>(_onTableSelected);
     on<FilterStatusChangedEvent>(_onFilterStatusChanged);
@@ -251,6 +306,9 @@ class FloorMatrixBloc extends Bloc<FloorMatrixEvent, FloorMatrixState> {
     on<AddBillingItemEvent>(_onAddBillingItem);
     on<CloseTableSessionEvent>(_onCloseTableSession);
     on<UpdateTableStatusDirectEvent>(_onUpdateTableStatusDirect);
+    on<AddReminderEvent>(_onAddReminder);
+    on<DismissReminderEvent>(_onDismissReminder);
+    on<DeleteReminderEvent>(_onDeleteReminder);
     on<ClearFloorMatrixMessagesEvent>(_onClearMessages);
 
     // Periodic 1-second timer tick for live dynamic clocks
@@ -266,6 +324,7 @@ class FloorMatrixBloc extends Bloc<FloorMatrixEvent, FloorMatrixState> {
     emit(state.copyWith(isLoading: true));
     await _tablesSub?.cancel();
     await _sessionsSub?.cancel();
+    await _remindersSub?.cancel();
 
     _tablesSub = _firestoreService.watchTables(event.companyId).listen((tables) {
       add(_TablesUpdatedEvent(tables));
@@ -274,6 +333,12 @@ class FloorMatrixBloc extends Bloc<FloorMatrixEvent, FloorMatrixState> {
     _sessionsSub =
         _firestoreService.watchRunningTables(event.companyId).listen((sessions) {
       add(_SessionsUpdatedEvent(sessions));
+    });
+
+    _remindersSub = _firestoreService
+        .watchCompanyReminders(event.companyId)
+        .listen((reminders) {
+      add(_RemindersUpdatedEvent(reminders));
     });
 
     try {
@@ -450,6 +515,54 @@ class FloorMatrixBloc extends Bloc<FloorMatrixEvent, FloorMatrixState> {
     }
   }
 
+  void _onRemindersUpdated(
+    _RemindersUpdatedEvent event,
+    Emitter<FloorMatrixState> emit,
+  ) {
+    emit(state.copyWith(reminders: event.reminders));
+  }
+
+  Future<void> _onAddReminder(
+    AddReminderEvent event,
+    Emitter<FloorMatrixState> emit,
+  ) async {
+    try {
+      await _firestoreService.saveReminder(event.companyId, event.reminder);
+      emit(state.copyWith(successMessage: 'Reminder saved successfully'));
+    } catch (e) {
+      emit(state.copyWith(errorMessage: e.toString()));
+    }
+  }
+
+  Future<void> _onDismissReminder(
+    DismissReminderEvent event,
+    Emitter<FloorMatrixState> emit,
+  ) async {
+    try {
+      await _firestoreService.dismissReminder(
+        event.companyId,
+        event.reminderId,
+      );
+    } catch (e) {
+      emit(state.copyWith(errorMessage: e.toString()));
+    }
+  }
+
+  Future<void> _onDeleteReminder(
+    DeleteReminderEvent event,
+    Emitter<FloorMatrixState> emit,
+  ) async {
+    try {
+      await _firestoreService.deleteReminder(
+        event.companyId,
+        event.reminderId,
+      );
+      emit(state.copyWith(successMessage: 'Reminder deleted'));
+    } catch (e) {
+      emit(state.copyWith(errorMessage: e.toString()));
+    }
+  }
+
   void _onClearMessages(
     ClearFloorMatrixMessagesEvent event,
     Emitter<FloorMatrixState> emit,
@@ -461,6 +574,7 @@ class FloorMatrixBloc extends Bloc<FloorMatrixEvent, FloorMatrixState> {
   Future<void> close() {
     _tablesSub?.cancel();
     _sessionsSub?.cancel();
+    _remindersSub?.cancel();
     _tickerTimer?.cancel();
     return super.close();
   }

@@ -18,6 +18,7 @@ import '../manual/user_manual_view.dart';
 import '../contact_and_pricing/pricing_and_contact_view.dart';
 import '../users/company_users_view.dart';
 import '../../widgets/bouncing_tap.dart';
+import 'club_reminders_dialog.dart';
 import 'user_online_status_dialog.dart';
 
 class MainDashboardView extends StatefulWidget {
@@ -581,6 +582,9 @@ class _MainDashboardViewState extends State<MainDashboardView> {
             ),
           ),
 
+          // Reminders & Bookings Button (Admins only)
+          _buildRemindersDrawerButton(currentUser, activeCompany),
+
           // Pricing & Subscription Plans Button
           _buildPricingAndContactButton(),
 
@@ -669,6 +673,13 @@ class _MainDashboardViewState extends State<MainDashboardView> {
                 crossAxisAlignment: CrossAxisAlignment.stretch,
                 mainAxisSize: MainAxisSize.min,
                 children: [
+                  // Reminders & Bookings Button (Admins only)
+                  _buildRemindersDrawerButton(
+                    currentUser,
+                    activeCompany,
+                    onTap: () => setState(() => _isSideMenuVisible = false),
+                  ),
+
                   // Pricing & Subscription Plans Button
                   _buildPricingAndContactButton(
                     onTap: () => setState(() => _isSideMenuVisible = false),
@@ -692,6 +703,109 @@ class _MainDashboardViewState extends State<MainDashboardView> {
           ),
         ],
       ),
+    );
+  }
+
+  Widget _buildRemindersDrawerButton(
+    UserAccount currentUser,
+    Company activeCompany, {
+    VoidCallback? onTap,
+  }) {
+    if (!currentUser.isAdmin) return const SizedBox.shrink();
+
+    return BlocBuilder<FloorMatrixBloc, FloorMatrixState>(
+      builder: (context, matrixState) {
+        final activeCount = matrixState.activeUpcomingReminders.length;
+
+        return Padding(
+          padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 3),
+          child: InkWell(
+            onTap: () {
+              AppHaptics.selection();
+              onTap?.call();
+              showDialog(
+                context: context,
+                builder: (_) => ClubRemindersDialog(
+                  activeCompany: activeCompany,
+                  currentUser: currentUser,
+                ),
+              );
+            },
+            borderRadius: BorderRadius.circular(12),
+            child: Container(
+              padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 10),
+              decoration: BoxDecoration(
+                color: const Color(0xFFFFB300).withAlpha(22),
+                borderRadius: BorderRadius.circular(12),
+                border: Border.all(
+                  color: const Color(0xFFFFB300).withAlpha(80),
+                ),
+              ),
+              child: Row(
+                children: [
+                  const Icon(
+                    Icons.alarm_add_rounded,
+                    color: Color(0xFFFFB300),
+                    size: 20,
+                  ),
+                  const SizedBox(width: 10),
+                  const Expanded(
+                    child: Column(
+                      crossAxisAlignment: CrossAxisAlignment.start,
+                      children: [
+                        Text(
+                          'Reminders & Bookings',
+                          style: TextStyle(
+                            color: AppColors.primaryText,
+                            fontWeight: FontWeight.w700,
+                            fontSize: 13,
+                          ),
+                          maxLines: 1,
+                          overflow: TextOverflow.ellipsis,
+                        ),
+                        Text(
+                          'Add booking alerts',
+                          style: TextStyle(
+                            color: AppColors.secondaryText,
+                            fontSize: 10,
+                          ),
+                          maxLines: 1,
+                          overflow: TextOverflow.ellipsis,
+                        ),
+                      ],
+                    ),
+                  ),
+                  if (activeCount > 0)
+                    Container(
+                      margin: const EdgeInsets.only(right: 6),
+                      padding: const EdgeInsets.symmetric(
+                        horizontal: 6,
+                        vertical: 2,
+                      ),
+                      decoration: BoxDecoration(
+                        color: const Color(0xFFFFB300),
+                        borderRadius: BorderRadius.circular(10),
+                      ),
+                      child: Text(
+                        '$activeCount',
+                        style: const TextStyle(
+                          color: Colors.black,
+                          fontSize: 10,
+                          fontWeight: FontWeight.w800,
+                        ),
+                      ),
+                    ),
+                  const Icon(
+                    Icons.arrow_forward_ios_rounded,
+                    size: 12,
+                    color: Color(0xFFFFB300),
+                  ),
+                ],
+              ),
+            ),
+          ),
+        );
+      },
     );
   }
 
