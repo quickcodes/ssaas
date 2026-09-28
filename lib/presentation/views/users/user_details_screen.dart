@@ -1,9 +1,12 @@
 import 'package:flutter/material.dart';
+import 'package:flutter_bloc/flutter_bloc.dart';
 import 'package:intl/intl.dart';
 import '../../../core/theme/app_colors.dart';
+import '../../../core/utils/interactive_feedback.dart';
 import '../../../core/utils/responsive.dart';
 import '../../../domain/entities/user_account.dart';
 import '../../../domain/entities/user_shift_record.dart';
+import '../../blocs/auth/auth_bloc.dart';
 
 class UserDetailsScreen extends StatelessWidget {
   final UserAccount user;
@@ -28,236 +31,473 @@ class UserDetailsScreen extends StatelessWidget {
     return '${hours}h ${minutes}m';
   }
 
-  @override
-  Widget build(BuildContext context) {
-    final isMobile = Responsive.isMobile(context);
-    final sortedShifts = List<UserShiftRecord>.from(user.shifts)
-      ..sort((a, b) => b.onlineAt.compareTo(a.onlineAt));
-
-    final totalHours = _formatDuration(user.totalWorkingDuration);
-    final activeShift = user.activeShift;
-
-    return Scaffold(
-      backgroundColor: AppColors.backgroundBase,
-      appBar: AppBar(
+  void _confirmDeactivateUser(
+    BuildContext context,
+    UserAccount targetUser,
+    String companyName,
+  ) {
+    AppHaptics.selection();
+    showDialog(
+      context: context,
+      builder: (dialogCtx) => AlertDialog(
         backgroundColor: AppColors.cardSurface,
-        elevation: 0,
-        scrolledUnderElevation: 0,
-        leading: IconButton(
-          icon: const Icon(Icons.arrow_back, color: AppColors.primaryText),
-          onPressed: () => Navigator.of(context).pop(),
+        shape: RoundedRectangleBorder(
+          borderRadius: BorderRadius.circular(16),
+          side: const BorderSide(color: AppColors.cardBorderStroke),
         ),
-        title: Column(
-          crossAxisAlignment: CrossAxisAlignment.start,
+        title: const Row(
           children: [
-            const Text(
-              'OPERATOR PROFILE & SHIFTS',
-              style: TextStyle(
-                color: AppColors.brandAccentLight,
-                fontSize: 10,
-                fontWeight: FontWeight.w800,
-                letterSpacing: 1.0,
-              ),
-            ),
-            const SizedBox(height: 2),
+            Icon(Icons.person_off_outlined, color: AppColors.tableOccupied, size: 24),
+            SizedBox(width: 10),
             Text(
-              user.name,
-              style: const TextStyle(
+              'Deactivate User?',
+              style: TextStyle(
                 color: AppColors.primaryText,
-                fontSize: 16,
-                fontWeight: FontWeight.w800,
+                fontWeight: FontWeight.w700,
+                fontSize: 17,
               ),
             ),
           ],
         ),
-        actions: [
-          Container(
-            margin: const EdgeInsets.symmetric(vertical: 12, horizontal: 16),
-            padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 4),
-            decoration: BoxDecoration(
-              color: user.isOnline
-                  ? AppColors.tableAvailable.withAlpha(25)
-                  : AppColors.cardBorderStroke,
-              borderRadius: BorderRadius.circular(12),
-              border: Border.all(
-                color: user.isOnline
-                    ? AppColors.tableAvailable.withAlpha(80)
-                    : AppColors.cardBorderStroke,
+        content: ConstrainedBox(
+          constraints: BoxConstraints(
+            maxHeight: MediaQuery.of(context).size.height * 0.9,
+            maxWidth: 460,
+          ),
+          child: SingleChildScrollView(
+            child: Text(
+              'Are you sure you want to deactivate ${targetUser.name}? This user will be immediately logged out and prevented from accessing $companyName until reactivated.',
+              style: const TextStyle(
+                color: AppColors.secondaryText,
+                fontSize: 13,
+                height: 1.4,
               ),
             ),
-            child: Row(
-              mainAxisSize: MainAxisSize.min,
+          ),
+        ),
+        actions: [
+          TextButton(
+            onPressed: () => Navigator.of(dialogCtx).pop(),
+            child: const Text('Cancel'),
+          ),
+          ElevatedButton(
+            onPressed: () {
+              Navigator.of(dialogCtx).pop();
+              AppHaptics.medium();
+              context.read<AuthBloc>().add(
+                    ToggleUserActiveStatusEvent(userId: targetUser.id, isActive: false),
+                  );
+            },
+            style: ElevatedButton.styleFrom(
+              backgroundColor: AppColors.tableOccupied,
+              foregroundColor: Colors.white,
+            ),
+            child: const Text('Deactivate User'),
+          ),
+        ],
+      ),
+    );
+  }
+
+  @override
+  Widget build(BuildContext context) {
+    final isMobile = Responsive.isMobile(context);
+
+    return BlocBuilder<AuthBloc, AuthState>(
+      builder: (context, authState) {
+        final currentUser = authState.currentUser;
+        final activeCompany = authState.activeCompany;
+        // Use live user from companyUsers list if present
+        final liveUser = authState.companyUsers.firstWhere(
+          (u) => u.id == user.id,
+          orElse: () => user,
+        );
+
+        final sortedShifts = List<UserShiftRecord>.from(liveUser.shifts)
+          ..sort((a, b) => b.onlineAt.compareTo(a.onlineAt));
+
+        final totalHours = _formatDuration(liveUser.totalWorkingDuration);
+        final activeShift = liveUser.activeShift;
+        final isOwner = liveUser.isOwner;
+        final isActive = liveUser.isActive;
+        final canOwnerManage = (currentUser?.isOwner ?? false) && !isSelf;
+
+        return Scaffold(
+          backgroundColor: AppColors.backgroundBase,
+          appBar: AppBar(
+            backgroundColor: AppColors.cardSurface,
+            elevation: 0,
+            scrolledUnderElevation: 0,
+            leading: IconButton(
+              icon: const Icon(Icons.arrow_back, color: AppColors.primaryText),
+              onPressed: () => Navigator.of(context).pop(),
+            ),
+            title: Column(
+              crossAxisAlignment: CrossAxisAlignment.start,
               children: [
-                CircleAvatar(
-                  radius: 4,
-                  backgroundColor: user.isOnline
-                      ? AppColors.tableAvailable
-                      : AppColors.textDisabled,
-                ),
-                const SizedBox(width: 6),
-                Text(
-                  user.isOnline ? 'ONLINE' : 'OFFLINE',
+                const Text(
+                  'OPERATOR PROFILE & SHIFTS',
                   style: TextStyle(
-                    color: user.isOnline
-                        ? AppColors.tableAvailable
-                        : AppColors.secondaryText,
-                    fontSize: 11,
+                    color: AppColors.brandAccentLight,
+                    fontSize: 10,
+                    fontWeight: FontWeight.w800,
+                    letterSpacing: 1.0,
+                  ),
+                ),
+                const SizedBox(height: 2),
+                Text(
+                  liveUser.name,
+                  style: const TextStyle(
+                    color: AppColors.primaryText,
+                    fontSize: 16,
                     fontWeight: FontWeight.w800,
                   ),
                 ),
               ],
             ),
-          ),
-        ],
-      ),
-      body: SafeArea(
-        child: Center(
-          child: ConstrainedBox(
-            constraints: const BoxConstraints(maxWidth: 680),
-            child: SingleChildScrollView(
-              padding: EdgeInsets.symmetric(
-                horizontal: isMobile ? 16 : 24,
-                vertical: 20,
-              ),
-              child: Column(
-                crossAxisAlignment: CrossAxisAlignment.stretch,
-                children: [
-                  // User Profile Summary Card
-                  Container(
-                    padding: EdgeInsets.all(isMobile ? 16 : 22),
-                    decoration: BoxDecoration(
-                      color: AppColors.cardSurface,
-                      borderRadius: BorderRadius.circular(16),
-                      border: Border.all(color: AppColors.cardBorderStroke),
+            actions: [
+              Container(
+                margin: const EdgeInsets.symmetric(vertical: 12, horizontal: 16),
+                padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 4),
+                decoration: BoxDecoration(
+                  color: !isActive
+                      ? AppColors.tableOccupied.withAlpha(25)
+                      : liveUser.isOnline
+                          ? AppColors.tableAvailable.withAlpha(25)
+                          : AppColors.cardBorderStroke,
+                  borderRadius: BorderRadius.circular(12),
+                  border: Border.all(
+                    color: !isActive
+                        ? AppColors.tableOccupied.withAlpha(80)
+                        : liveUser.isOnline
+                            ? AppColors.tableAvailable.withAlpha(80)
+                            : AppColors.cardBorderStroke,
+                  ),
+                ),
+                child: Row(
+                  mainAxisSize: MainAxisSize.min,
+                  children: [
+                    Icon(
+                      !isActive
+                          ? Icons.block
+                          : (liveUser.isOnline ? Icons.bolt : Icons.circle),
+                      size: 10,
+                      color: !isActive
+                          ? AppColors.tableOccupied
+                          : (liveUser.isOnline
+                              ? AppColors.tableAvailable
+                              : AppColors.textDisabled),
                     ),
-                    child: Column(
-                      crossAxisAlignment: CrossAxisAlignment.start,
-                      children: [
-                        Row(
+                    const SizedBox(width: 6),
+                    Text(
+                      !isActive
+                          ? 'DEACTIVATED'
+                          : (liveUser.isOnline ? 'ONLINE' : 'OFFLINE'),
+                      style: TextStyle(
+                        color: !isActive
+                            ? AppColors.tableOccupied
+                            : (liveUser.isOnline
+                                ? AppColors.tableAvailable
+                                : AppColors.secondaryText),
+                        fontSize: 11,
+                        fontWeight: FontWeight.w800,
+                      ),
+                    ),
+                  ],
+                ),
+              ),
+            ],
+          ),
+          body: SafeArea(
+            child: Center(
+              child: ConstrainedBox(
+                constraints: const BoxConstraints(maxWidth: 680),
+                child: SingleChildScrollView(
+                  padding: EdgeInsets.symmetric(
+                    horizontal: isMobile ? 16 : 24,
+                    vertical: 20,
+                  ),
+                  child: Column(
+                    crossAxisAlignment: CrossAxisAlignment.stretch,
+                    children: [
+                      // User Profile Summary Card
+                      Container(
+                        padding: EdgeInsets.all(isMobile ? 16 : 22),
+                        decoration: BoxDecoration(
+                          color: AppColors.cardSurface,
+                          borderRadius: BorderRadius.circular(16),
+                          border: Border.all(
+                            color: !isActive
+                                ? AppColors.tableOccupied.withAlpha(80)
+                                : isOwner
+                                    ? const Color(0xFFFFB300).withAlpha(90)
+                                    : AppColors.cardBorderStroke,
+                          ),
+                        ),
+                        child: Column(
+                          crossAxisAlignment: CrossAxisAlignment.start,
                           children: [
-                            CircleAvatar(
-                              radius: isMobile ? 24 : 28,
-                              backgroundColor: user.isAdmin
-                                  ? AppColors.brandAccent.withAlpha(40)
-                                  : AppColors.inputSurface,
-                              child: Icon(
-                                user.isAdmin ? Icons.shield : Icons.person,
-                                size: isMobile ? 24 : 28,
-                                color: user.isAdmin
-                                    ? AppColors.brandAccentLight
-                                    : AppColors.secondaryText,
-                              ),
-                            ),
-                            const SizedBox(width: 14),
-                            Expanded(
-                              child: Column(
-                                crossAxisAlignment: CrossAxisAlignment.start,
-                                children: [
-                                  Row(
+                            Row(
+                              children: [
+                                CircleAvatar(
+                                  radius: isMobile ? 24 : 28,
+                                  backgroundColor: !isActive
+                                      ? AppColors.tableOccupied.withAlpha(30)
+                                      : isOwner
+                                          ? const Color(0xFFFFB300).withAlpha(35)
+                                          : AppColors.inputSurface,
+                                  child: Icon(
+                                    !isActive
+                                        ? Icons.person_off_outlined
+                                        : (isOwner ? Icons.verified_user : Icons.person),
+                                    size: isMobile ? 24 : 28,
+                                    color: !isActive
+                                        ? AppColors.tableOccupied
+                                        : (isOwner
+                                            ? const Color(0xFFFFB300)
+                                            : AppColors.secondaryText),
+                                  ),
+                                ),
+                                const SizedBox(width: 14),
+                                Expanded(
+                                  child: Column(
+                                    crossAxisAlignment: CrossAxisAlignment.start,
                                     children: [
-                                      Flexible(
-                                        child: Text(
-                                          user.name,
-                                          style: TextStyle(
-                                            color: AppColors.primaryText,
-                                            fontSize: isMobile ? 18 : 20,
-                                            fontWeight: FontWeight.w800,
-                                          ),
-                                          maxLines: 1,
-                                          overflow: TextOverflow.ellipsis,
-                                        ),
-                                      ),
-                                      if (isSelf) ...[
-                                        const SizedBox(width: 8),
-                                        Container(
-                                          padding: const EdgeInsets.symmetric(
-                                            horizontal: 6,
-                                            vertical: 2,
-                                          ),
-                                          decoration: BoxDecoration(
-                                            color: AppColors.brandAccent.withAlpha(40),
-                                            borderRadius: BorderRadius.circular(4),
-                                          ),
-                                          child: const Text(
-                                            'YOU',
-                                            style: TextStyle(
-                                              color: AppColors.brandAccentLight,
-                                              fontSize: 10,
-                                              fontWeight: FontWeight.w800,
+                                      Row(
+                                        children: [
+                                          Flexible(
+                                            child: Text(
+                                              liveUser.name,
+                                              style: TextStyle(
+                                                color: isActive
+                                                    ? AppColors.primaryText
+                                                    : AppColors.secondaryText,
+                                                fontSize: isMobile ? 18 : 20,
+                                                fontWeight: FontWeight.w800,
+                                                decoration: !isActive
+                                                    ? TextDecoration.lineThrough
+                                                    : null,
+                                              ),
+                                              maxLines: 1,
+                                              overflow: TextOverflow.ellipsis,
                                             ),
                                           ),
-                                        ),
-                                      ],
+                                          if (isSelf) ...[
+                                            const SizedBox(width: 8),
+                                            Container(
+                                              padding: const EdgeInsets.symmetric(
+                                                horizontal: 6,
+                                                vertical: 2,
+                                              ),
+                                              decoration: BoxDecoration(
+                                                color: AppColors.brandAccent.withAlpha(40),
+                                                borderRadius: BorderRadius.circular(4),
+                                              ),
+                                              child: const Text(
+                                                'YOU',
+                                                style: TextStyle(
+                                                  color: AppColors.brandAccentLight,
+                                                  fontSize: 10,
+                                                  fontWeight: FontWeight.w800,
+                                                ),
+                                              ),
+                                            ),
+                                          ],
+                                        ],
+                                      ),
+                                      const SizedBox(height: 6),
+                                      Wrap(
+                                        spacing: 8,
+                                        runSpacing: 4,
+                                        children: [
+                                          // Role Badge
+                                          Container(
+                                            padding: const EdgeInsets.symmetric(
+                                              horizontal: 8,
+                                              vertical: 3,
+                                            ),
+                                            decoration: BoxDecoration(
+                                              color: isOwner
+                                                  ? const Color(0xFFFFB300).withAlpha(30)
+                                                  : AppColors.inputSurface,
+                                              borderRadius: BorderRadius.circular(4),
+                                              border: Border.all(
+                                                color: isOwner
+                                                    ? const Color(0xFFFFB300).withAlpha(120)
+                                                    : AppColors.cardBorderStroke,
+                                              ),
+                                            ),
+                                            child: Text(
+                                              isOwner ? 'CLUB OWNER' : 'STAFF / EMPLOYEE',
+                                              style: TextStyle(
+                                                color: isOwner
+                                                    ? const Color(0xFFFFB300)
+                                                    : AppColors.secondaryText,
+                                                fontSize: 10,
+                                                fontWeight: FontWeight.w800,
+                                                letterSpacing: 0.6,
+                                              ),
+                                            ),
+                                          ),
+                                          // Status Badge
+                                          Container(
+                                            padding: const EdgeInsets.symmetric(
+                                              horizontal: 8,
+                                              vertical: 3,
+                                            ),
+                                            decoration: BoxDecoration(
+                                              color: isActive
+                                                  ? AppColors.tableAvailable.withAlpha(25)
+                                                  : AppColors.tableOccupied.withAlpha(30),
+                                              borderRadius: BorderRadius.circular(4),
+                                              border: Border.all(
+                                                color: isActive
+                                                    ? AppColors.tableAvailable.withAlpha(90)
+                                                    : AppColors.tableOccupied.withAlpha(100),
+                                              ),
+                                            ),
+                                            child: Text(
+                                              isActive ? 'ACTIVE ACCOUNT' : 'DEACTIVATED ACCOUNT',
+                                              style: TextStyle(
+                                                color: isActive
+                                                    ? AppColors.tableAvailable
+                                                    : AppColors.tableOccupied,
+                                                fontSize: 10,
+                                                fontWeight: FontWeight.w800,
+                                                letterSpacing: 0.6,
+                                              ),
+                                            ),
+                                          ),
+                                        ],
+                                      ),
                                     ],
                                   ),
-                                  const SizedBox(height: 4),
-                                  Container(
-                                    padding: const EdgeInsets.symmetric(
-                                      horizontal: 8,
-                                      vertical: 2,
-                                    ),
-                                    decoration: BoxDecoration(
-                                      color: user.isAdmin
-                                          ? AppColors.brandAccent.withAlpha(30)
-                                          : AppColors.inputSurface,
-                                      borderRadius: BorderRadius.circular(4),
-                                    ),
-                                    child: Text(
-                                      user.isAdmin ? 'ADMINISTRATOR' : 'STAFF OPERATOR',
-                                      style: TextStyle(
-                                        color: user.isAdmin
-                                            ? AppColors.brandAccentLight
-                                            : AppColors.secondaryText,
-                                        fontSize: 10,
-                                        fontWeight: FontWeight.w800,
-                                        letterSpacing: 0.6,
+                                ),
+                              ],
+                            ),
+                            const SizedBox(height: 18),
+                            const Divider(color: AppColors.cardBorderStroke),
+                            const SizedBox(height: 12),
+
+                            // Contact & Account Specs
+                            _buildDetailRow(
+                              icon: Icons.phone_outlined,
+                              label: 'Phone Number',
+                              value: liveUser.number.isNotEmpty ? liveUser.number : 'Not set',
+                            ),
+                            const SizedBox(height: 8),
+                            _buildDetailRow(
+                              icon: Icons.email_outlined,
+                              label: 'Email Address',
+                              value: liveUser.email.isNotEmpty ? liveUser.email : 'Not set',
+                            ),
+                            const SizedBox(height: 8),
+                            _buildDetailRow(
+                              icon: Icons.calendar_today_outlined,
+                              label: 'Account Created',
+                              value: DateFormat('dd MMM yyyy, hh:mm a').format(liveUser.createdAt),
+                            ),
+                            if (liveUser.sessionExpiresAt != null) ...[
+                              const SizedBox(height: 8),
+                              _buildDetailRow(
+                                icon: Icons.lock_clock_outlined,
+                                label: 'Session Validity',
+                                value: liveUser.isSessionValid
+                                    ? 'Active until ${DateFormat('dd MMM yyyy, hh:mm a').format(liveUser.sessionExpiresAt!)}'
+                                    : 'Session Expired',
+                                valueColor: liveUser.isSessionValid
+                                    ? AppColors.tableAvailable
+                                    : AppColors.error,
+                              ),
+                            ],
+
+                            // Owner controls on other users
+                            if (canOwnerManage) ...[
+                              const SizedBox(height: 16),
+                              const Divider(color: AppColors.cardBorderStroke),
+                              const SizedBox(height: 12),
+                              Wrap(
+                                spacing: 10,
+                                runSpacing: 8,
+                                children: [
+                                  // Deactivate / Reactivate
+                                  if (isActive)
+                                    ElevatedButton.icon(
+                                      onPressed: () => _confirmDeactivateUser(
+                                        context,
+                                        liveUser,
+                                        activeCompany?.name ?? 'Club',
                                       ),
+                                      icon: const Icon(Icons.block, size: 16),
+                                      label: const Text('Deactivate Account'),
+                                      style: ElevatedButton.styleFrom(
+                                        backgroundColor: AppColors.tableOccupied,
+                                        foregroundColor: Colors.white,
+                                        padding: const EdgeInsets.symmetric(horizontal: 14, vertical: 10),
+                                        shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(8)),
+                                      ),
+                                    )
+                                  else
+                                    ElevatedButton.icon(
+                                      onPressed: () {
+                                        AppHaptics.medium();
+                                        context.read<AuthBloc>().add(
+                                              ToggleUserActiveStatusEvent(
+                                                userId: liveUser.id,
+                                                isActive: true,
+                                              ),
+                                            );
+                                      },
+                                      icon: const Icon(Icons.check_circle_outline, size: 16),
+                                      label: const Text('Reactivate Account'),
+                                      style: ElevatedButton.styleFrom(
+                                        backgroundColor: AppColors.tableAvailable,
+                                        foregroundColor: Colors.white,
+                                        padding: const EdgeInsets.symmetric(horizontal: 14, vertical: 10),
+                                        shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(8)),
+                                      ),
+                                    ),
+                                  // Change Role
+                                  OutlinedButton.icon(
+                                    onPressed: () {
+                                      AppHaptics.selection();
+                                      final newRole = isOwner ? 'employee' : 'owner';
+                                      context.read<AuthBloc>().add(
+                                            UpdateUserRoleEvent(
+                                              userId: liveUser.id,
+                                              role: newRole,
+                                            ),
+                                          );
+                                    },
+                                    icon: Icon(
+                                      isOwner ? Icons.badge_outlined : Icons.verified_user,
+                                      size: 16,
+                                      color: isOwner ? AppColors.primaryText : const Color(0xFFFFB300),
+                                    ),
+                                    label: Text(
+                                      isOwner ? 'Demote to Employee' : 'Promote to Owner',
+                                      style: TextStyle(
+                                        color: isOwner ? AppColors.primaryText : const Color(0xFFFFB300),
+                                        fontWeight: FontWeight.w700,
+                                      ),
+                                    ),
+                                    style: OutlinedButton.styleFrom(
+                                      side: BorderSide(
+                                        color: isOwner
+                                            ? AppColors.cardBorderStroke
+                                            : const Color(0xFFFFB300).withAlpha(140),
+                                      ),
+                                      padding: const EdgeInsets.symmetric(horizontal: 14, vertical: 10),
+                                      shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(8)),
                                     ),
                                   ),
                                 ],
                               ),
-                            ),
+                            ],
                           ],
                         ),
-                        const SizedBox(height: 18),
-                        const Divider(color: AppColors.cardBorderStroke),
-                        const SizedBox(height: 12),
-
-                        // Contact & Account Specs
-                        _buildDetailRow(
-                          icon: Icons.phone_outlined,
-                          label: 'Phone Number',
-                          value: user.number.isNotEmpty ? user.number : 'Not set',
-                        ),
-                        const SizedBox(height: 8),
-                        _buildDetailRow(
-                          icon: Icons.email_outlined,
-                          label: 'Email Address',
-                          value: user.email.isNotEmpty ? user.email : 'Not set',
-                        ),
-                        const SizedBox(height: 8),
-                        _buildDetailRow(
-                          icon: Icons.calendar_today_outlined,
-                          label: 'Account Created',
-                          value: DateFormat('dd MMM yyyy, hh:mm a').format(user.createdAt),
-                        ),
-                        if (user.sessionExpiresAt != null) ...[
-                          const SizedBox(height: 8),
-                          _buildDetailRow(
-                            icon: Icons.lock_clock_outlined,
-                            label: 'Session Validity',
-                            value: user.isSessionValid
-                                ? 'Active until ${DateFormat('dd MMM yyyy, hh:mm a').format(user.sessionExpiresAt!)}'
-                                : 'Session Expired',
-                            valueColor: user.isSessionValid
-                                ? AppColors.tableAvailable
-                                : AppColors.error,
-                          ),
-                        ],
-                      ],
-                    ),
-                  ),
-                  const SizedBox(height: 18),
+                      ),
+                      const SizedBox(height: 18),
 
                   // Working Hours & Shift KPI Metrics
                   Row(
@@ -495,7 +735,9 @@ class UserDetailsScreen extends StatelessWidget {
         ),
       ),
     );
-  }
+  },
+);
+}
 
   Widget _buildDetailRow({
     required IconData icon,

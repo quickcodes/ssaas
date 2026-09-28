@@ -97,6 +97,28 @@ class ToggleUserAdminStatusEvent extends AuthEvent {
   List<Object?> get props => [userId, isAdmin];
 }
 
+class ToggleUserActiveStatusEvent extends AuthEvent {
+  final String userId;
+  final bool isActive;
+  const ToggleUserActiveStatusEvent({
+    required this.userId,
+    required this.isActive,
+  });
+  @override
+  List<Object?> get props => [userId, isActive];
+}
+
+class UpdateUserRoleEvent extends AuthEvent {
+  final String userId;
+  final String role;
+  const UpdateUserRoleEvent({
+    required this.userId,
+    required this.role,
+  });
+  @override
+  List<Object?> get props => [userId, role];
+}
+
 class ToggleUserOnlineStatusEvent extends AuthEvent {
   final String userId;
   final bool isOnline;
@@ -137,6 +159,7 @@ class AuthState extends Equatable {
   final String? errorMessage;
   final String? successMessage;
   final bool isSubscriptionExpired;
+  final bool isUserDeactivated;
 
   const AuthState({
     this.currentUser,
@@ -147,10 +170,14 @@ class AuthState extends Equatable {
     this.errorMessage,
     this.successMessage,
     this.isSubscriptionExpired = false,
+    this.isUserDeactivated = false,
   });
 
   bool get isAuthenticated =>
-      currentUser != null && activeCompany != null && !isSubscriptionExpired;
+      currentUser != null &&
+      activeCompany != null &&
+      !isSubscriptionExpired &&
+      !isUserDeactivated;
 
   AuthState copyWith({
     UserAccount? currentUser,
@@ -165,6 +192,7 @@ class AuthState extends Equatable {
     String? successMessage,
     bool clearSuccessMessage = false,
     bool? isSubscriptionExpired,
+    bool? isUserDeactivated,
   }) {
     return AuthState(
       currentUser: clearCurrentUser ? null : (currentUser ?? this.currentUser),
@@ -180,6 +208,8 @@ class AuthState extends Equatable {
           : (successMessage ?? this.successMessage),
       isSubscriptionExpired:
           isSubscriptionExpired ?? this.isSubscriptionExpired,
+      isUserDeactivated:
+          isUserDeactivated ?? (clearErrorMessage ? false : this.isUserDeactivated),
     );
   }
 
@@ -193,6 +223,7 @@ class AuthState extends Equatable {
         errorMessage,
         successMessage,
         isSubscriptionExpired,
+        isUserDeactivated,
       ];
 }
 
@@ -220,6 +251,8 @@ class AuthBloc extends Bloc<AuthEvent, AuthState> {
     on<CreateCompanyWithAdminEvent>(_onCreateCompanyWithAdmin);
     on<CreateCompanyUserEvent>(_onCreateCompanyUser);
     on<ToggleUserAdminStatusEvent>(_onToggleUserAdminStatus);
+    on<ToggleUserActiveStatusEvent>(_onToggleUserActiveStatus);
+    on<UpdateUserRoleEvent>(_onUpdateUserRole);
     on<ToggleUserOnlineStatusEvent>(_onToggleUserOnlineStatus);
     on<ClearAuthErrorEvent>(_onClearAuthError);
     on<_CompanyUpdatedInternalEvent>(_onCompanyUpdatedInternal);
@@ -254,6 +287,24 @@ class AuthBloc extends Bloc<AuthEvent, AuthState> {
             session.userId,
           );
           if (user != null && user.isSessionValid) {
+            if (!user.isActive) {
+              debugPrint(
+                '[AuthBloc] User account is deactivated. Clearing local session.',
+              );
+              await _sessionLocalStorage.clearSession();
+              final companies = await _firestoreService.getCompanies();
+              emit(
+                state.copyWith(
+                  companies: companies,
+                  isLoading: false,
+                  isUserDeactivated: true,
+                  errorMessage:
+                      'Your account has been deactivated by the club owner. Please contact your club owner to regain access.',
+                ),
+              );
+              return;
+            }
+
             debugPrint(
               '[AuthBloc] Valid session found for ${user.name}. Auto-logging in...',
             );
@@ -386,6 +437,18 @@ class AuthBloc extends Bloc<AuthEvent, AuthState> {
         return;
       }
 
+      if (!user.isActive) {
+        emit(
+          state.copyWith(
+            isLoading: false,
+            isUserDeactivated: true,
+            errorMessage:
+                'Your account has been deactivated by the club owner. Please contact your club owner for assistance.',
+          ),
+        );
+        return;
+      }
+
       // Configure 10-day session: Store in Firebase DB on that user doc & locally
       final sessionExpiresAt = DateTime.now().add(const Duration(days: 10));
       await _firestoreService.updateUserSession(
@@ -470,6 +533,26 @@ class AuthBloc extends Bloc<AuthEvent, AuthState> {
             event.users.firstWhere((u) => u.id == state.currentUser!.id);
       } catch (_) {}
     }
+
+    // Check if the currently logged-in user has been deactivated in real-time
+    if (state.currentUser != null &&
+        updatedCurrentUser != null &&
+        !updatedCurrentUser.isActive) {
+      _companySub?.cancel();
+      _usersSub?.cancel();
+      _sessionLocalStorage.clearSession();
+      emit(
+        state.copyWith(
+          clearCurrentUser: true,
+          companyUsers: event.users,
+          isUserDeactivated: true,
+          errorMessage:
+              'Your account has been deactivated by the club owner. You have been logged out. Please contact the owner for assistance.',
+        ),
+      );
+      return;
+    }
+
     emit(state.copyWith(
       companyUsers: event.users,
       currentUser: updatedCurrentUser,
@@ -548,8 +631,8 @@ class AuthBloc extends Bloc<AuthEvent, AuthState> {
     CreateCompanyUserEvent event,
     Emitter<AuthState> emit,
   ) async {
-    if (state.currentUser?.isAdmin != true || state.activeCompany == null) {
-      emit(state.copyWith(errorMessage: 'Only Admin users can create users.'));
+    if ((state.currentUser?.isOwner != true && state.currentUser?.isAdmin != true) || state.activeCompany == null) {
+      emit(state.copyWith(errorMessage: 'Only the Club Owner can create new users.'));
       return;
     }
     emit(state.copyWith(isLoading: true));
@@ -570,10 +653,10 @@ class AuthBloc extends Bloc<AuthEvent, AuthState> {
     ToggleUserAdminStatusEvent event,
     Emitter<AuthState> emit,
   ) async {
-    if (state.currentUser?.isAdmin != true || state.activeCompany == null) {
+    if (state.currentUser?.isOwner != true || state.activeCompany == null) {
       emit(
         state.copyWith(
-          errorMessage: 'Only Admin users can change user permissions.',
+          errorMessage: 'Only the Club Owner can change user roles.',
         ),
       );
       return;
@@ -586,7 +669,73 @@ class AuthBloc extends Bloc<AuthEvent, AuthState> {
       );
       emit(
         state.copyWith(
-          successMessage: 'Admin status updated successfully.',
+          successMessage: 'User role updated successfully.',
+        ),
+      );
+    } catch (e) {
+      emit(state.copyWith(errorMessage: e.toString()));
+    }
+  }
+
+  Future<void> _onToggleUserActiveStatus(
+    ToggleUserActiveStatusEvent event,
+    Emitter<AuthState> emit,
+  ) async {
+    if (state.currentUser?.isOwner != true || state.activeCompany == null) {
+      emit(
+        state.copyWith(
+          errorMessage: 'Only the Club Owner can activate or deactivate accounts.',
+        ),
+      );
+      return;
+    }
+    if (state.currentUser?.id == event.userId) {
+      emit(
+        state.copyWith(
+          errorMessage: 'You cannot deactivate your own account.',
+        ),
+      );
+      return;
+    }
+    try {
+      await _firestoreService.updateUserActiveStatus(
+        state.activeCompany!.id,
+        event.userId,
+        event.isActive,
+      );
+      emit(
+        state.copyWith(
+          successMessage: event.isActive
+              ? 'User account activated successfully.'
+              : 'User account deactivated successfully.',
+        ),
+      );
+    } catch (e) {
+      emit(state.copyWith(errorMessage: e.toString()));
+    }
+  }
+
+  Future<void> _onUpdateUserRole(
+    UpdateUserRoleEvent event,
+    Emitter<AuthState> emit,
+  ) async {
+    if (state.currentUser?.isOwner != true || state.activeCompany == null) {
+      emit(
+        state.copyWith(
+          errorMessage: 'Only the Club Owner can modify user roles.',
+        ),
+      );
+      return;
+    }
+    try {
+      await _firestoreService.updateUserRole(
+        state.activeCompany!.id,
+        event.userId,
+        event.role,
+      );
+      emit(
+        state.copyWith(
+          successMessage: 'User role updated to ${event.role.toUpperCase()}.',
         ),
       );
     } catch (e) {
@@ -643,7 +792,11 @@ class AuthBloc extends Bloc<AuthEvent, AuthState> {
     ClearAuthErrorEvent event,
     Emitter<AuthState> emit,
   ) {
-    emit(state.copyWith(clearErrorMessage: true, clearSuccessMessage: true));
+    emit(state.copyWith(
+      clearErrorMessage: true,
+      clearSuccessMessage: true,
+      isUserDeactivated: false,
+    ));
   }
 
   @override

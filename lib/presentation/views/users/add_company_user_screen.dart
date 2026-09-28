@@ -24,7 +24,7 @@ class _AddCompanyUserScreenState extends State<AddCompanyUserScreen> {
   final _numberCtrl = TextEditingController();
   final _emailCtrl = TextEditingController();
   final _passwordCtrl = TextEditingController();
-  bool _isAdmin = false;
+  String _selectedRole = 'employee';
   bool _obscurePassword = true;
 
   @override
@@ -47,7 +47,9 @@ class _AddCompanyUserScreenState extends State<AddCompanyUserScreen> {
       number: _numberCtrl.text.trim(),
       email: _emailCtrl.text.trim().toLowerCase(),
       password: _passwordCtrl.text,
-      isAdmin: _isAdmin,
+      role: _selectedRole,
+      isAdmin: _selectedRole == 'owner',
+      isActive: true,
       createdAt: DateTime.now(),
     );
 
@@ -180,40 +182,182 @@ class _AddCompanyUserScreenState extends State<AddCompanyUserScreen> {
                             : null,
                       ),
                       const SizedBox(height: 16),
-                      Container(
-                        padding: const EdgeInsets.symmetric(
-                          horizontal: 14,
-                          vertical: 8,
+                      const SizedBox(height: 18),
+                      const Text(
+                        'ASSIGN USER ROLE *',
+                        style: TextStyle(
+                          color: AppColors.secondaryText,
+                          fontSize: 11,
+                          fontWeight: FontWeight.w800,
+                          letterSpacing: 1.0,
                         ),
-                        decoration: BoxDecoration(
-                          color: AppColors.inputSurface,
-                          borderRadius: BorderRadius.circular(12),
-                          border:
-                              Border.all(color: AppColors.cardBorderStroke),
-                        ),
-                        child: CheckboxListTile(
-                          title: const Text(
-                            'Make this user Admin',
-                            style: TextStyle(
-                              color: AppColors.primaryText,
-                              fontWeight: FontWeight.w600,
-                              fontSize: 14,
+                      ),
+                      const SizedBox(height: 8),
+                      // Employee Role Option
+                      InkWell(
+                        onTap: () {
+                          AppHaptics.selection();
+                          setState(() => _selectedRole = 'employee');
+                        },
+                        borderRadius: BorderRadius.circular(12),
+                        child: AnimatedContainer(
+                          duration: const Duration(milliseconds: 160),
+                          padding: const EdgeInsets.all(12),
+                          decoration: BoxDecoration(
+                            color: _selectedRole == 'employee'
+                                ? AppColors.brandAccent.withAlpha(25)
+                                : AppColors.inputSurface,
+                            borderRadius: BorderRadius.circular(12),
+                            border: Border.all(
+                              color: _selectedRole == 'employee'
+                                  ? AppColors.brandAccent
+                                  : AppColors.cardBorderStroke,
+                              width: _selectedRole == 'employee' ? 1.5 : 1.0,
                             ),
                           ),
-                          subtitle: const Text(
-                            'Admins can create users, change roles, and configure tables.',
-                            style: TextStyle(
-                              color: AppColors.secondaryText,
-                              fontSize: 11,
+                          child: Row(
+                            children: [
+                              Container(
+                                width: 20,
+                                height: 20,
+                                margin: const EdgeInsets.symmetric(horizontal: 4),
+                                decoration: BoxDecoration(
+                                  shape: BoxShape.circle,
+                                  border: Border.all(
+                                    color: _selectedRole == 'employee'
+                                        ? AppColors.brandAccent
+                                        : AppColors.secondaryText,
+                                    width: 2,
+                                  ),
+                                ),
+                                child: _selectedRole == 'employee'
+                                    ? Center(
+                                        child: Container(
+                                          width: 10,
+                                          height: 10,
+                                          decoration: const BoxDecoration(
+                                            color: AppColors.brandAccent,
+                                            shape: BoxShape.circle,
+                                          ),
+                                        ),
+                                      )
+                                    : null,
+                              ),
+                              const SizedBox(width: 10),
+                              const Expanded(
+                                child: Column(
+                                  crossAxisAlignment: CrossAxisAlignment.start,
+                                  children: [
+                                    Text(
+                                      'Employee',
+                                      style: TextStyle(
+                                        color: AppColors.primaryText,
+                                        fontWeight: FontWeight.w700,
+                                        fontSize: 14,
+                                      ),
+                                    ),
+                                    SizedBox(height: 2),
+                                    Text(
+                                      'Counter staff / Marker. Can operate tables, canteen items, and equipment stock.',
+                                      style: TextStyle(
+                                        color: AppColors.secondaryText,
+                                        fontSize: 11,
+                                      ),
+                                    ),
+                                  ],
+                                ),
+                              ),
+                            ],
+                          ),
+                        ),
+                      ),
+                      const SizedBox(height: 10),
+                      // Owner Role Option
+                      InkWell(
+                        onTap: () {
+                          AppHaptics.selection();
+                          setState(() => _selectedRole = 'owner');
+                        },
+                        borderRadius: BorderRadius.circular(12),
+                        child: AnimatedContainer(
+                          duration: const Duration(milliseconds: 160),
+                          padding: const EdgeInsets.all(12),
+                          decoration: BoxDecoration(
+                            color: _selectedRole == 'owner'
+                                ? AppColors.brandAccent.withAlpha(25)
+                                : AppColors.inputSurface,
+                            borderRadius: BorderRadius.circular(12),
+                            border: Border.all(
+                              color: _selectedRole == 'owner'
+                                  ? AppColors.brandAccent
+                                  : AppColors.cardBorderStroke,
+                              width: _selectedRole == 'owner' ? 1.5 : 1.0,
                             ),
                           ),
-                          value: _isAdmin,
-                          activeColor: AppColors.brandAccent,
-                          onChanged: (val) {
-                            AppHaptics.selection();
-                            setState(() => _isAdmin = val ?? false);
-                          },
-                          contentPadding: EdgeInsets.zero,
+                          child: Row(
+                            children: [
+                              Container(
+                                width: 20,
+                                height: 20,
+                                margin: const EdgeInsets.symmetric(horizontal: 4),
+                                decoration: BoxDecoration(
+                                  shape: BoxShape.circle,
+                                  border: Border.all(
+                                    color: _selectedRole == 'owner'
+                                        ? const Color(0xFFFFB300)
+                                        : AppColors.secondaryText,
+                                    width: 2,
+                                  ),
+                                ),
+                                child: _selectedRole == 'owner'
+                                    ? Center(
+                                        child: Container(
+                                          width: 10,
+                                          height: 10,
+                                          decoration: const BoxDecoration(
+                                            color: Color(0xFFFFB300),
+                                            shape: BoxShape.circle,
+                                          ),
+                                        ),
+                                      )
+                                    : null,
+                              ),
+                              const SizedBox(width: 10),
+                              const Expanded(
+                                child: Column(
+                                  crossAxisAlignment: CrossAxisAlignment.start,
+                                  children: [
+                                    Row(
+                                      children: [
+                                        Text(
+                                          'Owner',
+                                          style: TextStyle(
+                                            color: AppColors.primaryText,
+                                            fontWeight: FontWeight.w700,
+                                            fontSize: 14,
+                                          ),
+                                        ),
+                                        SizedBox(width: 8),
+                                        Icon(
+                                          Icons.verified_user,
+                                          size: 14,
+                                          color: AppColors.brandAccentLight,
+                                        ),
+                                      ],
+                                    ),
+                                    SizedBox(height: 2),
+                                    Text(
+                                      'Full administrative control. Can manage club tables, pricing rates, users, and activate/deactivate staff.',
+                                      style: TextStyle(
+                                        color: AppColors.secondaryText,
+                                        fontSize: 11,
+                                      ),
+                                    ),
+                                  ],
+                                ),
+                              ),
+                            ],
+                          ),
                         ),
                       ),
                     ],

@@ -166,16 +166,16 @@ class _CreateCompanyScreenState extends State<CreateCompanyScreen> {
                       child: const Row(
                         children: [
                           Icon(
-                            Icons.admin_panel_settings,
-                            color: AppColors.brandAccentLight,
-                            size: 24,
+                            Icons.stars_rounded,
+                            color: Color(0xFFFFB300),
+                            size: 26,
                           ),
                           SizedBox(width: 12),
                           Expanded(
                             child: Text(
-                              'Dev Mode: Each company created requires an initial administrator user. General users cannot access this screen.',
+                              'Dev Mode: Each company created requires an initial club owner user with full access. General users cannot access this screen.',
                               style: TextStyle(
-                                color: AppColors.brandAccentLight,
+                                color: Color(0xFFFFB300),
                                 fontSize: 12,
                                 fontWeight: FontWeight.w600,
                               ),
@@ -325,9 +325,9 @@ class _CreateCompanyScreenState extends State<CreateCompanyScreen> {
                         crossAxisAlignment: CrossAxisAlignment.stretch,
                         children: [
                           const Text(
-                            '2. INITIAL ADMIN USER',
+                            '2. INITIAL CLUB OWNER',
                             style: TextStyle(
-                              color: AppColors.brandAccentLight,
+                              color: Color(0xFFFFB300),
                               fontSize: 12,
                               fontWeight: FontWeight.w800,
                               letterSpacing: 1.1,
@@ -335,26 +335,26 @@ class _CreateCompanyScreenState extends State<CreateCompanyScreen> {
                           ),
                           const SizedBox(height: 6),
                           const Text(
-                            'This user will be marked as Admin automatically and can add more users and configure tables.',
+                            'This user will be marked as Club Owner automatically with full control (configuring tables, managing canteen & stock, adding users, and deactivating accounts).',
                             style: TextStyle(color: AppColors.secondaryText, fontSize: 12),
                           ),
                           const SizedBox(height: 14),
                           TextFormField(
                             controller: _userNameCtrl,
                             decoration: const InputDecoration(
-                              labelText: 'Admin Full Name *',
+                              labelText: 'Owner Full Name *',
                               hintText: 'e.g. John Doe',
                               prefixIcon: Icon(Icons.person_outline),
                             ),
                             validator: (val) => val == null || val.trim().isEmpty
-                                ? 'Admin name is required'
+                                ? 'Owner name is required'
                                 : null,
                           ),
                           const SizedBox(height: 14),
                           TextFormField(
                             controller: _userNumberCtrl,
                             decoration: const InputDecoration(
-                              labelText: 'Admin Phone Number *',
+                              labelText: 'Owner Phone Number *',
                               hintText: 'e.g. 9876543210',
                               prefixIcon: Icon(Icons.phone_android_outlined),
                             ),
@@ -366,8 +366,8 @@ class _CreateCompanyScreenState extends State<CreateCompanyScreen> {
                           TextFormField(
                             controller: _userEmailCtrl,
                             decoration: const InputDecoration(
-                              labelText: 'Admin Email *',
-                              hintText: 'admin@club.com',
+                              labelText: 'Owner Email *',
+                              hintText: 'owner@club.com',
                               prefixIcon: Icon(Icons.email_outlined),
                             ),
                             keyboardType: TextInputType.emailAddress,
@@ -384,7 +384,7 @@ class _CreateCompanyScreenState extends State<CreateCompanyScreen> {
                             controller: _userPasswordCtrl,
                             obscureText: _obscurePassword,
                             decoration: InputDecoration(
-                              labelText: 'Admin Password *',
+                              labelText: 'Owner Password *',
                               prefixIcon: const Icon(Icons.lock_outline),
                               suffixIcon: IconButton(
                                 icon: Icon(
@@ -433,7 +433,7 @@ class _CreateCompanyScreenState extends State<CreateCompanyScreen> {
                                     ),
                                   )
                                 : const Text(
-                                    'CREATE COMPANY & ADMIN',
+                                    'CREATE COMPANY & OWNER',
                                     style: TextStyle(
                                       fontSize: 14,
                                       fontWeight: FontWeight.w800,

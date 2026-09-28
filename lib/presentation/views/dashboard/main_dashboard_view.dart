@@ -55,6 +55,9 @@ class _MainDashboardViewState extends State<MainDashboardView> {
   Widget build(BuildContext context) {
     return BlocConsumer<AuthBloc, AuthState>(
       listener: (context, authState) {
+        if (authState.isUserDeactivated) {
+          Navigator.of(context, rootNavigator: true).popUntil((route) => route.isFirst);
+        }
         if (authState.activeCompany != null) {
           _triggerCompanyReload(authState.activeCompany!.id);
         }
@@ -88,6 +91,25 @@ class _MainDashboardViewState extends State<MainDashboardView> {
 
         final currentUser = authState.currentUser!;
         final activeCompany = authState.activeCompany!;
+
+        UserAccount? ownerUser;
+        for (final u in authState.companyUsers) {
+          if (u.isOwner) {
+            ownerUser = u;
+            break;
+          }
+        }
+        if (ownerUser == null) {
+          for (final u in authState.companyUsers) {
+            if (u.isAdmin) {
+              ownerUser = u;
+              break;
+            }
+          }
+        }
+        if (ownerUser == null && (currentUser.isOwner || currentUser.isAdmin)) {
+          ownerUser = currentUser;
+        }
 
         // Navigation destinations
         final navItems = [
@@ -159,6 +181,7 @@ class _MainDashboardViewState extends State<MainDashboardView> {
                   navItems,
                   currentUser,
                   activeCompany,
+                  ownerUser,
                 ),
 
               // Main Screen Area with Smooth AnimatedSwitcher Transition
@@ -205,9 +228,9 @@ class _MainDashboardViewState extends State<MainDashboardView> {
                         bottom: 8,
                         child: _buildSideNavigationRail(
                           context,
-                          navItems,
                           currentUser,
                           activeCompany,
+                          ownerUser,
                         ),
                       ),
                     ],
@@ -367,21 +390,27 @@ class _MainDashboardViewState extends State<MainDashboardView> {
                     decoration: BoxDecoration(
                       color: currentUser.isOnline
                           ? AppColors.tableAvailable.withAlpha(35)
-                          : (currentUser.isAdmin
-                              ? AppColors.brandAccent.withAlpha(30)
-                              : AppColors.inputSurface),
+                          : (currentUser.isOwner
+                              ? const Color(0xFFFFB300).withAlpha(35)
+                              : (currentUser.isAdmin
+                                  ? AppColors.brandAccent.withAlpha(30)
+                                  : AppColors.inputSurface)),
                       borderRadius: BorderRadius.circular(4),
                     ),
                     child: Text(
                       currentUser.isOnline
                           ? 'ONLINE'
-                          : (currentUser.isAdmin ? 'ADMIN' : 'STAFF'),
+                          : (currentUser.isOwner
+                              ? 'OWNER'
+                              : (currentUser.isAdmin ? 'ADMIN' : 'STAFF')),
                       style: TextStyle(
                         color: currentUser.isOnline
                             ? AppColors.tableAvailable
-                            : (currentUser.isAdmin
-                                ? AppColors.brandAccentLight
-                                : AppColors.secondaryText),
+                            : (currentUser.isOwner
+                                ? const Color(0xFFFFB300)
+                                : (currentUser.isAdmin
+                                    ? AppColors.brandAccentLight
+                                    : AppColors.secondaryText)),
                         fontSize: 9,
                         fontWeight: FontWeight.w800,
                       ),
@@ -450,6 +479,7 @@ class _MainDashboardViewState extends State<MainDashboardView> {
     List<_NavDestinationItem> items,
     UserAccount currentUser,
     Company activeCompany,
+    UserAccount? ownerUser,
   ) {
     return Container(
       width: 250,
@@ -557,6 +587,9 @@ class _MainDashboardViewState extends State<MainDashboardView> {
           // User Manual Action Button
           _buildUserManualButton(),
 
+          // Owner Info Card in Drawer
+          _buildOwnerInfoCard(ownerUser, activeCompany),
+
           // Bottom Company Details Card
           _buildCompanyInfoCard(activeCompany),
         ],
@@ -566,19 +599,19 @@ class _MainDashboardViewState extends State<MainDashboardView> {
 
   Widget _buildSideNavigationRail(
     BuildContext context,
-    List<_NavDestinationItem> items,
     UserAccount currentUser,
     Company activeCompany,
+    UserAccount? ownerUser,
   ) {
     return Container(
-      width: 250,
+      width: 270,
       decoration: BoxDecoration(
         color: AppColors.cardSurface,
         borderRadius: BorderRadius.circular(20),
         border: Border.all(color: AppColors.cardBorderStroke),
         boxShadow: [
           BoxShadow(
-            color: Colors.black.withAlpha(120),
+            color: Colors.black.withAlpha(140),
             blurRadius: 28,
             offset: const Offset(4, 8),
           ),
@@ -588,31 +621,39 @@ class _MainDashboardViewState extends State<MainDashboardView> {
         crossAxisAlignment: CrossAxisAlignment.stretch,
         children: [
           Padding(
-            padding: const EdgeInsets.all(16),
+            padding: const EdgeInsets.symmetric(horizontal: 14, vertical: 10),
             child: Row(
               children: [
                 const Icon(
-                  Icons.dashboard_customize_outlined,
+                  Icons.storefront_rounded,
                   color: AppColors.brandAccentLight,
                   size: 20,
                 ),
-                const SizedBox(width: 10),
-                const Text(
-                  'NAVIGATION',
-                  style: TextStyle(
-                    color: AppColors.brandAccentLight,
-                    fontSize: 11,
-                    fontWeight: FontWeight.w800,
-                    letterSpacing: 1.2,
+                const SizedBox(width: 8),
+                const Expanded(
+                  child: Text(
+                    'CLUB INFO & SHORTCUTS',
+                    maxLines: 1,
+                    overflow: TextOverflow.ellipsis,
+                    style: TextStyle(
+                      color: AppColors.brandAccentLight,
+                      fontSize: 11,
+                      fontWeight: FontWeight.w800,
+                      letterSpacing: 0.8,
+                    ),
                   ),
                 ),
-                const Spacer(),
-                IconButton(
-                  onPressed: () => setState(() => _isSideMenuVisible = false),
-                  icon: const Icon(
-                    Icons.close,
-                    size: 18,
-                    color: AppColors.secondaryText,
+                const SizedBox(width: 6),
+                InkWell(
+                  onTap: () => setState(() => _isSideMenuVisible = false),
+                  borderRadius: BorderRadius.circular(20),
+                  child: const Padding(
+                    padding: EdgeInsets.all(6),
+                    child: Icon(
+                      Icons.close,
+                      size: 18,
+                      color: AppColors.secondaryText,
+                    ),
                   ),
                 ),
               ],
@@ -622,79 +663,33 @@ class _MainDashboardViewState extends State<MainDashboardView> {
           const SizedBox(height: 8),
 
           Expanded(
-            child: ListView.builder(
-              padding: const EdgeInsets.symmetric(horizontal: 10),
-              itemCount: items.length,
-              itemBuilder: (context, index) {
-                final item = items[index];
-                final isSelected = _selectedTabIndex == index;
-
-                return Padding(
-                  padding: const EdgeInsets.symmetric(vertical: 3),
-                  child: InkWell(
-                    onTap: () => _selectTab(index),
-                    borderRadius: BorderRadius.circular(12),
-                    child: Container(
-                      padding: const EdgeInsets.symmetric(
-                        horizontal: 14,
-                        vertical: 12,
-                      ),
-                      decoration: BoxDecoration(
-                        color: isSelected
-                            ? AppColors.brandAccent.withAlpha(40)
-                            : Colors.transparent,
-                        borderRadius: BorderRadius.circular(12),
-                        border: isSelected
-                            ? Border.all(
-                                color: AppColors.brandAccent.withAlpha(120),
-                              )
-                            : null,
-                      ),
-                      child: Row(
-                        children: [
-                          Icon(
-                            isSelected ? item.activeIcon : item.icon,
-                            color: isSelected
-                                ? AppColors.brandAccentLight
-                                : AppColors.secondaryText,
-                            size: 20,
-                          ),
-                          const SizedBox(width: 12),
-                          Expanded(
-                            child: Text(
-                              item.fullLabel,
-                              style: TextStyle(
-                                color: isSelected
-                                    ? AppColors.primaryText
-                                    : AppColors.secondaryText,
-                                fontWeight: isSelected
-                                    ? FontWeight.w700
-                                    : FontWeight.w500,
-                                fontSize: 13,
-                              ),
-                            ),
-                          ),
-                        ],
-                      ),
-                    ),
+            child: SingleChildScrollView(
+              padding: const EdgeInsets.only(bottom: 12),
+              child: Column(
+                crossAxisAlignment: CrossAxisAlignment.stretch,
+                mainAxisSize: MainAxisSize.min,
+                children: [
+                  // Pricing & Subscription Plans Button
+                  _buildPricingAndContactButton(
+                    onTap: () => setState(() => _isSideMenuVisible = false),
                   ),
-                );
-              },
+
+                  // User Manual Action Button
+                  _buildUserManualButton(
+                    onTap: () => setState(() => _isSideMenuVisible = false),
+                  ),
+
+                  const SizedBox(height: 6),
+
+                  // Owner Info Card in Drawer
+                  _buildOwnerInfoCard(ownerUser, activeCompany),
+
+                  // Bottom Company Details Card
+                  _buildCompanyInfoCard(activeCompany),
+                ],
+              ),
             ),
           ),
-
-          // Pricing & Subscription Plans Button
-          _buildPricingAndContactButton(
-            onTap: () => setState(() => _isSideMenuVisible = false),
-          ),
-
-          // User Manual Action Button
-          _buildUserManualButton(
-            onTap: () => setState(() => _isSideMenuVisible = false),
-          ),
-
-          // Bottom Company Details Card
-          _buildCompanyInfoCard(activeCompany),
         ],
       ),
     );
@@ -818,6 +813,151 @@ class _MainDashboardViewState extends State<MainDashboardView> {
             ],
           ),
         ),
+      ),
+    );
+  }
+
+  Widget _buildOwnerInfoCard(UserAccount? owner, Company activeCompany) {
+    final ownerName = owner != null && owner.name.trim().isNotEmpty
+        ? owner.name.trim()
+        : 'Club Owner';
+    final ownerPhone = owner != null && owner.phoneNumber.trim().isNotEmpty
+        ? owner.phoneNumber.trim()
+        : activeCompany.number.trim();
+    final ownerEmail = owner?.email.trim();
+
+    return Container(
+      padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 10),
+      margin: const EdgeInsets.symmetric(horizontal: 10, vertical: 3),
+      decoration: BoxDecoration(
+        color: AppColors.inputSurface,
+        borderRadius: BorderRadius.circular(14),
+        border: Border.all(
+          color: const Color(0xFFFFB300).withAlpha(70),
+          width: 1.0,
+        ),
+      ),
+      child: Column(
+        crossAxisAlignment: CrossAxisAlignment.start,
+        mainAxisSize: MainAxisSize.min,
+        children: [
+          Row(
+            children: [
+              Container(
+                width: 28,
+                height: 28,
+                decoration: BoxDecoration(
+                  color: const Color(0xFFFFB300).withAlpha(35),
+                  shape: BoxShape.circle,
+                  border: Border.all(
+                    color: const Color(0xFFFFB300).withAlpha(120),
+                    width: 1,
+                  ),
+                ),
+                child: const Icon(
+                  Icons.stars_rounded,
+                  color: Color(0xFFFFB300),
+                  size: 16,
+                ),
+              ),
+              const SizedBox(width: 8),
+              Expanded(
+                child: Column(
+                  crossAxisAlignment: CrossAxisAlignment.start,
+                  children: [
+                    Text(
+                      ownerName,
+                      style: const TextStyle(
+                        color: AppColors.primaryText,
+                        fontWeight: FontWeight.w700,
+                        fontSize: 12,
+                      ),
+                      maxLines: 1,
+                      overflow: TextOverflow.ellipsis,
+                    ),
+                    const Text(
+                      'Club Owner',
+                      style: TextStyle(
+                        color: Color(0xFFFFB300),
+                        fontWeight: FontWeight.w600,
+                        fontSize: 9.5,
+                        letterSpacing: 0.2,
+                      ),
+                    ),
+                  ],
+                ),
+              ),
+              Container(
+                padding: const EdgeInsets.symmetric(horizontal: 5, vertical: 2),
+                decoration: BoxDecoration(
+                  color: const Color(0xFFFFB300).withAlpha(30),
+                  borderRadius: BorderRadius.circular(5),
+                  border: Border.all(
+                    color: const Color(0xFFFFB300).withAlpha(110),
+                    width: 0.8,
+                  ),
+                ),
+                child: const Text(
+                  'OWNER',
+                  style: TextStyle(
+                    color: Color(0xFFFFB300),
+                    fontSize: 8.5,
+                    fontWeight: FontWeight.w800,
+                    letterSpacing: 0.4,
+                  ),
+                ),
+              ),
+            ],
+          ),
+          if (ownerPhone.isNotEmpty) ...[
+            const SizedBox(height: 6),
+            Row(
+              children: [
+                const Icon(
+                  Icons.phone_outlined,
+                  size: 12,
+                  color: AppColors.secondaryText,
+                ),
+                const SizedBox(width: 5),
+                Expanded(
+                  child: Text(
+                    ownerPhone,
+                    style: const TextStyle(
+                      color: AppColors.secondaryText,
+                      fontSize: 11,
+                    ),
+                    maxLines: 1,
+                    overflow: TextOverflow.ellipsis,
+                  ),
+                ),
+              ],
+            ),
+          ],
+          if (ownerEmail != null && ownerEmail.isNotEmpty) ...[
+            const SizedBox(height: 3),
+            Row(
+              children: [
+                const Icon(
+                  Icons.email_outlined,
+                  size: 12,
+                  color: AppColors.secondaryText,
+                ),
+                const SizedBox(width: 5),
+                Expanded(
+                  child: Text(
+                    ownerEmail,
+                    style: const TextStyle(
+                      color: AppColors.secondaryText,
+                      fontSize: 11,
+                    ),
+                    maxLines: 1,
+                    overflow: TextOverflow.ellipsis,
+                  ),
+                ),
+              ],
+            ),
+          ],
+        ],
       ),
     );
   }
@@ -973,7 +1113,7 @@ class _MainDashboardViewState extends State<MainDashboardView> {
               borderRadius: BorderRadius.circular(8),
               child: Container(
                 width: double.infinity,
-                padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 6),
+                padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 6),
                 decoration: BoxDecoration(
                   color: statusColor.withAlpha(30),
                   borderRadius: BorderRadius.circular(8),
@@ -981,15 +1121,20 @@ class _MainDashboardViewState extends State<MainDashboardView> {
                 ),
                 child: Row(
                   mainAxisAlignment: MainAxisAlignment.center,
+                  mainAxisSize: MainAxisSize.min,
                   children: [
                     Icon(Icons.autorenew_rounded, size: 14, color: statusColor),
                     const SizedBox(width: 6),
-                    Text(
-                      'Renew License / View Plans',
-                      style: TextStyle(
-                        color: statusColor,
-                        fontSize: 11,
-                        fontWeight: FontWeight.w800,
+                    Flexible(
+                      child: Text(
+                        'Renew License / View Plans',
+                        maxLines: 1,
+                        overflow: TextOverflow.ellipsis,
+                        style: TextStyle(
+                          color: statusColor,
+                          fontSize: 11,
+                          fontWeight: FontWeight.w800,
+                        ),
                       ),
                     ),
                   ],

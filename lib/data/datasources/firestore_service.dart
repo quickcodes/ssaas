@@ -151,7 +151,9 @@ class FirestoreService {
       number: initialUserNumber.trim(),
       email: initialUserEmail.trim().toLowerCase(),
       password: initialUserPassword,
-      isAdmin: true, // Always admin by default as required
+      role: 'owner',
+      isAdmin: true, // Always owner & admin by default
+      isActive: true,
       createdAt: now,
     );
     batch.set(userDoc, initialAdmin.toMap());
@@ -213,7 +215,41 @@ class FirestoreService {
     String userId,
     bool isAdmin,
   ) async {
-    await _usersCol(companyId).doc(userId).update({'isAdmin': isAdmin});
+    await _usersCol(companyId).doc(userId).set({
+      'isAdmin': isAdmin,
+      'role': isAdmin ? 'owner' : 'employee',
+    }, SetOptions(merge: true));
+  }
+
+  Future<void> updateUserActiveStatus(
+    String companyId,
+    String userId,
+    bool isActive,
+  ) async {
+    final updates = <String, dynamic>{
+      'isActive': isActive,
+      'isDeactivated': !isActive,
+    };
+    if (!isActive) {
+      updates['sessionExpiresAt'] = null;
+      updates['isOnline'] = false;
+    }
+    await _usersCol(companyId).doc(userId).set(
+      updates,
+      SetOptions(merge: true),
+    );
+  }
+
+  Future<void> updateUserRole(
+    String companyId,
+    String userId,
+    String role,
+  ) async {
+    final isOwnerRole = role.toLowerCase() == 'owner';
+    await _usersCol(companyId).doc(userId).set({
+      'role': role.toLowerCase(),
+      'isAdmin': isOwnerRole,
+    }, SetOptions(merge: true));
   }
 
   Future<UserAccount?> getUserById(String companyId, String userId) async {

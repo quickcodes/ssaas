@@ -75,6 +75,7 @@ class _LoginScreenState extends State<LoginScreen>
             context,
             state.errorMessage!,
             state.isSubscriptionExpired,
+            isUserDeactivated: state.isUserDeactivated,
           );
         }
       },
@@ -465,8 +466,9 @@ class _LoginScreenState extends State<LoginScreen>
   void _showErrorDialog(
     BuildContext context,
     String message,
-    bool isSubscriptionExpired,
-  ) {
+    bool isSubscriptionExpired, {
+    bool isUserDeactivated = false,
+  }) {
     showDialog(
       context: context,
       builder: (dialogCtx) => AlertDialog(
@@ -478,26 +480,48 @@ class _LoginScreenState extends State<LoginScreen>
         title: Row(
           children: [
             Icon(
-              isSubscriptionExpired
-                  ? Icons.error_outline
-                  : Icons.warning_amber_rounded,
+              isUserDeactivated
+                  ? Icons.person_off_rounded
+                  : (isSubscriptionExpired
+                      ? Icons.error_outline
+                      : Icons.warning_amber_rounded),
               color: AppColors.tableOccupied,
               size: 26,
             ),
             const SizedBox(width: 10),
-            Text(
-              isSubscriptionExpired ? 'Subscription Expired' : 'Login Error',
-              style: const TextStyle(
-                color: AppColors.primaryText,
-                fontWeight: FontWeight.w700,
-                fontSize: 17,
+            Expanded(
+              child: Text(
+                isUserDeactivated
+                    ? 'Account Deactivated'
+                    : (isSubscriptionExpired
+                        ? 'Subscription Expired'
+                        : 'Login Error'),
+                style: const TextStyle(
+                  color: AppColors.primaryText,
+                  fontWeight: FontWeight.w700,
+                  fontSize: 17,
+                ),
+                maxLines: 1,
+                overflow: TextOverflow.ellipsis,
               ),
             ),
           ],
         ),
-        content: Text(
-          message,
-          style: const TextStyle(color: AppColors.secondaryText, fontSize: 14),
+        content: Container(
+          constraints: BoxConstraints(
+            maxHeight: MediaQuery.of(context).size.height * 0.9,
+            maxWidth: 460,
+          ),
+          child: SingleChildScrollView(
+            child: Text(
+              message,
+              style: const TextStyle(
+                color: AppColors.secondaryText,
+                fontSize: 14,
+                height: 1.4,
+              ),
+            ),
+          ),
         ),
         actions: [
           if (isSubscriptionExpired) ...[
