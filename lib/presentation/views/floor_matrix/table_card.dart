@@ -18,6 +18,7 @@ class TableCard extends StatelessWidget {
   final VoidCallback onResumeSession;
   final VoidCallback onCheckoutSession;
   final VoidCallback onAddItem;
+  final VoidCallback? onManageItems;
   final Function(TableStatus) onUpdateStatus;
   final VoidCallback onConfigureRates;
   final VoidCallback? onDeleteTable;
@@ -33,6 +34,7 @@ class TableCard extends StatelessWidget {
     required this.onResumeSession,
     required this.onCheckoutSession,
     required this.onAddItem,
+    this.onManageItems,
     required this.onUpdateStatus,
     required this.onConfigureRates,
     this.onDeleteTable,
@@ -244,6 +246,8 @@ class TableCard extends StatelessWidget {
                             onConfigureRates();
                           } else if (val == 'delete') {
                             onDeleteTable?.call();
+                          } else if (val == 'manage_items') {
+                            onManageItems?.call();
                           }
                         },
                         itemBuilder: (context) => [
@@ -267,6 +271,29 @@ class TableCard extends StatelessWidget {
                               ],
                             ),
                           ),
+                          if (hasActiveSession &&
+                              session!.items.isNotEmpty &&
+                              onManageItems != null)
+                            PopupMenuItem(
+                              value: 'manage_items',
+                              child: Row(
+                                children: [
+                                  const Icon(
+                                    Icons.fastfood_outlined,
+                                    size: 16,
+                                    color: AppColors.brandAccentLight,
+                                  ),
+                                  const SizedBox(width: 8),
+                                  Text(
+                                    'Manage Items (${session!.items.length})',
+                                    style: const TextStyle(
+                                      color: AppColors.primaryText,
+                                      fontSize: 13,
+                                    ),
+                                  ),
+                                ],
+                              ),
+                            ),
                           PopupMenuItem(
                             value: 'delete',
                             enabled: !hasActiveSession,
@@ -396,9 +423,9 @@ class TableCard extends StatelessWidget {
                       ),
                     ],
                   ),
-                  const SizedBox(height: 10),
+                  const SizedBox(height: 8),
 
-                  // Rate & Item Breakdown Pill
+                  // Rate & Item Breakdown Pill (with integrated interactive Items button)
                   Container(
                     padding: const EdgeInsets.symmetric(
                       horizontal: 10,
@@ -411,27 +438,77 @@ class TableCard extends StatelessWidget {
                     child: Row(
                       mainAxisAlignment: MainAxisAlignment.spaceBetween,
                       children: [
-                        Text(
-                          'Rate: ₹${currentHourlyRate.toStringAsFixed(0)}/hr',
-                          style: const TextStyle(
-                            color: AppColors.secondaryText,
-                            fontSize: 11,
-                            fontWeight: FontWeight.w600,
+                        Expanded(
+                          child: Text(
+                            'Rate: ₹${currentHourlyRate.toStringAsFixed(0)}/hr  (Table: ₹${liveTableFee.toStringAsFixed(0)})',
+                            style: const TextStyle(
+                              color: AppColors.secondaryText,
+                              fontSize: 11,
+                              fontWeight: FontWeight.w600,
+                            ),
+                            maxLines: 1,
+                            overflow: TextOverflow.ellipsis,
                           ),
                         ),
-                        Text(
-                          'Table: ₹${liveTableFee.toStringAsFixed(0)}  •  Items: ₹${liveItemsFee.toStringAsFixed(0)} (${session!.items.length})',
-                          style: const TextStyle(
-                            color: AppColors.secondaryText,
-                            fontSize: 11,
+                        const SizedBox(width: 6),
+                        if (session!.items.isNotEmpty && onManageItems != null)
+                          InkWell(
+                            onTap: () {
+                              AppHaptics.light();
+                              onManageItems!();
+                            },
+                            borderRadius: BorderRadius.circular(6),
+                            child: Container(
+                              padding: const EdgeInsets.symmetric(
+                                  horizontal: 7, vertical: 3),
+                              decoration: BoxDecoration(
+                                color: AppColors.brandAccent.withAlpha(30),
+                                borderRadius: BorderRadius.circular(6),
+                                border: Border.all(
+                                  color: AppColors.brandAccent.withAlpha(90),
+                                ),
+                              ),
+                              child: Row(
+                                mainAxisSize: MainAxisSize.min,
+                                children: [
+                                  const Icon(
+                                    Icons.fastfood_outlined,
+                                    size: 11,
+                                    color: AppColors.brandAccentLight,
+                                  ),
+                                  const SizedBox(width: 4),
+                                  Text(
+                                    'Items: ₹${liveItemsFee.toStringAsFixed(0)} (${session!.items.length})',
+                                    style: const TextStyle(
+                                      color: AppColors.brandAccentLight,
+                                      fontSize: 11,
+                                      fontWeight: FontWeight.w700,
+                                    ),
+                                  ),
+                                  const SizedBox(width: 2),
+                                  const Icon(
+                                    Icons.edit_note,
+                                    size: 13,
+                                    color: AppColors.brandAccentLight,
+                                  ),
+                                ],
+                              ),
+                            ),
+                          )
+                        else
+                          Text(
+                            'Items: ₹0',
+                            style: const TextStyle(
+                              color: AppColors.secondaryText,
+                              fontSize: 11,
+                            ),
                           ),
-                        ),
                       ],
                     ),
                   ),
-                  const SizedBox(height: 14),
+                  const SizedBox(height: 10),
 
-                  // Actions: Add Item, Pause/Resume, Close
+                  // Actions: Add Item, Manage Items, Pause/Resume, Close
                   Row(
                     children: [
                       // Add Snack / Drink / Custom item button
@@ -446,16 +523,17 @@ class TableCard extends StatelessWidget {
                               AppHaptics.light();
                               onAddItem();
                             },
-                            icon: const Icon(Icons.add_shopping_cart, size: 16),
+                            icon: const Icon(Icons.add_shopping_cart, size: 15),
                             label: const Text(
                               'Add Items',
                               style: TextStyle(
-                                fontSize: 12,
+                                fontSize: 11,
                                 fontWeight: FontWeight.w700,
                               ),
                             ),
                             style: OutlinedButton.styleFrom(
-                              padding: const EdgeInsets.symmetric(vertical: 10),
+                              padding:
+                                  const EdgeInsets.symmetric(vertical: 9),
                               side: const BorderSide(
                                 color: AppColors.brandAccent,
                               ),
@@ -463,7 +541,51 @@ class TableCard extends StatelessWidget {
                           ),
                         ),
                       ),
-                      const SizedBox(width: 8),
+                      if (session!.items.isNotEmpty && onManageItems != null) ...[
+                        const SizedBox(width: 6),
+                        BouncingTap(
+                          onTap: () {
+                            AppHaptics.light();
+                            onManageItems!();
+                          },
+                          child: Tooltip(
+                            message:
+                                'View & Edit Table Items (${session!.items.length})',
+                            child: Container(
+                              height: 38,
+                              padding: const EdgeInsets.symmetric(
+                                  horizontal: 9),
+                              decoration: BoxDecoration(
+                                color: AppColors.inputSurface,
+                                borderRadius: BorderRadius.circular(8),
+                                border: Border.all(
+                                  color: AppColors.brandAccent.withAlpha(80),
+                                ),
+                              ),
+                              child: Row(
+                                mainAxisSize: MainAxisSize.min,
+                                children: [
+                                  const Icon(
+                                    Icons.receipt_long,
+                                    size: 14,
+                                    color: AppColors.brandAccentLight,
+                                  ),
+                                  const SizedBox(width: 4),
+                                  Text(
+                                    '${session!.items.length}',
+                                    style: const TextStyle(
+                                      color: AppColors.brandAccentLight,
+                                      fontSize: 11,
+                                      fontWeight: FontWeight.w800,
+                                    ),
+                                  ),
+                                ],
+                              ),
+                            ),
+                          ),
+                        ),
+                      ],
+                      const SizedBox(width: 6),
                       // Pause / Resume toggle
                       BouncingTap(
                         onTap: () {
@@ -500,30 +622,34 @@ class TableCard extends StatelessWidget {
                     ],
                   ),
                   const SizedBox(height: 8),
-                  BouncingTap(
-                    onTap: () {
-                      AppHaptics.medium();
-                      onCheckoutSession();
-                    },
-                    child: ElevatedButton.icon(
-                      onPressed: () {
+                  SizedBox(
+                    width: double.infinity,
+                    child: BouncingTap(
+                      onTap: () {
                         AppHaptics.medium();
                         onCheckoutSession();
                       },
-                      icon: const Icon(Icons.check_circle_outline, size: 18),
-                      label: const Text(
-                        'CLOSE TABLE & SETTLE',
-                        style: TextStyle(
-                          fontWeight: FontWeight.w800,
-                          fontSize: 12,
-                          letterSpacing: 0.5,
+                      child: ElevatedButton.icon(
+                        onPressed: () {
+                          AppHaptics.medium();
+                          onCheckoutSession();
+                        },
+                        icon:
+                            const Icon(Icons.check_circle_outline, size: 18),
+                        label: const Text(
+                          'CLOSE TABLE & SETTLE',
+                          style: TextStyle(
+                            fontWeight: FontWeight.w800,
+                            fontSize: 12,
+                            letterSpacing: 0.5,
+                          ),
                         ),
-                      ),
-                      style: ElevatedButton.styleFrom(
-                        backgroundColor: AppColors.brandAccent,
-                        padding: const EdgeInsets.symmetric(vertical: 12),
-                        shape: RoundedRectangleBorder(
-                          borderRadius: BorderRadius.circular(10),
+                        style: ElevatedButton.styleFrom(
+                          backgroundColor: AppColors.brandAccent,
+                          padding: const EdgeInsets.symmetric(vertical: 11),
+                          shape: RoundedRectangleBorder(
+                            borderRadius: BorderRadius.circular(10),
+                          ),
                         ),
                       ),
                     ),

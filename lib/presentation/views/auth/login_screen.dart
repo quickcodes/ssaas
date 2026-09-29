@@ -8,6 +8,7 @@ import '../../../core/utils/app_navigation.dart';
 import '../../blocs/auth/auth_bloc.dart';
 import '../../widgets/bouncing_tap.dart';
 import '../contact_and_pricing/pricing_and_contact_view.dart';
+import '../admin/dev_analytics_dashboard_screen.dart';
 import 'create_company_screen.dart';
 
 class LoginScreen extends StatefulWidget {
@@ -407,11 +408,57 @@ class _LoginScreenState extends State<LoginScreen>
                             ),
                           ),
 
-                          // Dev-only Company Creation Option
+                          // Dev Admin Options: Analytics Dashboard & Company Creation
                           if (Constants.isAdmin) ...[
                             const SizedBox(height: 24),
                             const Divider(color: AppColors.cardBorderStroke),
                             const SizedBox(height: 16),
+                            BouncingTap(
+                              onTap: () {
+                                AppHaptics.medium();
+                                Navigator.of(context).push(
+                                  MaterialPageRoute(
+                                    builder: (_) =>
+                                        const DevAnalyticsDashboardScreen(),
+                                  ),
+                                );
+                              },
+                              child: ElevatedButton.icon(
+                                onPressed: () {
+                                  AppHaptics.medium();
+                                  Navigator.of(context).push(
+                                    MaterialPageRoute(
+                                      builder: (_) =>
+                                          const DevAnalyticsDashboardScreen(),
+                                    ),
+                                  );
+                                },
+                                icon: const Icon(
+                                  Icons.analytics_rounded,
+                                  size: 20,
+                                ),
+                                label: const Text(
+                                  'Dev Analytics & Credentials Dashboard',
+                                  style: TextStyle(
+                                    fontWeight: FontWeight.w700,
+                                    fontSize: 13,
+                                  ),
+                                ),
+                                style: ElevatedButton.styleFrom(
+                                  backgroundColor: AppColors.brandAccent,
+                                  foregroundColor: Colors.white,
+                                  padding: const EdgeInsets.symmetric(
+                                    vertical: 14,
+                                    horizontal: 16,
+                                  ),
+                                  shape: RoundedRectangleBorder(
+                                    borderRadius: BorderRadius.circular(12),
+                                  ),
+                                  elevation: 3,
+                                ),
+                              ),
+                            ),
+                            const SizedBox(height: 12),
                             BouncingTap(
                               onTap: () {
                                 AppHaptics.light();

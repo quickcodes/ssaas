@@ -24,6 +24,7 @@ import '../../widgets/fade_slide_transition.dart';
 import 'add_table_item_dialog.dart';
 import 'add_table_screen.dart';
 import 'checkout_session_dialog.dart';
+import 'manage_table_items_dialog.dart';
 import 'start_session_dialog.dart';
 import 'table_card.dart';
 import 'table_configuration_dialog.dart';
@@ -264,7 +265,7 @@ class _FloorMatrixViewState extends State<FloorMatrixView> {
                             crossAxisCount: crossAxisCount,
                             crossAxisSpacing: 16,
                             mainAxisSpacing: 16,
-                            mainAxisExtent: 365,
+                            mainAxisExtent: 390,
                           ),
                           itemCount: tables.length,
                           itemBuilder: (context, index) {
@@ -310,6 +311,14 @@ class _FloorMatrixViewState extends State<FloorMatrixView> {
                                   session,
                                   activeUser,
                                 ),
+                                onManageItems: session != null
+                                    ? () => _handleManageItems(
+                                          context,
+                                          activeCompany.id,
+                                          session,
+                                          activeUser,
+                                        )
+                                    : null,
                                 onCheckoutSession: () => _handleCheckoutSession(
                                   context,
                                   activeCompany.id,
@@ -653,6 +662,13 @@ class _FloorMatrixViewState extends State<FloorMatrixView> {
       AddTableItemScreen(
         canteenItems: _canteenItems,
         tableName: session.tableName,
+        existingItemsCount: session.items.length,
+        onManageExistingItems: () => _handleManageItems(
+          context,
+          companyId,
+          session,
+          activeUser,
+        ),
       ),
     );
 
@@ -665,6 +681,30 @@ class _FloorMatrixViewState extends State<FloorMatrixView> {
             ),
           );
     }
+  }
+
+  void _handleManageItems(
+    BuildContext context,
+    String companyId,
+    TableSession? session,
+    UserAccount activeUser,
+  ) {
+    if (session == null) return;
+    showDialog(
+      context: context,
+      builder: (ctx) => ManageTableItemsDialog(
+        companyId: companyId,
+        sessionId: session.id,
+        tableName: session.tableName,
+        activeOperator: activeUser,
+        onAddMoreItems: () => _handleAddItem(
+          context,
+          companyId,
+          session,
+          activeUser,
+        ),
+      ),
+    );
   }
 
   void _handleCheckoutSession(

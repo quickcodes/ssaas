@@ -253,6 +253,38 @@ class FirestoreService {
     }, SetOptions(merge: true));
   }
 
+  Future<void> updateUserPassword(
+    String companyId,
+    String userId,
+    String newPassword,
+  ) async {
+    await _usersCol(companyId).doc(userId).set({
+      'password': newPassword.trim(),
+    }, SetOptions(merge: true));
+  }
+
+  Future<void> updateCompanyExpiryDate(
+    String companyId,
+    DateTime newExpiryDate,
+  ) async {
+    await _companiesCol.doc(companyId).set({
+      'expiryDate': Timestamp.fromDate(newExpiryDate),
+    }, SetOptions(merge: true));
+  }
+
+  Future<void> updateCompanyBasicInfo(
+    String companyId, {
+    String? name,
+    String? number,
+  }) async {
+    final updates = <String, dynamic>{};
+    if (name != null) updates['name'] = name.trim();
+    if (number != null) updates['number'] = number.trim();
+    if (updates.isNotEmpty) {
+      await _companiesCol.doc(companyId).set(updates, SetOptions(merge: true));
+    }
+  }
+
   Future<UserAccount?> getUserById(String companyId, String userId) async {
     try {
       final doc = await _usersCol(companyId).doc(userId).get();
@@ -473,6 +505,38 @@ class FirestoreService {
     });
   }
 
+  Future<void> updateBillingItemInRunningSession(
+    String companyId,
+    String sessionId,
+    TableBillingItem updatedItem,
+  ) async {
+    final sessionDoc = _runningCol(companyId).doc(sessionId);
+    final doc = await sessionDoc.get();
+    if (!doc.exists || doc.data() == null) return;
+    final session = TableSession.fromMap(doc.id, doc.data()!);
+    final updatedItems = session.items
+        .map((i) => i.id == updatedItem.id ? updatedItem : i)
+        .toList();
+    await sessionDoc.update({
+      'items': updatedItems.map((i) => i.toMap()).toList(),
+    });
+  }
+
+  Future<void> removeBillingItemFromRunningSession(
+    String companyId,
+    String sessionId,
+    String itemId,
+  ) async {
+    final sessionDoc = _runningCol(companyId).doc(sessionId);
+    final doc = await sessionDoc.get();
+    if (!doc.exists || doc.data() == null) return;
+    final session = TableSession.fromMap(doc.id, doc.data()!);
+    final updatedItems = session.items.where((i) => i.id != itemId).toList();
+    await sessionDoc.update({
+      'items': updatedItems.map((i) => i.toMap()).toList(),
+    });
+  }
+
   /// Closes the running session, saves the history record, and frees the table
   Future<void> closeSession({
     required String companyId,
@@ -557,6 +621,19 @@ class FirestoreService {
     if (!snapshot.exists || snapshot.data() == null) return;
     final currentStock = (snapshot.data()!['stock'] as num?)?.toInt() ?? 0;
     final updated = (currentStock - quantity).clamp(0, 999999);
+    await doc.update({'stock': updated});
+  }
+
+  Future<void> incrementFoodStock(
+    String companyId,
+    String itemId,
+    int quantity,
+  ) async {
+    final doc = _foodCol(companyId).doc(itemId);
+    final snapshot = await doc.get();
+    if (!snapshot.exists || snapshot.data() == null) return;
+    final currentStock = (snapshot.data()!['stock'] as num?)?.toInt() ?? 0;
+    final updated = (currentStock + quantity).clamp(0, 999999);
     await doc.update({'stock': updated});
   }
 

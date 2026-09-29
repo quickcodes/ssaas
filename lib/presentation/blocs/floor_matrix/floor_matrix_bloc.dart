@@ -126,6 +126,38 @@ class AddBillingItemEvent extends FloorMatrixEvent {
   List<Object?> get props => [companyId, sessionId, item];
 }
 
+class UpdateBillingItemEvent extends FloorMatrixEvent {
+  final String companyId;
+  final String sessionId;
+  final TableBillingItem oldItem;
+  final TableBillingItem newItem;
+
+  const UpdateBillingItemEvent({
+    required this.companyId,
+    required this.sessionId,
+    required this.oldItem,
+    required this.newItem,
+  });
+
+  @override
+  List<Object?> get props => [companyId, sessionId, oldItem, newItem];
+}
+
+class RemoveBillingItemEvent extends FloorMatrixEvent {
+  final String companyId;
+  final String sessionId;
+  final TableBillingItem item;
+
+  const RemoveBillingItemEvent({
+    required this.companyId,
+    required this.sessionId,
+    required this.item,
+  });
+
+  @override
+  List<Object?> get props => [companyId, sessionId, item];
+}
+
 class CloseTableSessionEvent extends FloorMatrixEvent {
   final String companyId;
   final String sessionId;
@@ -320,6 +352,8 @@ class FloorMatrixBloc extends Bloc<FloorMatrixEvent, FloorMatrixState> {
     on<PauseTableSessionEvent>(_onPauseTableSession);
     on<ResumeTableSessionEvent>(_onResumeTableSession);
     on<AddBillingItemEvent>(_onAddBillingItem);
+    on<UpdateBillingItemEvent>(_onUpdateBillingItem);
+    on<RemoveBillingItemEvent>(_onRemoveBillingItem);
     on<CloseTableSessionEvent>(_onCloseTableSession);
     on<UpdateTableStatusDirectEvent>(_onUpdateTableStatusDirect);
     on<AddReminderEvent>(_onAddReminder);
@@ -500,6 +534,76 @@ class FloorMatrixBloc extends Bloc<FloorMatrixEvent, FloorMatrixState> {
       emit(
         state.copyWith(
           successMessage: 'Added ${event.item.name} to table bill.',
+        ),
+      );
+    } catch (e) {
+      emit(state.copyWith(errorMessage: e.toString()));
+    }
+  }
+
+  Future<void> _onUpdateBillingItem(
+    UpdateBillingItemEvent event,
+    Emitter<FloorMatrixState> emit,
+  ) async {
+    try {
+      await _firestoreService.updateBillingItemInRunningSession(
+        event.companyId,
+        event.sessionId,
+        event.newItem,
+      );
+
+      // Adjust stock if linked to canteen stock item
+      if (event.oldItem.stockItemId != null && !event.oldItem.isCustom) {
+        final qtyDiff = event.newItem.quantity - event.oldItem.quantity;
+        if (qtyDiff > 0) {
+          await _firestoreService.decrementFoodStock(
+            event.companyId,
+            event.oldItem.stockItemId!,
+            qtyDiff,
+          );
+        } else if (qtyDiff < 0) {
+          await _firestoreService.incrementFoodStock(
+            event.companyId,
+            event.oldItem.stockItemId!,
+            -qtyDiff,
+          );
+        }
+      }
+
+      emit(
+        state.copyWith(
+          successMessage: 'Updated "${event.newItem.name}" on table bill.',
+        ),
+      );
+    } catch (e) {
+      emit(state.copyWith(errorMessage: e.toString()));
+    }
+  }
+
+  Future<void> _onRemoveBillingItem(
+    RemoveBillingItemEvent event,
+    Emitter<FloorMatrixState> emit,
+  ) async {
+    try {
+      await _firestoreService.removeBillingItemFromRunningSession(
+        event.companyId,
+        event.sessionId,
+        event.item.id,
+      );
+
+      // If linked to canteen stock item, restore the full quantity to inventory
+      if (event.item.stockItemId != null && !event.item.isCustom) {
+        await _firestoreService.incrementFoodStock(
+          event.companyId,
+          event.item.stockItemId!,
+          event.item.quantity,
+        );
+      }
+
+      emit(
+        state.copyWith(
+          successMessage:
+              'Removed "${event.item.name}" and restored canteen stock.',
         ),
       );
     } catch (e) {

@@ -10,11 +10,15 @@ import '../../widgets/bouncing_tap.dart';
 class AddTableItemDialog extends StatefulWidget {
   final List<StockItem> canteenItems;
   final String tableName;
+  final int existingItemsCount;
+  final VoidCallback? onManageExistingItems;
 
   const AddTableItemDialog({
     super.key,
     required this.canteenItems,
     required this.tableName,
+    this.existingItemsCount = 0,
+    this.onManageExistingItems,
   });
 
   @override
@@ -89,6 +93,32 @@ class _AddTableItemDialogState extends State<AddTableItemDialog>
             ),
           ],
         ),
+        actions: [
+          if (widget.existingItemsCount > 0 &&
+              widget.onManageExistingItems != null)
+            Padding(
+              padding: const EdgeInsets.only(right: 8),
+              child: TextButton.icon(
+                onPressed: () {
+                  Navigator.of(context).pop();
+                  widget.onManageExistingItems!();
+                },
+                icon: const Icon(
+                  Icons.receipt_long,
+                  size: 16,
+                  color: AppColors.brandAccentLight,
+                ),
+                label: Text(
+                  '${widget.existingItemsCount} on Table',
+                  style: const TextStyle(
+                    color: AppColors.brandAccentLight,
+                    fontSize: 12,
+                    fontWeight: FontWeight.w700,
+                  ),
+                ),
+              ),
+            ),
+        ],
         bottom: PreferredSize(
           preferredSize: const Size.fromHeight(56),
           child: Container(
