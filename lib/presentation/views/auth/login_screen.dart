@@ -483,8 +483,8 @@ class _LoginScreenState extends State<LoginScreen>
               isUserDeactivated
                   ? Icons.person_off_rounded
                   : (isSubscriptionExpired
-                      ? Icons.error_outline
-                      : Icons.warning_amber_rounded),
+                        ? Icons.error_outline
+                        : Icons.warning_amber_rounded),
               color: AppColors.tableOccupied,
               size: 26,
             ),
@@ -494,8 +494,8 @@ class _LoginScreenState extends State<LoginScreen>
                 isUserDeactivated
                     ? 'Account Deactivated'
                     : (isSubscriptionExpired
-                        ? 'Subscription Expired'
-                        : 'Login Error'),
+                          ? 'Subscription Expired'
+                          : 'Login Error'),
                 style: const TextStyle(
                   color: AppColors.primaryText,
                   fontWeight: FontWeight.w700,
