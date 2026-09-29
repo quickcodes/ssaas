@@ -36,38 +36,42 @@ class HistoryReportDateRange {
     DateTimeRange? customRange,
   }) {
     final now = DateTime.now();
+    final endOfDay = DateTime(now.year, now.month, now.day, 23, 59, 59, 999);
 
     switch (preset) {
       case HistoryReportPreset.thisMonth:
         final start = DateTime(now.year, now.month, 1, 0, 0, 0);
         return HistoryReportDateRange(
           start: start,
-          end: now,
+          end: endOfDay,
           label: 'This Month (Till Now)',
         );
 
       case HistoryReportPreset.last30Days:
-        final start = now.subtract(const Duration(days: 30));
+        final start = DateTime(now.year, now.month, now.day, 0, 0, 0)
+            .subtract(const Duration(days: 30));
         return HistoryReportDateRange(
           start: start,
-          end: now,
+          end: endOfDay,
           label: 'Last 30 Days',
         );
 
       case HistoryReportPreset.thisWeek:
         final dayOffset = now.weekday - 1; // Monday = 0
-        final start = DateTime(now.year, now.month, now.day - dayOffset, 0, 0, 0);
+        final start =
+            DateTime(now.year, now.month, now.day - dayOffset, 0, 0, 0);
         return HistoryReportDateRange(
           start: start,
-          end: now,
+          end: endOfDay,
           label: 'This Week',
         );
 
       case HistoryReportPreset.last7Days:
-        final start = now.subtract(const Duration(days: 7));
+        final start = DateTime(now.year, now.month, now.day, 0, 0, 0)
+            .subtract(const Duration(days: 7));
         return HistoryReportDateRange(
           start: start,
-          end: now,
+          end: endOfDay,
           label: 'Last 7 Days',
         );
 
@@ -75,7 +79,7 @@ class HistoryReportDateRange {
         final start = DateTime(now.year, now.month, now.day, 0, 0, 0);
         return HistoryReportDateRange(
           start: start,
-          end: now,
+          end: endOfDay,
           label: 'Today (Daily)',
         );
 
@@ -83,7 +87,7 @@ class HistoryReportDateRange {
         final start = DateTime(now.year, 1, 1, 0, 0, 0);
         return HistoryReportDateRange(
           start: start,
-          end: now,
+          end: endOfDay,
           label: 'This Year (Yearly)',
         );
 
@@ -91,7 +95,7 @@ class HistoryReportDateRange {
         final start = DateTime(2020, 1, 1, 0, 0, 0);
         return HistoryReportDateRange(
           start: start,
-          end: now,
+          end: DateTime(now.year + 10, 12, 31, 23, 59, 59),
           label: 'All Time',
         );
 
@@ -112,6 +116,7 @@ class HistoryReportDateRange {
             23,
             59,
             59,
+            999,
           );
           return HistoryReportDateRange(
             start: start,
@@ -120,9 +125,11 @@ class HistoryReportDateRange {
                 '${DateFormat('dd MMM yyyy').format(start)} - ${DateFormat('dd MMM yyyy').format(end)}',
           );
         }
+        final start = DateTime(now.year, now.month, now.day, 0, 0, 0)
+            .subtract(const Duration(days: 7));
         return HistoryReportDateRange(
-          start: now.subtract(const Duration(days: 7)),
-          end: now,
+          start: start,
+          end: endOfDay,
           label: 'Custom Range',
         );
     }

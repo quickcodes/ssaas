@@ -41,6 +41,9 @@ class TableCard extends StatelessWidget {
   });
 
   Color get _statusColor {
+    if (session != null && session!.isPaused) {
+      return Colors.amber;
+    }
     switch (table.status) {
       case TableStatus.available:
         return AppColors.tableAvailable;
@@ -54,6 +57,7 @@ class TableCard extends StatelessWidget {
   @override
   Widget build(BuildContext context) {
     final hasActiveSession = session != null;
+    final isPaused = hasActiveSession && session!.isPaused;
     final playedSeconds = hasActiveSession ? session!.playedSecondsAt(now) : 0;
     final liveTableFee = hasActiveSession
         ? session!.computeTableChargeAt(now)
@@ -112,7 +116,22 @@ class TableCard extends StatelessWidget {
               children: [
                 Row(
                   children: [
-                    if (table.status == TableStatus.occupied)
+                    if (isPaused)
+                      Container(
+                        width: 10,
+                        height: 10,
+                        decoration: BoxDecoration(
+                          color: Colors.amber,
+                          shape: BoxShape.circle,
+                          boxShadow: [
+                            BoxShadow(
+                              color: Colors.amber.withAlpha(160),
+                              blurRadius: 5,
+                            ),
+                          ],
+                        ),
+                      )
+                    else if (table.status == TableStatus.occupied)
                       PulsingBadge(color: _statusColor, size: 10)
                     else
                       Container(
@@ -145,22 +164,9 @@ class TableCard extends StatelessWidget {
                 Row(
                   mainAxisSize: MainAxisSize.min,
                   children: [
-                    // Status Popup Menu
-                    PopupMenuButton<TableStatus>(
-                      initialValue: table.status,
-                      tooltip: 'Change Table Status',
-                      onSelected: (status) {
-                        AppHaptics.selection();
-                        onUpdateStatus(status);
-                      },
-                      color: AppColors.cardSurface,
-                      shape: RoundedRectangleBorder(
-                        borderRadius: BorderRadius.circular(12),
-                        side: const BorderSide(
-                          color: AppColors.cardBorderStroke,
-                        ),
-                      ),
-                      child: Container(
+                    // Status Badge (non-clickable when table is paused, or status dropdown when not paused)
+                    if (isPaused)
+                      Container(
                         padding: const EdgeInsets.symmetric(
                           horizontal: 10,
                           vertical: 5,
@@ -176,23 +182,74 @@ class TableCard extends StatelessWidget {
                         child: Row(
                           mainAxisSize: MainAxisSize.min,
                           children: [
+                            Container(
+                              width: 6,
+                              height: 6,
+                              decoration: BoxDecoration(
+                                color: _statusColor,
+                                shape: BoxShape.circle,
+                              ),
+                            ),
+                            const SizedBox(width: 6),
                             Text(
-                              table.status.displayName,
+                              'Paused',
                               style: TextStyle(
                                 color: _statusColor,
                                 fontWeight: FontWeight.w800,
                                 fontSize: 11,
                               ),
                             ),
-                            const SizedBox(width: 4),
-                            Icon(
-                              Icons.arrow_drop_down,
-                              color: _statusColor,
-                              size: 16,
-                            ),
                           ],
                         ),
-                      ),
+                      )
+                    else
+                      PopupMenuButton<TableStatus>(
+                        initialValue: table.status,
+                        tooltip: 'Change Table Status',
+                        onSelected: (status) {
+                          AppHaptics.selection();
+                          onUpdateStatus(status);
+                        },
+                        color: AppColors.cardSurface,
+                        shape: RoundedRectangleBorder(
+                          borderRadius: BorderRadius.circular(12),
+                          side: const BorderSide(
+                            color: AppColors.cardBorderStroke,
+                          ),
+                        ),
+                        child: Container(
+                          padding: const EdgeInsets.symmetric(
+                            horizontal: 10,
+                            vertical: 5,
+                          ),
+                          decoration: BoxDecoration(
+                            color: _statusColor.withAlpha(25),
+                            borderRadius: BorderRadius.circular(8),
+                            border: Border.all(
+                              color: _statusColor.withAlpha(160),
+                              width: 1,
+                            ),
+                          ),
+                          child: Row(
+                            mainAxisSize: MainAxisSize.min,
+                            children: [
+                              Text(
+                                table.status.displayName,
+                                style: TextStyle(
+                                  color: _statusColor,
+                                  fontWeight: FontWeight.w800,
+                                  fontSize: 11,
+                                ),
+                              ),
+                              const SizedBox(width: 4),
+                              Icon(
+                                Icons.arrow_drop_down,
+                                color: _statusColor,
+                                size: 16,
+                              ),
+                            ],
+                          ),
+                        ),
                       itemBuilder: (context) => TableStatus.values
                           .where((e) => e != TableStatus.occupied)
                           .map((s) {
@@ -378,19 +435,51 @@ class TableCard extends StatelessWidget {
                       Column(
                         crossAxisAlignment: CrossAxisAlignment.start,
                         children: [
-                          const Text(
-                            'Playing Time',
-                            style: TextStyle(
-                              color: AppColors.secondaryText,
-                              fontSize: 11,
-                              fontWeight: FontWeight.w600,
-                            ),
+                          Row(
+                            children: [
+                              const Text(
+                                'Playing Time',
+                                style: TextStyle(
+                                  color: AppColors.secondaryText,
+                                  fontSize: 11,
+                                  fontWeight: FontWeight.w600,
+                                ),
+                              ),
+                              if (isPaused) ...[
+                                const SizedBox(width: 6),
+                                Container(
+                                  padding: const EdgeInsets.symmetric(
+                                    horizontal: 5,
+                                    vertical: 1,
+                                  ),
+                                  decoration: BoxDecoration(
+                                    color: Colors.amber.withAlpha(35),
+                                    borderRadius: BorderRadius.circular(4),
+                                    border: Border.all(
+                                      color: Colors.amber.withAlpha(120),
+                                      width: 0.8,
+                                    ),
+                                  ),
+                                  child: const Text(
+                                    'PAUSED',
+                                    style: TextStyle(
+                                      color: Colors.amber,
+                                      fontSize: 9,
+                                      fontWeight: FontWeight.w900,
+                                      letterSpacing: 0.5,
+                                    ),
+                                  ),
+                                ),
+                              ],
+                            ],
                           ),
                           const SizedBox(height: 2),
                           Text(
                             AppFormatters.formatDuration(playedSeconds),
-                            style: const TextStyle(
-                              color: AppColors.tableAvailable,
+                            style: TextStyle(
+                              color: isPaused
+                                  ? Colors.amber
+                                  : AppColors.tableAvailable,
                               fontWeight: FontWeight.w900,
                               fontSize: 20,
                               fontFamily: 'monospace',
@@ -402,9 +491,9 @@ class TableCard extends StatelessWidget {
                       Column(
                         crossAxisAlignment: CrossAxisAlignment.end,
                         children: [
-                          const Text(
-                            'Live Total Bill',
-                            style: TextStyle(
+                          Text(
+                            isPaused ? 'Total Bill (Paused)' : 'Live Total Bill',
+                            style: const TextStyle(
                               color: AppColors.secondaryText,
                               fontSize: 11,
                               fontWeight: FontWeight.w600,
@@ -413,8 +502,10 @@ class TableCard extends StatelessWidget {
                           const SizedBox(height: 2),
                           Text(
                             '₹${liveGrandTotal.toStringAsFixed(0)}',
-                            style: const TextStyle(
-                              color: AppColors.brandAccentLight,
+                            style: TextStyle(
+                              color: isPaused
+                                  ? Colors.amberAccent
+                                  : AppColors.brandAccentLight,
                               fontWeight: FontWeight.w900,
                               fontSize: 21,
                             ),

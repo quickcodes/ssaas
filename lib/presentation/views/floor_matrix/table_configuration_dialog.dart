@@ -25,6 +25,7 @@ class _TableConfigurationDialogState extends State<TableConfigurationDialog> {
   );
   late final List<RateSchedule> _customPricings =
       List.of(widget.table.customPricings);
+  bool _isSubmitting = false;
 
   @override
   void dispose() {
@@ -426,13 +427,17 @@ class _TableConfigurationDialogState extends State<TableConfigurationDialog> {
               Expanded(
                 flex: 2,
                 child: ElevatedButton(
-                  onPressed: () {
+                  onPressed: _isSubmitting
+                      ? null
+                      : () {
+                    if (_isSubmitting) return;
                     final general = double.tryParse(_generalPrice.text.trim());
                     if (_name.text.trim().isEmpty ||
                         general == null ||
                         general <= 0) {
                       return;
                     }
+                    setState(() => _isSubmitting = true);
                     Navigator.pop(
                       context,
                       widget.table.copyWith(

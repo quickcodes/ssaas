@@ -9,6 +9,7 @@ import '../../../domain/entities/company.dart';
 import '../../../domain/entities/user_account.dart';
 import '../../blocs/auth/auth_bloc.dart';
 import '../../blocs/floor_matrix/floor_matrix_bloc.dart';
+import '../auth/account_security_screen.dart';
 import '../auth/login_screen.dart';
 import '../canteen/food_canteen_view.dart';
 import '../equipment/equipment_stock_view.dart';
@@ -585,6 +586,9 @@ class _MainDashboardViewState extends State<MainDashboardView> {
           // Reminders & Bookings Button (Admins only)
           _buildRemindersDrawerButton(currentUser, activeCompany),
 
+          // Password & Account Security
+          _buildPasswordSecurityButton(currentUser),
+
           // Pricing & Subscription Plans Button
           _buildPricingAndContactButton(),
 
@@ -677,6 +681,12 @@ class _MainDashboardViewState extends State<MainDashboardView> {
                   _buildRemindersDrawerButton(
                     currentUser,
                     activeCompany,
+                    onTap: () => setState(() => _isSideMenuVisible = false),
+                  ),
+
+                  // Password & Account Security
+                  _buildPasswordSecurityButton(
+                    currentUser,
                     onTap: () => setState(() => _isSideMenuVisible = false),
                   ),
 
@@ -923,6 +933,77 @@ class _MainDashboardViewState extends State<MainDashboardView> {
                 Icons.arrow_forward_ios_rounded,
                 size: 12,
                 color: AppColors.brandAccentLight,
+              ),
+            ],
+          ),
+        ),
+      ),
+    );
+  }
+
+  Widget _buildPasswordSecurityButton(
+    UserAccount currentUser, {
+    VoidCallback? onTap,
+  }) {
+    return Padding(
+      padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 3),
+      child: InkWell(
+        onTap: () {
+          AppHaptics.selection();
+          onTap?.call();
+          AppNavigation.pushSmooth(
+            context,
+            const AccountSecurityScreen(),
+          );
+        },
+        borderRadius: BorderRadius.circular(12),
+        child: Container(
+          padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 10),
+          decoration: BoxDecoration(
+            color: const Color(0xFF673AB7).withAlpha(24),
+            borderRadius: BorderRadius.circular(12),
+            border: Border.all(
+              color: const Color(0xFF673AB7).withAlpha(85),
+            ),
+          ),
+          child: const Row(
+            children: [
+              Icon(
+                Icons.lock_reset_rounded,
+                color: Color(0xFFB388FF),
+                size: 20,
+              ),
+              SizedBox(width: 10),
+              Expanded(
+                child: Column(
+                  crossAxisAlignment: CrossAxisAlignment.start,
+                  children: [
+                    Text(
+                      'Password & Security',
+                      style: TextStyle(
+                        color: AppColors.primaryText,
+                        fontWeight: FontWeight.w700,
+                        fontSize: 13,
+                      ),
+                      maxLines: 1,
+                      overflow: TextOverflow.ellipsis,
+                    ),
+                    Text(
+                      'View & change password',
+                      style: TextStyle(
+                        color: AppColors.secondaryText,
+                        fontSize: 10,
+                      ),
+                      maxLines: 1,
+                      overflow: TextOverflow.ellipsis,
+                    ),
+                  ],
+                ),
+              ),
+              Icon(
+                Icons.arrow_forward_ios_rounded,
+                size: 12,
+                color: Color(0xFFB388FF),
               ),
             ],
           ),

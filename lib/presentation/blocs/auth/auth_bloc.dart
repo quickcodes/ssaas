@@ -2,6 +2,7 @@ import 'dart:async';
 import 'package:equatable/equatable.dart';
 import 'package:flutter/foundation.dart';
 import 'package:flutter_bloc/flutter_bloc.dart';
+import '../../../core/utils/error_handler.dart';
 import '../../../data/datasources/firestore_service.dart';
 import '../../../data/datasources/session_local_storage.dart';
 import '../../../domain/entities/company.dart';
@@ -130,6 +131,23 @@ class ToggleUserOnlineStatusEvent extends AuthEvent {
   List<Object?> get props => [userId, isOnline];
 }
 
+class ChangeUserPasswordEvent extends AuthEvent {
+  final String companyId;
+  final String userId;
+  final String currentPassword;
+  final String newPassword;
+
+  const ChangeUserPasswordEvent({
+    required this.companyId,
+    required this.userId,
+    required this.currentPassword,
+    required this.newPassword,
+  });
+
+  @override
+  List<Object?> get props => [companyId, userId, currentPassword, newPassword];
+}
+
 class ClearAuthErrorEvent extends AuthEvent {}
 
 class _CompanyUpdatedInternalEvent extends AuthEvent {
@@ -254,6 +272,7 @@ class AuthBloc extends Bloc<AuthEvent, AuthState> {
     on<ToggleUserActiveStatusEvent>(_onToggleUserActiveStatus);
     on<UpdateUserRoleEvent>(_onUpdateUserRole);
     on<ToggleUserOnlineStatusEvent>(_onToggleUserOnlineStatus);
+    on<ChangeUserPasswordEvent>(_onChangeUserPassword);
     on<ClearAuthErrorEvent>(_onClearAuthError);
     on<_CompanyUpdatedInternalEvent>(_onCompanyUpdatedInternal);
     on<_UsersUpdatedInternalEvent>(_onUsersUpdatedInternal);
@@ -365,7 +384,10 @@ class AuthBloc extends Bloc<AuthEvent, AuthState> {
       final companies = await _firestoreService.getCompanies();
       emit(state.copyWith(companies: companies, isLoading: false));
     } catch (e) {
-      emit(state.copyWith(isLoading: false, errorMessage: e.toString()));
+      emit(state.copyWith(
+        isLoading: false,
+        errorMessage: AppErrorHandler.format(e),
+      ));
     }
   }
 
@@ -377,7 +399,7 @@ class AuthBloc extends Bloc<AuthEvent, AuthState> {
       final companies = await _firestoreService.getCompanies();
       emit(state.copyWith(companies: companies));
     } catch (e) {
-      emit(state.copyWith(errorMessage: e.toString()));
+      emit(state.copyWith(errorMessage: AppErrorHandler.format(e)));
     }
   }
 
@@ -493,7 +515,10 @@ class AuthBloc extends Bloc<AuthEvent, AuthState> {
         ),
       );
     } catch (e) {
-      emit(state.copyWith(isLoading: false, errorMessage: e.toString()));
+      emit(state.copyWith(
+        isLoading: false,
+        errorMessage: AppErrorHandler.format(e),
+      ));
     }
   }
 
@@ -578,11 +603,23 @@ class AuthBloc extends Bloc<AuthEvent, AuthState> {
             isOnline: false,
           );
         }
-      } catch (_) {}
+      } catch (e) {
+        debugPrint('[AuthBloc] Non-fatal error invalidating remote session: $e');
+      }
     }
-    await _sessionLocalStorage.clearSession();
 
-    final companies = await _firestoreService.getCompanies();
+    try {
+      await _sessionLocalStorage.clearSession();
+    } catch (e) {
+      debugPrint('[AuthBloc] Error clearing local session: $e');
+    }
+
+    List<Company> companies = state.companies;
+    try {
+      companies = await _firestoreService.getCompanies();
+    } catch (e) {
+      debugPrint('[AuthBloc] Non-fatal error reloading companies on logout: $e');
+    }
 
     emit(
       state.copyWith(
@@ -623,7 +660,10 @@ class AuthBloc extends Bloc<AuthEvent, AuthState> {
         ),
       );
     } catch (e) {
-      emit(state.copyWith(isLoading: false, errorMessage: e.toString()));
+      emit(state.copyWith(
+        isLoading: false,
+        errorMessage: AppErrorHandler.format(e),
+      ));
     }
   }
 
@@ -645,7 +685,10 @@ class AuthBloc extends Bloc<AuthEvent, AuthState> {
         ),
       );
     } catch (e) {
-      emit(state.copyWith(isLoading: false, errorMessage: e.toString()));
+      emit(state.copyWith(
+        isLoading: false,
+        errorMessage: AppErrorHandler.format(e),
+      ));
     }
   }
 
@@ -673,7 +716,7 @@ class AuthBloc extends Bloc<AuthEvent, AuthState> {
         ),
       );
     } catch (e) {
-      emit(state.copyWith(errorMessage: e.toString()));
+      emit(state.copyWith(errorMessage: AppErrorHandler.format(e)));
     }
   }
 
@@ -711,7 +754,7 @@ class AuthBloc extends Bloc<AuthEvent, AuthState> {
         ),
       );
     } catch (e) {
-      emit(state.copyWith(errorMessage: e.toString()));
+      emit(state.copyWith(errorMessage: AppErrorHandler.format(e)));
     }
   }
 
@@ -739,7 +782,7 @@ class AuthBloc extends Bloc<AuthEvent, AuthState> {
         ),
       );
     } catch (e) {
-      emit(state.copyWith(errorMessage: e.toString()));
+      emit(state.copyWith(errorMessage: AppErrorHandler.format(e)));
     }
   }
 
@@ -784,7 +827,67 @@ class AuthBloc extends Bloc<AuthEvent, AuthState> {
         );
       }
     } catch (e) {
-      emit(state.copyWith(errorMessage: e.toString()));
+      emit(state.copyWith(errorMessage: AppErrorHandler.format(e)));
+    }
+  }
+
+  Future<void> _onChangeUserPassword(
+    ChangeUserPasswordEvent event,
+    Emitter<AuthState> emit,
+  ) async {
+    if (state.currentUser == null || state.activeCompany == null) {
+      emit(state.copyWith(errorMessage: 'No active session found.'));
+      return;
+    }
+    if (state.currentUser!.id != event.userId) {
+      emit(state.copyWith(errorMessage: 'Unauthorized: Cannot change another user\'s password.'));
+      return;
+    }
+    if (event.currentPassword != state.currentUser!.password) {
+      emit(state.copyWith(errorMessage: 'Current password does not match your account password.'));
+      return;
+    }
+    final cleanNewPassword = event.newPassword.trim();
+    if (cleanNewPassword.length < 4) {
+      emit(state.copyWith(errorMessage: 'New password must be at least 4 characters.'));
+      return;
+    }
+    if (cleanNewPassword == state.currentUser!.password) {
+      emit(state.copyWith(errorMessage: 'New password cannot be the same as your current password.'));
+      return;
+    }
+
+    emit(state.copyWith(isLoading: true, clearErrorMessage: true, clearSuccessMessage: true));
+    try {
+      await _firestoreService.updateUserPassword(
+        event.companyId,
+        event.userId,
+        cleanNewPassword,
+      );
+
+      final updatedUser = state.currentUser!.copyWith(
+        password: cleanNewPassword,
+      );
+
+      final updatedCompanyUsers = state.companyUsers.map((u) {
+        return u.id == event.userId ? u.copyWith(password: cleanNewPassword) : u;
+      }).toList();
+
+      emit(
+        state.copyWith(
+          currentUser: updatedUser,
+          companyUsers: updatedCompanyUsers,
+          isLoading: false,
+          successMessage: 'Password updated successfully! Keep your new password safe.',
+        ),
+      );
+    } catch (e) {
+      emit(
+        state.copyWith(
+          isLoading: false,
+          errorMessage: AppErrorHandler.format(e),
+        ),
+      );
     }
   }
 

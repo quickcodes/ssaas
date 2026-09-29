@@ -24,4 +24,9 @@ class AppHaptics {
   static void success() {
     HapticFeedback.heavyImpact();
   }
+
+  /// Alert feedback on invalid inputs or denied actions.
+  static void error() {
+    HapticFeedback.vibrate();
+  }
 }

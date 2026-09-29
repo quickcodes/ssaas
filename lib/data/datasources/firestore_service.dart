@@ -449,7 +449,17 @@ class FirestoreService {
   Future<void> startSession(TableSession session) async {
     final batch = _firestore.batch();
     final runningDoc = _runningCol(session.companyId).doc(session.id);
-    batch.set(runningDoc, session.toMap());
+    final playedSec = session.playedSecondsAt(session.startTime);
+    final tableFee = session.computeTableChargeAt(session.startTime);
+    final grandTotal = session.computeGrandTotalAt(session.startTime);
+    final sessionMap = session.copyWith(
+      lastPlayedSeconds: playedSec,
+      lastTableCharge: tableFee,
+      lastGrandTotal: grandTotal,
+    ).toMap();
+    sessionMap['lastUpdated'] = Timestamp.now();
+
+    batch.set(runningDoc, sessionMap);
 
     final tableDoc = _tablesCol(session.companyId).doc(session.tableId);
     batch.update(tableDoc, {
@@ -461,14 +471,36 @@ class FirestoreService {
   }
 
   Future<void> updateRunningSession(TableSession session) async {
-    await _runningCol(session.companyId).doc(session.id).set(session.toMap());
+    final now = DateTime.now();
+    final sessionMap = session.copyWith(
+      lastPlayedSeconds: session.playedSecondsAt(now),
+      lastTableCharge: session.computeTableChargeAt(now),
+      lastGrandTotal: session.computeGrandTotalAt(now),
+    ).toMap();
+    sessionMap['lastUpdated'] = Timestamp.now();
+    await _runningCol(session.companyId).doc(session.id).set(sessionMap);
   }
 
   Future<void> pauseSession(String companyId, String sessionId) async {
     final sessionDoc = _runningCol(companyId).doc(sessionId);
+    final doc = await sessionDoc.get();
+    if (!doc.exists || doc.data() == null) return;
+    final session = TableSession.fromMap(doc.id, doc.data()!);
+    // Prevent overwriting lastPauseTime if already paused
+    if (session.isPaused) return;
+
+    final now = DateTime.now();
+    final playedSeconds = session.playedSecondsAt(now);
+    final tableCharge = session.computeTableChargeAt(now);
+    final grandTotal = session.computeGrandTotalAt(now);
+
     await sessionDoc.update({
       'isPaused': true,
-      'lastPauseTime': Timestamp.now(),
+      'lastPauseTime': Timestamp.fromDate(now),
+      'lastPlayedSeconds': playedSeconds,
+      'lastTableCharge': tableCharge,
+      'lastGrandTotal': grandTotal,
+      'lastUpdated': Timestamp.fromDate(now),
     });
   }
 
@@ -479,14 +511,25 @@ class FirestoreService {
     final session = TableSession.fromMap(doc.id, doc.data()!);
     if (!session.isPaused || session.lastPauseTime == null) return;
 
+    final now = DateTime.now();
+    // Guard against device clock skew between pausing device and resuming device
     final additionalPause =
-        DateTime.now().difference(session.lastPauseTime!).inSeconds;
+        now.difference(session.lastPauseTime!).inSeconds.clamp(0, 86400 * 30);
     final totalPaused = session.pausedSeconds + additionalPause;
+
+    // Calculate played seconds up to the pause point
+    final playedSeconds = session.playedSecondsAt(session.lastPauseTime!);
+    final tableCharge = session.computeTableChargeAt(session.lastPauseTime!);
+    final grandTotal = session.computeGrandTotalAt(session.lastPauseTime!);
 
     await sessionDoc.update({
       'isPaused': false,
       'lastPauseTime': null,
       'pausedSeconds': totalPaused,
+      'lastPlayedSeconds': playedSeconds,
+      'lastTableCharge': tableCharge,
+      'lastGrandTotal': grandTotal,
+      'lastUpdated': Timestamp.fromDate(now),
     });
   }
 
@@ -500,8 +543,13 @@ class FirestoreService {
     if (!doc.exists || doc.data() == null) return;
     final session = TableSession.fromMap(doc.id, doc.data()!);
     final updatedItems = List<TableBillingItem>.from(session.items)..add(item);
+    final updatedSession = session.copyWith(items: updatedItems);
+    final now = DateTime.now();
+
     await sessionDoc.update({
       'items': updatedItems.map((i) => i.toMap()).toList(),
+      'lastGrandTotal': updatedSession.computeGrandTotalAt(now),
+      'lastUpdated': Timestamp.fromDate(now),
     });
   }
 
@@ -517,8 +565,13 @@ class FirestoreService {
     final updatedItems = session.items
         .map((i) => i.id == updatedItem.id ? updatedItem : i)
         .toList();
+    final updatedSession = session.copyWith(items: updatedItems);
+    final now = DateTime.now();
+
     await sessionDoc.update({
       'items': updatedItems.map((i) => i.toMap()).toList(),
+      'lastGrandTotal': updatedSession.computeGrandTotalAt(now),
+      'lastUpdated': Timestamp.fromDate(now),
     });
   }
 
@@ -532,8 +585,13 @@ class FirestoreService {
     if (!doc.exists || doc.data() == null) return;
     final session = TableSession.fromMap(doc.id, doc.data()!);
     final updatedItems = session.items.where((i) => i.id != itemId).toList();
+    final updatedSession = session.copyWith(items: updatedItems);
+    final now = DateTime.now();
+
     await sessionDoc.update({
       'items': updatedItems.map((i) => i.toMap()).toList(),
+      'lastGrandTotal': updatedSession.computeGrandTotalAt(now),
+      'lastUpdated': Timestamp.fromDate(now),
     });
   }
 

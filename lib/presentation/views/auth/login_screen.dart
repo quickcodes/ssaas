@@ -25,6 +25,7 @@ class _LoginScreenState extends State<LoginScreen>
   final _identifierCtrl = TextEditingController();
   final _passwordCtrl = TextEditingController();
   bool _obscurePassword = true;
+  bool _isSubmitting = false;
 
   late final AnimationController _logoAnimCtrl;
   late final Animation<double> _logoScaleAnim;
@@ -53,7 +54,12 @@ class _LoginScreenState extends State<LoginScreen>
   }
 
   void _submitLogin() {
+    if (_isSubmitting) return;
+    final authState = context.read<AuthBloc>().state;
+    if (authState.isLoading) return;
     if (!_formKey.currentState!.validate()) return;
+
+    _isSubmitting = true;
     AppHaptics.medium();
 
     context.read<AuthBloc>().add(
@@ -63,6 +69,12 @@ class _LoginScreenState extends State<LoginScreen>
         password: _passwordCtrl.text,
       ),
     );
+
+    Future.delayed(const Duration(milliseconds: 800), () {
+      if (mounted) {
+        setState(() => _isSubmitting = false);
+      }
+    });
   }
 
   @override
@@ -272,9 +284,13 @@ class _LoginScreenState extends State<LoginScreen>
 
                           // Login Button
                           BouncingTap(
-                            onTap: state.isLoading ? null : _submitLogin,
+                            onTap: (state.isLoading || _isSubmitting)
+                                ? null
+                                : _submitLogin,
                             child: ElevatedButton(
-                              onPressed: state.isLoading ? null : _submitLogin,
+                              onPressed: (state.isLoading || _isSubmitting)
+                                  ? null
+                                  : _submitLogin,
                               style: ElevatedButton.styleFrom(
                                 backgroundColor: AppColors.brandAccent,
                                 padding: const EdgeInsets.symmetric(

@@ -29,6 +29,7 @@ class _CreateCompanyScreenState extends State<CreateCompanyScreen> {
   final _userEmailCtrl = TextEditingController();
   final _userPasswordCtrl = TextEditingController();
   bool _obscurePassword = true;
+  bool _isSubmitting = false;
 
   @override
   void dispose() {
@@ -69,7 +70,10 @@ class _CreateCompanyScreenState extends State<CreateCompanyScreen> {
   }
 
   void _submit() {
+    if (_isSubmitting) return;
+    if (context.read<AuthBloc>().state.isLoading) return;
     if (!_formKey.currentState!.validate()) return;
+    _isSubmitting = true;
     AppHaptics.medium();
 
     context.read<AuthBloc>().add(
@@ -84,6 +88,10 @@ class _CreateCompanyScreenState extends State<CreateCompanyScreen> {
             initialUserPassword: _userPasswordCtrl.text,
           ),
         );
+
+    Future.delayed(const Duration(milliseconds: 1000), () {
+      if (mounted) setState(() => _isSubmitting = false);
+    });
   }
 
   @override

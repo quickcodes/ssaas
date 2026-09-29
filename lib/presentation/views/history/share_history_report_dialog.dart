@@ -8,11 +8,15 @@ import '../../../domain/entities/table_history_record.dart';
 class ShareHistoryReportDialog extends StatefulWidget {
   final String companyName;
   final List<TableHistoryRecord> allRecords;
+  final HistoryReportPreset? initialPreset;
+  final DateTimeRange? initialCustomDateRange;
 
   const ShareHistoryReportDialog({
     super.key,
     required this.companyName,
     required this.allRecords,
+    this.initialPreset,
+    this.initialCustomDateRange,
   });
 
   @override
@@ -21,10 +25,17 @@ class ShareHistoryReportDialog extends StatefulWidget {
 }
 
 class _ShareHistoryReportDialogState extends State<ShareHistoryReportDialog> {
-  HistoryReportPreset _selectedPreset = HistoryReportPreset.thisMonth;
+  late HistoryReportPreset _selectedPreset;
   DateTimeRange? _customDateRange;
   bool _isSharing = false;
   final GlobalKey _shareButtonKey = GlobalKey();
+
+  @override
+  void initState() {
+    super.initState();
+    _selectedPreset = widget.initialPreset ?? HistoryReportPreset.thisMonth;
+    _customDateRange = widget.initialCustomDateRange;
+  }
 
   HistoryReportDateRange get _activeDateRange {
     return HistoryReportDateRange.fromPreset(

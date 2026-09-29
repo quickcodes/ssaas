@@ -32,6 +32,7 @@ class _StartSessionDialogState extends State<StartSessionDialog> {
   int? _selectedPresetMinutes = 0; // 0 = Now
   bool _isCustomTime = false;
   DateTime? _customDateTime;
+  bool _isSubmitting = false;
 
   @override
   void dispose() {
@@ -749,7 +750,10 @@ class _StartSessionDialogState extends State<StartSessionDialog> {
                     Expanded(
                       flex: 2,
                       child: ElevatedButton.icon(
-                        onPressed: () {
+                        onPressed: _isSubmitting
+                            ? null
+                            : () {
+                          if (_isSubmitting) return;
                           if (!_formKey.currentState!.validate()) return;
 
                           final chosenStart = _effectiveStartTime;
@@ -781,6 +785,7 @@ class _StartSessionDialogState extends State<StartSessionDialog> {
                             notes: effectiveNotes,
                           );
 
+                          setState(() => _isSubmitting = true);
                           Navigator.of(context).pop(session);
                         },
                         icon: Icon(

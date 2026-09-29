@@ -24,6 +24,9 @@ class TableSession extends Equatable {
   final String paymentStatus; // "Received", "Due", or "" (while active)
   final String? paymentMethod; // "Cash", "UPI", "Card"
   final String notes;
+  final int? lastPlayedSeconds;
+  final double? lastTableCharge;
+  final double? lastGrandTotal;
 
   const TableSession({
     required this.id,
@@ -46,17 +49,27 @@ class TableSession extends Equatable {
     this.paymentStatus = '',
     this.paymentMethod,
     this.notes = '',
+    this.lastPlayedSeconds,
+    this.lastTableCharge,
+    this.lastGrandTotal,
   });
 
-  /// Duration played in seconds up to a given reference time (defaults to now or endTime)
+  /// Duration played in seconds up to a given reference time (defaults to now or endTime).
+  /// When isPaused is true, active time stops accumulating at lastPauseTime,
+  /// ensuring 100% identical duration on all devices regardless of clock skew.
   int playedSecondsAt(DateTime referenceTime) {
     final effectiveEnd = endTime ?? referenceTime;
-    final totalElapsed = effectiveEnd.difference(startTime).inSeconds;
-    int currentPause = 0;
+    if (!effectiveEnd.isAfter(startTime)) return 0;
+
+    DateTime calcEnd = effectiveEnd;
     if (isPaused && lastPauseTime != null) {
-      currentPause = effectiveEnd.difference(lastPauseTime!).inSeconds;
+      if (calcEnd.isAfter(lastPauseTime!)) {
+        calcEnd = lastPauseTime!;
+      }
     }
-    return (totalElapsed - pausedSeconds - currentPause).clamp(0, 86400 * 7);
+
+    final played = calcEnd.difference(startTime).inSeconds - pausedSeconds;
+    return played.clamp(0, 86400 * 7);
   }
 
   /// Calculates effective hourly rate at a specific point in time
@@ -69,14 +82,15 @@ class TableSession extends Equatable {
     return generalPrice;
   }
 
-  /// Computes the table time charge dynamically at the given reference time
+  /// Computes the table time charge dynamically at the given reference time.
+  /// Uses exact second-level precision so charges are uniform, continuous, and match
+  /// across devices without jumping in minute steps.
   double computeTableChargeAt(DateTime referenceTime) {
     final effectiveEnd = endTime ?? referenceTime;
     if (!effectiveEnd.isAfter(startTime)) return 0.0;
     final activeSeconds = playedSecondsAt(referenceTime);
     if (activeSeconds <= 0) return 0.0;
 
-    final totalMinutes = (activeSeconds / 60).ceil();
     if (customPricings.isEmpty) {
       return (activeSeconds / 3600.0) * generalPrice;
     }
@@ -84,16 +98,23 @@ class TableSession extends Equatable {
     double totalCost = 0.0;
     const stepMinutes = 5;
     var cursor = startTime;
+    final fullMinutes = activeSeconds ~/ 60;
+    final remainingSeconds = activeSeconds % 60;
     int processedMinutes = 0;
 
-    while (processedMinutes < totalMinutes) {
-      final chunk = (totalMinutes - processedMinutes) < stepMinutes
-          ? (totalMinutes - processedMinutes)
+    while (processedMinutes < fullMinutes) {
+      final chunk = (fullMinutes - processedMinutes) < stepMinutes
+          ? (fullMinutes - processedMinutes)
           : stepMinutes;
       final rate = effectiveRateAt(cursor);
       totalCost += (chunk / 60.0) * rate;
       processedMinutes += chunk;
       cursor = cursor.add(Duration(minutes: chunk));
+    }
+
+    if (remainingSeconds > 0) {
+      final rate = effectiveRateAt(cursor);
+      totalCost += (remainingSeconds / 3600.0) * rate;
     }
 
     return totalCost;
@@ -130,6 +151,9 @@ class TableSession extends Equatable {
     String? paymentStatus,
     String? paymentMethod,
     String? notes,
+    int? lastPlayedSeconds,
+    double? lastTableCharge,
+    double? lastGrandTotal,
   }) {
     return TableSession(
       id: id ?? this.id,
@@ -152,6 +176,9 @@ class TableSession extends Equatable {
       paymentStatus: paymentStatus ?? this.paymentStatus,
       paymentMethod: paymentMethod ?? this.paymentMethod,
       notes: notes ?? this.notes,
+      lastPlayedSeconds: lastPlayedSeconds ?? this.lastPlayedSeconds,
+      lastTableCharge: lastTableCharge ?? this.lastTableCharge,
+      lastGrandTotal: lastGrandTotal ?? this.lastGrandTotal,
     );
   }
 
@@ -177,6 +204,9 @@ class TableSession extends Equatable {
       'paymentStatus': paymentStatus,
       'paymentMethod': paymentMethod,
       'notes': notes,
+      'lastPlayedSeconds': lastPlayedSeconds,
+      'lastTableCharge': lastTableCharge,
+      'lastGrandTotal': lastGrandTotal,
     };
   }
 
@@ -225,6 +255,9 @@ class TableSession extends Equatable {
       paymentStatus: map['paymentStatus'] as String? ?? '',
       paymentMethod: map['paymentMethod'] as String?,
       notes: map['notes'] as String? ?? '',
+      lastPlayedSeconds: (map['lastPlayedSeconds'] as num?)?.toInt(),
+      lastTableCharge: (map['lastTableCharge'] as num?)?.toDouble(),
+      lastGrandTotal: (map['lastGrandTotal'] as num?)?.toDouble(),
     );
   }
 
@@ -250,5 +283,8 @@ class TableSession extends Equatable {
         paymentStatus,
         paymentMethod,
         notes,
+        lastPlayedSeconds,
+        lastTableCharge,
+        lastGrandTotal,
       ];
 }

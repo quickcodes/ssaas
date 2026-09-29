@@ -11,6 +11,8 @@ import '../../../domain/entities/table_history_record.dart';
 import '../../blocs/auth/auth_bloc.dart';
 import '../../widgets/empty_state_card.dart';
 import '../../widgets/fade_slide_transition.dart';
+import '../../../core/utils/history_report_exporter.dart';
+import 'history_filter_dialog.dart';
 import 'settle_due_payment_screen.dart';
 import 'share_history_report_dialog.dart';
 
@@ -24,6 +26,15 @@ class TablesHistoryView extends StatefulWidget {
 class _TablesHistoryViewState extends State<TablesHistoryView> {
   String _filterStatus = 'All'; // 'All', 'Received', 'Due'
   String _searchQuery = '';
+  HistoryReportPreset _selectedDatePreset = HistoryReportPreset.allTime;
+  DateTimeRange? _customDateRange;
+  final TextEditingController _searchController = TextEditingController();
+
+  @override
+  void dispose() {
+    _searchController.dispose();
+    super.dispose();
+  }
 
   void _showShareReportDialog(
     BuildContext context,
@@ -35,8 +46,54 @@ class _TablesHistoryViewState extends State<TablesHistoryView> {
       builder: (_) => ShareHistoryReportDialog(
         companyName: companyName,
         allRecords: allHistory,
+        initialPreset: _selectedDatePreset != HistoryReportPreset.allTime
+            ? _selectedDatePreset
+            : null,
+        initialCustomDateRange: _customDateRange,
       ),
     );
+  }
+
+  Future<void> _openFilterDialog(List<TableHistoryRecord> allHistory) async {
+    AppHaptics.light();
+    final result = await showDialog<HistoryFilterOption>(
+      context: context,
+      builder: (ctx) => HistoryFilterDialog(
+        initialPreset: _selectedDatePreset,
+        initialCustomRange: _customDateRange,
+        initialStatus: _filterStatus,
+        allRecords: allHistory,
+      ),
+    );
+
+    if (result != null) {
+      setState(() {
+        _selectedDatePreset = result.preset;
+        _customDateRange = result.customRange;
+        _filterStatus = result.status;
+      });
+    }
+  }
+
+  String _getPresetShortLabel(HistoryReportPreset preset) {
+    switch (preset) {
+      case HistoryReportPreset.thisMonth:
+        return 'This Month';
+      case HistoryReportPreset.last30Days:
+        return '30 Days';
+      case HistoryReportPreset.thisWeek:
+        return 'This Week';
+      case HistoryReportPreset.last7Days:
+        return '7 Days';
+      case HistoryReportPreset.today:
+        return 'Today';
+      case HistoryReportPreset.thisYear:
+        return 'This Year';
+      case HistoryReportPreset.allTime:
+        return 'All Time';
+      case HistoryReportPreset.custom:
+        return 'Custom';
+    }
   }
 
   void _showMatchDetailsModal(BuildContext context, TableHistoryRecord record) {
@@ -537,7 +594,36 @@ class _TablesHistoryViewState extends State<TablesHistoryView> {
         }
 
         final allHistory = snapshot.data!;
-        final filtered = allHistory.where((r) {
+
+        // 1. Date Period Filtering
+        final List<TableHistoryRecord> periodRecords;
+        if (_selectedDatePreset == HistoryReportPreset.allTime) {
+          periodRecords = allHistory;
+        } else {
+          final range = HistoryReportDateRange.fromPreset(
+            _selectedDatePreset,
+            customRange: _customDateRange,
+          );
+          periodRecords = HistoryReportExporter.filterByDateRange(
+            allHistory,
+            range.start,
+            range.end,
+          );
+        }
+
+        // 2. Metrics Bar computed for the active period
+        final totalMatches = periodRecords.length;
+        final totalReceived = periodRecords.fold<double>(
+          0.0,
+          (sum, r) => sum + r.paidAmount,
+        );
+        final totalDue = periodRecords.fold<double>(
+          0.0,
+          (sum, r) => sum + r.dueAmount,
+        );
+
+        // 3. Search and Status Filtering
+        final filtered = periodRecords.where((r) {
           final matchesStatus =
               _filterStatus == 'All' ||
               (_filterStatus == 'Received' && r.isReceived) ||
@@ -555,15 +641,9 @@ class _TablesHistoryViewState extends State<TablesHistoryView> {
           return matchesStatus && matchesSearch;
         }).toList();
 
-        final totalMatches = allHistory.length;
-        final totalReceived = allHistory.fold<double>(
-          0.0,
-          (sum, r) => sum + r.paidAmount,
-        );
-        final totalDue = allHistory.fold<double>(
-          0.0,
-          (sum, r) => sum + r.dueAmount,
-        );
+        final isFilterActive =
+            _selectedDatePreset != HistoryReportPreset.allTime ||
+            _filterStatus != 'All';
 
         return Scaffold(
           backgroundColor: AppColors.backgroundBase,
@@ -663,44 +743,45 @@ class _TablesHistoryViewState extends State<TablesHistoryView> {
                   ),
                 ),
                 const SizedBox(height: 16),
-                SizedBox(
-                  width: double.infinity,
-                  child: TextField(
-                    onChanged: (val) =>
-                        setState(() => _searchQuery = val.trim()),
-                    decoration: InputDecoration(
-                      hintText: 'Search by customer, table, or staff name...',
-                      prefixIcon: const Icon(Icons.search, size: 20),
-                      suffixIcon: _searchQuery.isNotEmpty
-                          ? IconButton(
-                              icon: const Icon(Icons.clear, size: 18),
-                              onPressed: () =>
-                                  setState(() => _searchQuery = ''),
-                            )
-                          : null,
-                    ),
+
+                // Search Bar & Filter Button Row
+                IntrinsicHeight(
+                  child: Row(
+                    crossAxisAlignment: CrossAxisAlignment.stretch,
+                    children: [
+                      Expanded(
+                        child: TextField(
+                          controller: _searchController,
+                          onChanged: (val) =>
+                              setState(() => _searchQuery = val.trim()),
+                          decoration: InputDecoration(
+                            hintText:
+                                'Search by customer, table, or staff name...',
+                            prefixIcon: const Icon(Icons.search, size: 20),
+                            suffixIcon: _searchQuery.isNotEmpty
+                                ? IconButton(
+                                    icon: const Icon(Icons.clear, size: 18),
+                                    onPressed: () {
+                                      _searchController.clear();
+                                      setState(() => _searchQuery = '');
+                                    },
+                                  )
+                                : null,
+                          ),
+                        ),
+                      ),
+                      const SizedBox(width: 10),
+                      _buildFilterButton(allHistory),
+                    ],
                   ),
                 ),
+
+                // Active Filter Banner (shown when date preset or status filter is active)
+                if (isFilterActive) ...[
+                  const SizedBox(height: 10),
+                  _buildActiveFilterBanner(),
+                ],
                 const SizedBox(height: 16),
-                // Filter & Search Controls
-                // Row(
-                //   children: [
-                //     _buildStatusFilterChip('All', 'All Matches'),
-                //     const SizedBox(width: 8),
-                //     _buildStatusFilterChip(
-                //       'Received',
-                //       'Received',
-                //       color: AppColors.tableAvailable,
-                //     ),
-                //     const SizedBox(width: 8),
-                //     _buildStatusFilterChip(
-                //       'Due',
-                //       'Due',
-                //       color: AppColors.tableOccupied,
-                //     ),
-                //   ],
-                // ),
-                // const SizedBox(height: 16),
 
                 // List of Records
                 Expanded(
@@ -712,7 +793,27 @@ class _TablesHistoryViewState extends State<TablesHistoryView> {
                               : 'No Matching Records',
                           subtitle: allHistory.isEmpty
                               ? 'Once running tables are checked out and bills are settled, detailed match history records will appear here.'
-                              : 'No matches found matching your current search or filter criteria.',
+                              : (isFilterActive
+                                  ? 'No matches recorded for ${_selectedDatePreset != HistoryReportPreset.allTime ? _selectedDatePreset.label : "the selected criteria"}. Try selecting another period or resetting filters.'
+                                  : 'No matches found matching your current search criteria.'),
+                          actionLabel: (allHistory.isNotEmpty &&
+                                  (isFilterActive || _searchQuery.isNotEmpty))
+                              ? 'Reset Filters'
+                              : null,
+                          onAction: (allHistory.isNotEmpty &&
+                                  (isFilterActive || _searchQuery.isNotEmpty))
+                              ? () {
+                                  AppHaptics.light();
+                                  setState(() {
+                                    _selectedDatePreset =
+                                        HistoryReportPreset.allTime;
+                                    _customDateRange = null;
+                                    _filterStatus = 'All';
+                                    _searchQuery = '';
+                                    _searchController.clear();
+                                  });
+                                }
+                              : null,
                         )
                       : ListView.separated(
                           itemCount: filtered.length,
@@ -1145,6 +1246,167 @@ class _TablesHistoryViewState extends State<TablesHistoryView> {
           ),
         );
       },
+    );
+  }
+
+  Widget _buildFilterButton(List<TableHistoryRecord> allHistory) {
+    final isFilterActive =
+        _selectedDatePreset != HistoryReportPreset.allTime ||
+        _filterStatus != 'All';
+    final isMobile = Responsive.isMobile(context);
+
+    return Material(
+      color: Colors.transparent,
+      child: InkWell(
+        onTap: () => _openFilterDialog(allHistory),
+        borderRadius: BorderRadius.circular(10),
+        child: AnimatedContainer(
+          duration: const Duration(milliseconds: 150),
+          padding: EdgeInsets.symmetric(
+            horizontal: isMobile ? 12 : 16,
+          ),
+          decoration: BoxDecoration(
+            color: isFilterActive
+                ? AppColors.brandAccent.withAlpha(35)
+                : AppColors.inputSurface,
+            borderRadius: BorderRadius.circular(10),
+            border: Border.all(
+              color: isFilterActive
+                  ? AppColors.brandAccentLight
+                  : AppColors.cardBorderStroke,
+              width: isFilterActive ? 1.5 : 1.0,
+            ),
+          ),
+          alignment: Alignment.center,
+          child: Row(
+            mainAxisSize: MainAxisSize.min,
+            mainAxisAlignment: MainAxisAlignment.center,
+            children: [
+              Stack(
+                clipBehavior: Clip.none,
+                children: [
+                  Icon(
+                    Icons.tune_rounded,
+                    size: 20,
+                    color: isFilterActive
+                        ? AppColors.brandAccentLight
+                        : AppColors.secondaryText,
+                  ),
+                  if (isFilterActive)
+                    Positioned(
+                      top: -2,
+                      right: -2,
+                      child: Container(
+                        width: 7,
+                        height: 7,
+                        decoration: const BoxDecoration(
+                          color: AppColors.brandAccentLight,
+                          shape: BoxShape.circle,
+                        ),
+                      ),
+                    ),
+                ],
+              ),
+              const SizedBox(width: 8),
+              Text(
+                isFilterActive
+                    ? _getPresetShortLabel(_selectedDatePreset)
+                    : 'Filter',
+                style: TextStyle(
+                  color: isFilterActive
+                      ? AppColors.brandAccentLight
+                      : AppColors.primaryText,
+                  fontSize: 13,
+                  fontWeight:
+                      isFilterActive ? FontWeight.w700 : FontWeight.w600,
+                ),
+              ),
+            ],
+          ),
+        ),
+      ),
+    );
+  }
+
+  Widget _buildActiveFilterBanner() {
+    final activeRange = HistoryReportDateRange.fromPreset(
+      _selectedDatePreset,
+      customRange: _customDateRange,
+    );
+
+    final parts = <String>[];
+    if (_selectedDatePreset != HistoryReportPreset.allTime) {
+      parts.add(activeRange.label);
+    }
+    if (_filterStatus != 'All') {
+      parts.add('Status: $_filterStatus');
+    }
+
+    return Container(
+      padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 8),
+      decoration: BoxDecoration(
+        color: AppColors.brandAccent.withAlpha(20),
+        borderRadius: BorderRadius.circular(10),
+        border: Border.all(
+          color: AppColors.brandAccent.withAlpha(80),
+        ),
+      ),
+      child: Row(
+        children: [
+          const Icon(
+            Icons.date_range_rounded,
+            size: 15,
+            color: AppColors.brandAccentLight,
+          ),
+          const SizedBox(width: 8),
+          Expanded(
+            child: Text(
+              'Filtered by: ${parts.join(" • ")}${_selectedDatePreset != HistoryReportPreset.allTime ? " (${DateFormat('dd MMM').format(activeRange.start)} - ${DateFormat('dd MMM yyyy').format(activeRange.end)})" : ""}',
+              style: const TextStyle(
+                color: AppColors.brandAccentLight,
+                fontSize: 12,
+                fontWeight: FontWeight.w600,
+              ),
+              maxLines: 1,
+              overflow: TextOverflow.ellipsis,
+            ),
+          ),
+          const SizedBox(width: 8),
+          InkWell(
+            onTap: () {
+              AppHaptics.light();
+              setState(() {
+                _selectedDatePreset = HistoryReportPreset.allTime;
+                _customDateRange = null;
+                _filterStatus = 'All';
+              });
+            },
+            borderRadius: BorderRadius.circular(6),
+            child: const Padding(
+              padding: EdgeInsets.symmetric(horizontal: 6, vertical: 3),
+              child: Row(
+                mainAxisSize: MainAxisSize.min,
+                children: [
+                  Text(
+                    'Clear',
+                    style: TextStyle(
+                      color: AppColors.secondaryText,
+                      fontSize: 11,
+                      fontWeight: FontWeight.w600,
+                    ),
+                  ),
+                  SizedBox(width: 4),
+                  Icon(
+                    Icons.close_rounded,
+                    size: 14,
+                    color: AppColors.secondaryText,
+                  ),
+                ],
+              ),
+            ),
+          ),
+        ],
+      ),
     );
   }
 

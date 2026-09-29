@@ -1,6 +1,7 @@
 import 'dart:async';
 import 'package:equatable/equatable.dart';
 import 'package:flutter_bloc/flutter_bloc.dart';
+import '../../../core/utils/error_handler.dart';
 import '../../../core/utils/formatters.dart';
 import '../../../data/datasources/firestore_service.dart';
 import '../../../domain/entities/club_reminder.dart';
@@ -397,7 +398,7 @@ class FloorMatrixBloc extends Bloc<FloorMatrixEvent, FloorMatrixState> {
         ..sort((a, b) => AppFormatters.naturalCompare(a.name, b.name));
       emit(state.copyWith(tables: sortedTables, isLoading: false));
     } catch (e) {
-      emit(state.copyWith(isLoading: false, errorMessage: e.toString()));
+      emit(state.copyWith(isLoading: false, errorMessage: AppErrorHandler.format(e)));
     }
   }
 
@@ -446,7 +447,7 @@ class FloorMatrixBloc extends Bloc<FloorMatrixEvent, FloorMatrixState> {
       await _firestoreService.saveTable(event.table);
       emit(state.copyWith(successMessage: 'Table "${event.table.name}" created.'));
     } catch (e) {
-      emit(state.copyWith(errorMessage: e.toString()));
+      emit(state.copyWith(errorMessage: AppErrorHandler.format(e)));
     }
   }
 
@@ -458,7 +459,7 @@ class FloorMatrixBloc extends Bloc<FloorMatrixEvent, FloorMatrixState> {
       await _firestoreService.saveTable(event.table);
       emit(state.copyWith(successMessage: 'Table "${event.table.name}" updated.'));
     } catch (e) {
-      emit(state.copyWith(errorMessage: e.toString()));
+      emit(state.copyWith(errorMessage: AppErrorHandler.format(e)));
     }
   }
 
@@ -470,7 +471,7 @@ class FloorMatrixBloc extends Bloc<FloorMatrixEvent, FloorMatrixState> {
       await _firestoreService.deleteTable(event.companyId, event.tableId);
       emit(state.copyWith(successMessage: 'Table "${event.tableName}" deleted successfully.'));
     } catch (e) {
-      emit(state.copyWith(errorMessage: 'Failed to delete table: $e'));
+      emit(state.copyWith(errorMessage: AppErrorHandler.format(e)));
     }
   }
 
@@ -487,7 +488,7 @@ class FloorMatrixBloc extends Bloc<FloorMatrixEvent, FloorMatrixState> {
         ),
       );
     } catch (e) {
-      emit(state.copyWith(errorMessage: e.toString()));
+      emit(state.copyWith(errorMessage: AppErrorHandler.format(e)));
     }
   }
 
@@ -498,7 +499,7 @@ class FloorMatrixBloc extends Bloc<FloorMatrixEvent, FloorMatrixState> {
     try {
       await _firestoreService.pauseSession(event.companyId, event.sessionId);
     } catch (e) {
-      emit(state.copyWith(errorMessage: e.toString()));
+      emit(state.copyWith(errorMessage: AppErrorHandler.format(e)));
     }
   }
 
@@ -509,7 +510,7 @@ class FloorMatrixBloc extends Bloc<FloorMatrixEvent, FloorMatrixState> {
     try {
       await _firestoreService.resumeSession(event.companyId, event.sessionId);
     } catch (e) {
-      emit(state.copyWith(errorMessage: e.toString()));
+      emit(state.copyWith(errorMessage: AppErrorHandler.format(e)));
     }
   }
 
@@ -537,7 +538,7 @@ class FloorMatrixBloc extends Bloc<FloorMatrixEvent, FloorMatrixState> {
         ),
       );
     } catch (e) {
-      emit(state.copyWith(errorMessage: e.toString()));
+      emit(state.copyWith(errorMessage: AppErrorHandler.format(e)));
     }
   }
 
@@ -576,7 +577,7 @@ class FloorMatrixBloc extends Bloc<FloorMatrixEvent, FloorMatrixState> {
         ),
       );
     } catch (e) {
-      emit(state.copyWith(errorMessage: e.toString()));
+      emit(state.copyWith(errorMessage: AppErrorHandler.format(e)));
     }
   }
 
@@ -607,7 +608,7 @@ class FloorMatrixBloc extends Bloc<FloorMatrixEvent, FloorMatrixState> {
         ),
       );
     } catch (e) {
-      emit(state.copyWith(errorMessage: e.toString()));
+      emit(state.copyWith(errorMessage: AppErrorHandler.format(e)));
     }
   }
 
@@ -628,7 +629,7 @@ class FloorMatrixBloc extends Bloc<FloorMatrixEvent, FloorMatrixState> {
         ),
       );
     } catch (e) {
-      emit(state.copyWith(errorMessage: e.toString()));
+      emit(state.copyWith(errorMessage: AppErrorHandler.format(e)));
     }
   }
 
@@ -643,7 +644,7 @@ class FloorMatrixBloc extends Bloc<FloorMatrixEvent, FloorMatrixState> {
         event.status,
       );
     } catch (e) {
-      emit(state.copyWith(errorMessage: e.toString()));
+      emit(state.copyWith(errorMessage: AppErrorHandler.format(e)));
     }
   }
 
@@ -662,7 +663,7 @@ class FloorMatrixBloc extends Bloc<FloorMatrixEvent, FloorMatrixState> {
       await _firestoreService.saveReminder(event.companyId, event.reminder);
       emit(state.copyWith(successMessage: 'Reminder saved successfully'));
     } catch (e) {
-      emit(state.copyWith(errorMessage: e.toString()));
+      emit(state.copyWith(errorMessage: AppErrorHandler.format(e)));
     }
   }
 
@@ -676,7 +677,7 @@ class FloorMatrixBloc extends Bloc<FloorMatrixEvent, FloorMatrixState> {
         event.reminderId,
       );
     } catch (e) {
-      emit(state.copyWith(errorMessage: e.toString()));
+      emit(state.copyWith(errorMessage: AppErrorHandler.format(e)));
     }
   }
 
@@ -691,7 +692,7 @@ class FloorMatrixBloc extends Bloc<FloorMatrixEvent, FloorMatrixState> {
       );
       emit(state.copyWith(successMessage: 'Reminder deleted'));
     } catch (e) {
-      emit(state.copyWith(errorMessage: e.toString()));
+      emit(state.copyWith(errorMessage: AppErrorHandler.format(e)));
     }
   }
 

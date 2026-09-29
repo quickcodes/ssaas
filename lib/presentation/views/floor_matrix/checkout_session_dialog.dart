@@ -47,6 +47,7 @@ class _CheckoutSessionDialogState extends State<CheckoutSessionDialog> {
   int? _selectedPresetMinutes = 0; // 0 = Now
   bool _isCustomTime = false;
   DateTime? _customDateTime;
+  bool _isSubmitting = false;
 
   @override
   void initState() {
@@ -362,6 +363,51 @@ class _CheckoutSessionDialogState extends State<CheckoutSessionDialog> {
                     ],
                   ),
                 ),
+                if (widget.session.isPaused && widget.session.lastPauseTime != null) ...[
+                  const SizedBox(height: 12),
+                  Container(
+                    padding: const EdgeInsets.all(12),
+                    decoration: BoxDecoration(
+                      color: Colors.amber.withAlpha(25),
+                      borderRadius: BorderRadius.circular(12),
+                      border: Border.all(color: Colors.amber.withAlpha(120)),
+                    ),
+                    child: Row(
+                      children: [
+                        const Icon(
+                          Icons.pause_circle_filled,
+                          color: Colors.amber,
+                          size: 22,
+                        ),
+                        const SizedBox(width: 10),
+                        Expanded(
+                          child: Column(
+                            crossAxisAlignment: CrossAxisAlignment.start,
+                            children: [
+                              const Text(
+                                'TABLE CLOCK IS CURRENTLY PAUSED',
+                                style: TextStyle(
+                                  color: Colors.amber,
+                                  fontWeight: FontWeight.w800,
+                                  fontSize: 11,
+                                  letterSpacing: 0.5,
+                                ),
+                              ),
+                              const SizedBox(height: 2),
+                              Text(
+                                'Paused at ${AppFormatters.timeOnly(widget.session.lastPauseTime!)}. Active play time is frozen at ${AppFormatters.formatDuration(playedSeconds)}.',
+                                style: const TextStyle(
+                                  color: AppColors.secondaryText,
+                                  fontSize: 11,
+                                ),
+                              ),
+                            ],
+                          ),
+                        ),
+                      ],
+                    ),
+                  ),
+                ],
                 const SizedBox(height: 16),
 
                 // Table Close Time Selection Card
@@ -1144,7 +1190,10 @@ class _CheckoutSessionDialogState extends State<CheckoutSessionDialog> {
                     Expanded(
                       flex: 2,
                       child: ElevatedButton(
-                        onPressed: () {
+                        onPressed: _isSubmitting
+                            ? null
+                            : () {
+                          if (_isSubmitting) return;
                           if (!_formKey.currentState!.validate()) return;
 
                           if (!effectiveClose.isAfter(
@@ -1326,7 +1375,13 @@ class _CheckoutSessionDialogState extends State<CheckoutSessionDialog> {
                             startedByName: widget.session.startedByName,
                             closedByName: _closingNameCtrl.text.trim(),
                             startedAt: widget.session.startTime,
-                            closedAt: effectiveClose,
+                            closedAt: (widget.session.isPaused &&
+                                    widget.session.lastPauseTime != null &&
+                                    !_isCustomTime &&
+                                    (_selectedPresetMinutes == 0 ||
+                                        _selectedPresetMinutes == null))
+                                ? widget.session.lastPauseTime!
+                                : effectiveClose,
                             durationMinutes: durationMinutes,
                             tableAmount: tableCharge,
                             itemsAmount: itemsCharge,
@@ -1340,6 +1395,7 @@ class _CheckoutSessionDialogState extends State<CheckoutSessionDialog> {
                             createdAt: DateTime.now(),
                           );
 
+                          setState(() => _isSubmitting = true);
                           Navigator.of(context).pop(historyRecord);
                         },
                         style: ElevatedButton.styleFrom(

@@ -41,6 +41,7 @@ class FloorMatrixView extends StatefulWidget {
 class _FloorMatrixViewState extends State<FloorMatrixView> {
   List<StockItem> _canteenItems = [];
   Timer? _snackBarDismissTimer;
+  bool _isNavigating = false;
 
   @override
   void initState() {
@@ -60,13 +61,19 @@ class _FloorMatrixViewState extends State<FloorMatrixView> {
   }
 
   void _showAddTableDialog(BuildContext context, String companyId) async {
-    final newTable = await AppNavigation.pushSmooth<ClubTable>(
-      context,
-      AddTableScreen(companyId: companyId),
-    );
+    if (_isNavigating) return;
+    _isNavigating = true;
+    try {
+      final newTable = await AppNavigation.pushSmooth<ClubTable>(
+        context,
+        AddTableScreen(companyId: companyId),
+      );
 
-    if (newTable != null && context.mounted) {
-      context.read<FloorMatrixBloc>().add(CreateTableEvent(newTable));
+      if (newTable != null && context.mounted) {
+        context.read<FloorMatrixBloc>().add(CreateTableEvent(newTable));
+      }
+    } finally {
+      _isNavigating = false;
     }
   }
 
@@ -627,16 +634,22 @@ class _FloorMatrixViewState extends State<FloorMatrixView> {
       return;
     }
 
-    final session = await AppNavigation.pushSmooth<TableSession>(
-      context,
-      StartSessionScreen(
-        table: table,
-        activeOperator: activeUser,
-      ),
-    );
+    if (_isNavigating) return;
+    _isNavigating = true;
+    try {
+      final session = await AppNavigation.pushSmooth<TableSession>(
+        context,
+        StartSessionScreen(
+          table: table,
+          activeOperator: activeUser,
+        ),
+      );
 
-    if (session != null && context.mounted) {
-      context.read<FloorMatrixBloc>().add(StartTableSessionEvent(session));
+      if (session != null && context.mounted) {
+        context.read<FloorMatrixBloc>().add(StartTableSessionEvent(session));
+      }
+    } finally {
+      _isNavigating = false;
     }
   }
 
@@ -657,29 +670,35 @@ class _FloorMatrixViewState extends State<FloorMatrixView> {
       return;
     }
 
-    final item = await AppNavigation.pushSmooth<TableBillingItem>(
-      context,
-      AddTableItemScreen(
-        canteenItems: _canteenItems,
-        tableName: session.tableName,
-        existingItemsCount: session.items.length,
-        onManageExistingItems: () => _handleManageItems(
-          context,
-          companyId,
-          session,
-          activeUser,
+    if (_isNavigating) return;
+    _isNavigating = true;
+    try {
+      final item = await AppNavigation.pushSmooth<TableBillingItem>(
+        context,
+        AddTableItemScreen(
+          canteenItems: _canteenItems,
+          tableName: session.tableName,
+          existingItemsCount: session.items.length,
+          onManageExistingItems: () => _handleManageItems(
+            context,
+            companyId,
+            session,
+            activeUser,
+          ),
         ),
-      ),
-    );
+      );
 
-    if (item != null && context.mounted) {
-      context.read<FloorMatrixBloc>().add(
-            AddBillingItemEvent(
-              companyId: companyId,
-              sessionId: session.id,
-              item: item,
-            ),
-          );
+      if (item != null && context.mounted) {
+        context.read<FloorMatrixBloc>().add(
+              AddBillingItemEvent(
+                companyId: companyId,
+                sessionId: session.id,
+                item: item,
+              ),
+            );
+      }
+    } finally {
+      _isNavigating = false;
     }
   }
 
@@ -688,23 +707,29 @@ class _FloorMatrixViewState extends State<FloorMatrixView> {
     String companyId,
     TableSession? session,
     UserAccount activeUser,
-  ) {
+  ) async {
     if (session == null) return;
-    showDialog(
-      context: context,
-      builder: (ctx) => ManageTableItemsDialog(
-        companyId: companyId,
-        sessionId: session.id,
-        tableName: session.tableName,
-        activeOperator: activeUser,
-        onAddMoreItems: () => _handleAddItem(
-          context,
-          companyId,
-          session,
-          activeUser,
+    if (_isNavigating) return;
+    _isNavigating = true;
+    try {
+      await showDialog(
+        context: context,
+        builder: (ctx) => ManageTableItemsDialog(
+          companyId: companyId,
+          sessionId: session.id,
+          tableName: session.tableName,
+          activeOperator: activeUser,
+          onAddMoreItems: () => _handleAddItem(
+            context,
+            companyId,
+            session,
+            activeUser,
+          ),
         ),
-      ),
-    );
+      );
+    } finally {
+      _isNavigating = false;
+    }
   }
 
   void _handleCheckoutSession(
@@ -722,37 +747,49 @@ class _FloorMatrixViewState extends State<FloorMatrixView> {
       return;
     }
 
-    final activeCompany = context.read<AuthBloc>().state.activeCompany;
-    final historyRecord = await AppNavigation.pushSmooth<TableHistoryRecord>(
-      context,
-      CheckoutSessionScreen(
-        session: session,
-        now: now,
-        activeOperator: activeUser,
-        dueBufferAmount:
-            activeCompany?.dueBufferAmount ?? Constants.dueBufferAmount,
-      ),
-    );
+    if (_isNavigating) return;
+    _isNavigating = true;
+    try {
+      final activeCompany = context.read<AuthBloc>().state.activeCompany;
+      final historyRecord = await AppNavigation.pushSmooth<TableHistoryRecord>(
+        context,
+        CheckoutSessionScreen(
+          session: session,
+          now: now,
+          activeOperator: activeUser,
+          dueBufferAmount:
+              activeCompany?.dueBufferAmount ?? Constants.dueBufferAmount,
+        ),
+      );
 
-    if (historyRecord != null && context.mounted) {
-      context.read<FloorMatrixBloc>().add(
-            CloseTableSessionEvent(
-              companyId: companyId,
-              sessionId: session.id,
-              historyRecord: historyRecord,
-            ),
-          );
+      if (historyRecord != null && context.mounted) {
+        context.read<FloorMatrixBloc>().add(
+              CloseTableSessionEvent(
+                companyId: companyId,
+                sessionId: session.id,
+                historyRecord: historyRecord,
+              ),
+            );
+      }
+    } finally {
+      _isNavigating = false;
     }
   }
 
   void _handleConfigureRates(BuildContext context, ClubTable table) async {
-    final updated = await AppNavigation.pushSmooth<ClubTable>(
-      context,
-      TableConfigurationScreen(table: table),
-    );
+    if (_isNavigating) return;
+    _isNavigating = true;
+    try {
+      final updated = await AppNavigation.pushSmooth<ClubTable>(
+        context,
+        TableConfigurationScreen(table: table),
+      );
 
-    if (updated != null && context.mounted) {
-      context.read<FloorMatrixBloc>().add(SaveTableConfigurationEvent(updated));
+      if (updated != null && context.mounted) {
+        context.read<FloorMatrixBloc>().add(SaveTableConfigurationEvent(updated));
+      }
+    } finally {
+      _isNavigating = false;
     }
   }
 
@@ -760,11 +797,14 @@ class _FloorMatrixViewState extends State<FloorMatrixView> {
     BuildContext context,
     String companyId,
     ClubTable table,
-  ) {
+  ) async {
+    if (_isNavigating) return;
+    _isNavigating = true;
     AppHaptics.medium();
-    showDialog(
-      context: context,
-      builder: (dialogCtx) => AlertDialog(
+    try {
+      await showDialog(
+        context: context,
+        builder: (dialogCtx) => AlertDialog(
         backgroundColor: AppColors.cardSurface,
         shape: RoundedRectangleBorder(
           borderRadius: BorderRadius.circular(16),
@@ -828,6 +868,9 @@ class _FloorMatrixViewState extends State<FloorMatrixView> {
         ],
       ),
     );
+    } finally {
+      _isNavigating = false;
+    }
   }
 
   Widget _buildUpcomingRemindersBanner(

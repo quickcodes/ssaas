@@ -63,31 +63,33 @@ class ClubTable extends Equatable {
   /// Computes dynamic table charge for a duration taking custom rate schedules into account
   double computeDynamicCharge(DateTime start, DateTime end, {int pausedSeconds = 0}) {
     if (!end.isAfter(start)) return 0.0;
-    final totalSeconds = end.difference(start).inSeconds - pausedSeconds;
+    final totalSeconds = (end.difference(start).inSeconds - pausedSeconds).clamp(0, 86400 * 7);
     if (totalSeconds <= 0) return 0.0;
-
-    // Sample across the interval or minute-by-minute (for accuracy across rate changes)
-    final totalMinutes = (totalSeconds / 60).ceil();
-    if (totalMinutes <= 0) return 0.0;
 
     if (customPricings.isEmpty) {
       return (totalSeconds / 3600.0) * generalPrice;
     }
 
     double totalCost = 0.0;
-    // Step in 5-minute increments for optimal performance
     const stepMinutes = 5;
     var cursor = start;
+    final fullMinutes = totalSeconds ~/ 60;
+    final remainingSeconds = totalSeconds % 60;
     int processedMinutes = 0;
 
-    while (processedMinutes < totalMinutes) {
-      final chunk = (totalMinutes - processedMinutes) < stepMinutes
-          ? (totalMinutes - processedMinutes)
+    while (processedMinutes < fullMinutes) {
+      final chunk = (fullMinutes - processedMinutes) < stepMinutes
+          ? (fullMinutes - processedMinutes)
           : stepMinutes;
       final rate = effectiveRateAt(cursor);
       totalCost += (chunk / 60.0) * rate;
       processedMinutes += chunk;
       cursor = cursor.add(Duration(minutes: chunk));
+    }
+
+    if (remainingSeconds > 0) {
+      final rate = effectiveRateAt(cursor);
+      totalCost += (remainingSeconds / 3600.0) * rate;
     }
 
     return totalCost;
