@@ -100,6 +100,8 @@ class _TablesHistoryViewState extends State<TablesHistoryView> {
 
                 // Customer & Closed By
                 _buildDetailRow('Closing Person', record.customerName),
+                if (record.customerPhone.isNotEmpty)
+                  _buildDetailRow('Customer Number', record.customerPhone),
                 _buildDetailRow('Closed By (Staff)', record.closedByName),
                 _buildDetailRow('Started By', record.startedByName),
                 _buildDetailRow(
@@ -546,6 +548,7 @@ class _TablesHistoryViewState extends State<TablesHistoryView> {
               r.customerName.toLowerCase().contains(
                 _searchQuery.toLowerCase(),
               ) ||
+              r.customerPhone.contains(_searchQuery) ||
               r.tableName.toLowerCase().contains(_searchQuery.toLowerCase()) ||
               r.closedByName.toLowerCase().contains(_searchQuery.toLowerCase());
 
@@ -859,7 +862,9 @@ class _TablesHistoryViewState extends State<TablesHistoryView> {
                                                             .start,
                                                     children: [
                                                       Text(
-                                                        'Customer: ${record.customerName}',
+                                                        record.customerPhone.isNotEmpty
+                                                            ? 'Customer: ${record.customerName} (${record.customerPhone})'
+                                                            : 'Customer: ${record.customerName}',
                                                         style: const TextStyle(
                                                           color: AppColors
                                                               .primaryText,

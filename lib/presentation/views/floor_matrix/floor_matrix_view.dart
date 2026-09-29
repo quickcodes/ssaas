@@ -1,3 +1,4 @@
+import 'dart:async';
 import 'package:flutter/material.dart';
 import 'package:flutter_bloc/flutter_bloc.dart';
 import 'package:intl/intl.dart';
@@ -38,6 +39,7 @@ class FloorMatrixView extends StatefulWidget {
 
 class _FloorMatrixViewState extends State<FloorMatrixView> {
   List<StockItem> _canteenItems = [];
+  Timer? _snackBarDismissTimer;
 
   @override
   void initState() {
@@ -306,6 +308,7 @@ class _FloorMatrixViewState extends State<FloorMatrixView> {
                                   context,
                                   activeCompany.id,
                                   session,
+                                  activeUser,
                                 ),
                                 onCheckoutSession: () => _handleCheckoutSession(
                                   context,
@@ -326,6 +329,13 @@ class _FloorMatrixViewState extends State<FloorMatrixView> {
                                 },
                                 onConfigureRates: () =>
                                     _handleConfigureRates(context, table),
+                                onDeleteTable: activeUser.isAdmin
+                                    ? () => _handleDeleteTable(
+                                          context,
+                                          activeCompany.id,
+                                          table,
+                                        )
+                                    : null,
                               ),
                             );
                           },
@@ -539,36 +549,72 @@ class _FloorMatrixViewState extends State<FloorMatrixView> {
     );
   }
 
+  @override
+  void dispose() {
+    _snackBarDismissTimer?.cancel();
+    super.dispose();
+  }
+
+  void _showOfflineOperatorSnackBar(
+    BuildContext context,
+    UserAccount activeUser,
+    String actionDescription,
+  ) {
+    final activeCompany = context.read<AuthBloc>().state.activeCompany;
+    final messenger = ScaffoldMessenger.of(context);
+    messenger.clearSnackBars();
+    _snackBarDismissTimer?.cancel();
+
+    final controller = messenger.showSnackBar(
+      SnackBar(
+        content: Text(
+          'Only the active Online operator can $actionDescription. Please switch to Online first.',
+        ),
+        backgroundColor: AppColors.tableOccupied,
+        duration: const Duration(seconds: 4),
+        behavior: SnackBarBehavior.floating,
+        shape: RoundedRectangleBorder(
+          borderRadius: BorderRadius.circular(10),
+        ),
+        action: activeCompany != null
+            ? SnackBarAction(
+                label: 'GO ONLINE',
+                textColor: Colors.white,
+                onPressed: () {
+                  _snackBarDismissTimer?.cancel();
+                  messenger.hideCurrentSnackBar();
+                  showDialog(
+                    context: context,
+                    builder: (_) => UserOnlineStatusDialog(
+                      currentUser: activeUser,
+                      activeCompany: activeCompany,
+                    ),
+                  );
+                },
+              )
+            : null,
+      ),
+    );
+
+    // Explicit auto-dismissal timer to ensure the snackbar dismisses even on devices with accessibility services active
+    _snackBarDismissTimer = Timer(const Duration(seconds: 4), () {
+      try {
+        controller.close();
+      } catch (_) {}
+    });
+
+    controller.closed.then((_) {
+      _snackBarDismissTimer?.cancel();
+    });
+  }
+
   void _handleStartSession(
     BuildContext context,
     ClubTable table,
     UserAccount activeUser,
   ) async {
     if (!activeUser.isOnline) {
-      final activeCompany = context.read<AuthBloc>().state.activeCompany;
-      ScaffoldMessenger.of(context).showSnackBar(
-        SnackBar(
-          content: const Text(
-            'Only the active Online operator can start tables. Please switch to Online first.',
-          ),
-          backgroundColor: AppColors.tableOccupied,
-          action: activeCompany != null
-              ? SnackBarAction(
-                  label: 'GO ONLINE',
-                  textColor: Colors.white,
-                  onPressed: () {
-                    showDialog(
-                      context: context,
-                      builder: (_) => UserOnlineStatusDialog(
-                        currentUser: activeUser,
-                        activeCompany: activeCompany,
-                      ),
-                    );
-                  },
-                )
-              : null,
-        ),
-      );
+      _showOfflineOperatorSnackBar(context, activeUser, 'start tables');
       return;
     }
 
@@ -589,8 +635,18 @@ class _FloorMatrixViewState extends State<FloorMatrixView> {
     BuildContext context,
     String companyId,
     TableSession? session,
+    UserAccount activeUser,
   ) async {
     if (session == null) return;
+
+    if (!activeUser.isOnline) {
+      _showOfflineOperatorSnackBar(
+        context,
+        activeUser,
+        'add canteen items to tables',
+      );
+      return;
+    }
 
     final item = await AppNavigation.pushSmooth<TableBillingItem>(
       context,
@@ -622,30 +678,7 @@ class _FloorMatrixViewState extends State<FloorMatrixView> {
     if (session == null) return;
 
     if (!activeUser.isOnline) {
-      final activeCompany = context.read<AuthBloc>().state.activeCompany;
-      ScaffoldMessenger.of(context).showSnackBar(
-        SnackBar(
-          content: const Text(
-            'Only the active Online operator can close tables. Please switch to Online first.',
-          ),
-          backgroundColor: AppColors.tableOccupied,
-          action: activeCompany != null
-              ? SnackBarAction(
-                  label: 'GO ONLINE',
-                  textColor: Colors.white,
-                  onPressed: () {
-                    showDialog(
-                      context: context,
-                      builder: (_) => UserOnlineStatusDialog(
-                        currentUser: activeUser,
-                        activeCompany: activeCompany,
-                      ),
-                    );
-                  },
-                )
-              : null,
-        ),
-      );
+      _showOfflineOperatorSnackBar(context, activeUser, 'close tables');
       return;
     }
 
@@ -681,6 +714,80 @@ class _FloorMatrixViewState extends State<FloorMatrixView> {
     if (updated != null && context.mounted) {
       context.read<FloorMatrixBloc>().add(SaveTableConfigurationEvent(updated));
     }
+  }
+
+  void _handleDeleteTable(
+    BuildContext context,
+    String companyId,
+    ClubTable table,
+  ) {
+    AppHaptics.medium();
+    showDialog(
+      context: context,
+      builder: (dialogCtx) => AlertDialog(
+        backgroundColor: AppColors.cardSurface,
+        shape: RoundedRectangleBorder(
+          borderRadius: BorderRadius.circular(16),
+          side: const BorderSide(color: AppColors.cardBorderStroke),
+        ),
+        title: Row(
+          children: [
+            Container(
+              padding: const EdgeInsets.all(8),
+              decoration: BoxDecoration(
+                color: AppColors.tableOccupied.withAlpha(30),
+                shape: BoxShape.circle,
+              ),
+              child: const Icon(
+                Icons.delete_outline,
+                color: AppColors.tableOccupied,
+                size: 22,
+              ),
+            ),
+            const SizedBox(width: 12),
+            const Text(
+              'Delete Table?',
+              style: TextStyle(
+                color: AppColors.primaryText,
+                fontWeight: FontWeight.w700,
+                fontSize: 18,
+              ),
+            ),
+          ],
+        ),
+        content: Text(
+          'Are you sure you want to permanently delete table "${table.name}"? This action cannot be undone.',
+          style: const TextStyle(
+            color: AppColors.secondaryText,
+            fontSize: 14,
+            height: 1.4,
+          ),
+        ),
+        actions: [
+          TextButton(
+            onPressed: () => Navigator.pop(dialogCtx),
+            child: const Text('Cancel'),
+          ),
+          ElevatedButton(
+            onPressed: () {
+              Navigator.pop(dialogCtx);
+              context.read<FloorMatrixBloc>().add(
+                    DeleteTableEvent(
+                      companyId: companyId,
+                      tableId: table.id,
+                      tableName: table.name,
+                    ),
+                  );
+            },
+            style: ElevatedButton.styleFrom(
+              backgroundColor: AppColors.tableOccupied,
+              foregroundColor: Colors.white,
+            ),
+            child: const Text('Delete Table'),
+          ),
+        ],
+      ),
+    );
   }
 
   Widget _buildUpcomingRemindersBanner(

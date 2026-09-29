@@ -75,6 +75,21 @@ class SaveTableConfigurationEvent extends FloorMatrixEvent {
   List<Object?> get props => [table];
 }
 
+class DeleteTableEvent extends FloorMatrixEvent {
+  final String companyId;
+  final String tableId;
+  final String tableName;
+
+  const DeleteTableEvent({
+    required this.companyId,
+    required this.tableId,
+    required this.tableName,
+  });
+
+  @override
+  List<Object?> get props => [companyId, tableId, tableName];
+}
+
 class StartTableSessionEvent extends FloorMatrixEvent {
   final TableSession session;
   const StartTableSessionEvent(this.session);
@@ -300,6 +315,7 @@ class FloorMatrixBloc extends Bloc<FloorMatrixEvent, FloorMatrixState> {
     on<FilterStatusChangedEvent>(_onFilterStatusChanged);
     on<CreateTableEvent>(_onCreateTable);
     on<SaveTableConfigurationEvent>(_onSaveTableConfiguration);
+    on<DeleteTableEvent>(_onDeleteTable);
     on<StartTableSessionEvent>(_onStartTableSession);
     on<PauseTableSessionEvent>(_onPauseTableSession);
     on<ResumeTableSessionEvent>(_onResumeTableSession);
@@ -406,9 +422,21 @@ class FloorMatrixBloc extends Bloc<FloorMatrixEvent, FloorMatrixState> {
   ) async {
     try {
       await _firestoreService.saveTable(event.table);
-      emit(state.copyWith(successMessage: 'Rates for "${event.table.name}" updated.'));
+      emit(state.copyWith(successMessage: 'Table "${event.table.name}" updated.'));
     } catch (e) {
       emit(state.copyWith(errorMessage: e.toString()));
+    }
+  }
+
+  Future<void> _onDeleteTable(
+    DeleteTableEvent event,
+    Emitter<FloorMatrixState> emit,
+  ) async {
+    try {
+      await _firestoreService.deleteTable(event.companyId, event.tableId);
+      emit(state.copyWith(successMessage: 'Table "${event.tableName}" deleted successfully.'));
+    } catch (e) {
+      emit(state.copyWith(errorMessage: 'Failed to delete table: $e'));
     }
   }
 

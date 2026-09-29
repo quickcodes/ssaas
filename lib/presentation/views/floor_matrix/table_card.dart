@@ -20,6 +20,7 @@ class TableCard extends StatelessWidget {
   final VoidCallback onAddItem;
   final Function(TableStatus) onUpdateStatus;
   final VoidCallback onConfigureRates;
+  final VoidCallback? onDeleteTable;
 
   const TableCard({
     super.key,
@@ -34,6 +35,7 @@ class TableCard extends StatelessWidget {
     required this.onAddItem,
     required this.onUpdateStatus,
     required this.onConfigureRates,
+    this.onDeleteTable,
   });
 
   Color get _statusColor {
@@ -51,8 +53,9 @@ class TableCard extends StatelessWidget {
   Widget build(BuildContext context) {
     final hasActiveSession = session != null;
     final playedSeconds = hasActiveSession ? session!.playedSecondsAt(now) : 0;
-    final liveTableFee =
-        hasActiveSession ? session!.computeTableChargeAt(now) : 0.0;
+    final liveTableFee = hasActiveSession
+        ? session!.computeTableChargeAt(now)
+        : 0.0;
     final liveItemsFee = hasActiveSession ? session!.itemsAmount : 0.0;
     final liveGrandTotal = liveTableFee + liveItemsFee;
     final currentHourlyRate = hasActiveSession
@@ -137,83 +140,162 @@ class TableCard extends StatelessWidget {
                   ],
                 ),
 
-                // Status Popup Menu
-                PopupMenuButton<TableStatus>(
-                  initialValue: table.status,
-                  tooltip: 'Change Table Status',
-                  onSelected: (status) {
-                    AppHaptics.selection();
-                    onUpdateStatus(status);
-                  },
-                  color: AppColors.cardSurface,
-                  shape: RoundedRectangleBorder(
-                    borderRadius: BorderRadius.circular(12),
-                    side: const BorderSide(color: AppColors.cardBorderStroke),
-                  ),
-                  child: Container(
-                    padding: const EdgeInsets.symmetric(
-                      horizontal: 10,
-                      vertical: 5,
-                    ),
-                    decoration: BoxDecoration(
-                      color: _statusColor.withAlpha(25),
-                      borderRadius: BorderRadius.circular(8),
-                      border: Border.all(
-                        color: _statusColor.withAlpha(160),
-                        width: 1,
+                Row(
+                  mainAxisSize: MainAxisSize.min,
+                  children: [
+                    // Status Popup Menu
+                    PopupMenuButton<TableStatus>(
+                      initialValue: table.status,
+                      tooltip: 'Change Table Status',
+                      onSelected: (status) {
+                        AppHaptics.selection();
+                        onUpdateStatus(status);
+                      },
+                      color: AppColors.cardSurface,
+                      shape: RoundedRectangleBorder(
+                        borderRadius: BorderRadius.circular(12),
+                        side: const BorderSide(
+                          color: AppColors.cardBorderStroke,
+                        ),
                       ),
-                    ),
-                    child: Row(
-                      mainAxisSize: MainAxisSize.min,
-                      children: [
-                        Text(
-                          table.status.displayName,
-                          style: TextStyle(
-                            color: _statusColor,
-                            fontWeight: FontWeight.w800,
-                            fontSize: 11,
+                      child: Container(
+                        padding: const EdgeInsets.symmetric(
+                          horizontal: 10,
+                          vertical: 5,
+                        ),
+                        decoration: BoxDecoration(
+                          color: _statusColor.withAlpha(25),
+                          borderRadius: BorderRadius.circular(8),
+                          border: Border.all(
+                            color: _statusColor.withAlpha(160),
+                            width: 1,
                           ),
                         ),
-                        const SizedBox(width: 4),
-                        Icon(
-                          Icons.arrow_drop_down,
-                          color: _statusColor,
-                          size: 16,
+                        child: Row(
+                          mainAxisSize: MainAxisSize.min,
+                          children: [
+                            Text(
+                              table.status.displayName,
+                              style: TextStyle(
+                                color: _statusColor,
+                                fontWeight: FontWeight.w800,
+                                fontSize: 11,
+                              ),
+                            ),
+                            const SizedBox(width: 4),
+                            Icon(
+                              Icons.arrow_drop_down,
+                              color: _statusColor,
+                              size: 16,
+                            ),
+                          ],
                         ),
-                      ],
+                      ),
+                      itemBuilder: (context) => TableStatus.values
+                          .where((e) => e != TableStatus.occupied)
+                          .map((s) {
+                            return PopupMenuItem<TableStatus>(
+                              value: s,
+                              child: Row(
+                                children: [
+                                  Container(
+                                    width: 8,
+                                    height: 8,
+                                    decoration: BoxDecoration(
+                                      color: _getStatusColorFor(s),
+                                      shape: BoxShape.circle,
+                                    ),
+                                  ),
+                                  const SizedBox(width: 10),
+                                  Text(
+                                    s.displayName,
+                                    style: const TextStyle(
+                                      color: AppColors.primaryText,
+                                      fontSize: 13,
+                                      fontWeight: FontWeight.w600,
+                                    ),
+                                  ),
+                                ],
+                              ),
+                            );
+                          })
+                          .toList(),
                     ),
-                  ),
-                  itemBuilder: (context) => TableStatus.values
-                      .where(
-                        (e) => e != TableStatus.occupied,
-                      )
-                      .map((s) {
-                        return PopupMenuItem<TableStatus>(
-                          value: s,
-                          child: Row(
-                            children: [
-                              Container(
-                                width: 8,
-                                height: 8,
-                                decoration: BoxDecoration(
-                                  color: _getStatusColorFor(s),
-                                  shape: BoxShape.circle,
-                                ),
-                              ),
-                              const SizedBox(width: 10),
-                              Text(
-                                s.displayName,
-                                style: const TextStyle(
-                                  color: AppColors.primaryText,
-                                  fontSize: 13,
-                                  fontWeight: FontWeight.w600,
-                                ),
-                              ),
-                            ],
+
+                    if (activeOperator.isAdmin) ...[
+                      const SizedBox(width: 4),
+                      PopupMenuButton<String>(
+                        tooltip: 'Table Options',
+                        icon: const Icon(
+                          Icons.more_vert,
+                          size: 18,
+                          color: AppColors.secondaryText,
+                        ),
+                        color: AppColors.cardSurface,
+                        shape: RoundedRectangleBorder(
+                          borderRadius: BorderRadius.circular(12),
+                          side: const BorderSide(
+                            color: AppColors.cardBorderStroke,
                           ),
-                        );
-                      })
-                      .toList(),
+                        ),
+                        onSelected: (val) {
+                          AppHaptics.selection();
+                          if (val == 'edit') {
+                            onConfigureRates();
+                          } else if (val == 'delete') {
+                            onDeleteTable?.call();
+                          }
+                        },
+                        itemBuilder: (context) => [
+                          const PopupMenuItem(
+                            value: 'edit',
+                            child: Row(
+                              children: [
+                                Icon(
+                                  Icons.edit_outlined,
+                                  size: 16,
+                                  color: AppColors.brandAccentLight,
+                                ),
+                                SizedBox(width: 8),
+                                Text(
+                                  'Edit Table & Rates',
+                                  style: TextStyle(
+                                    color: AppColors.primaryText,
+                                    fontSize: 13,
+                                  ),
+                                ),
+                              ],
+                            ),
+                          ),
+                          PopupMenuItem(
+                            value: 'delete',
+                            enabled: !hasActiveSession,
+                            child: Row(
+                              children: [
+                                Icon(
+                                  Icons.delete_outline,
+                                  size: 16,
+                                  color: hasActiveSession
+                                      ? AppColors.textDisabled
+                                      : AppColors.tableOccupied,
+                                ),
+                                const SizedBox(width: 8),
+                                Text(
+                                  'Delete Table',
+                                  style: TextStyle(
+                                    color: hasActiveSession
+                                        ? AppColors.textDisabled
+                                        : AppColors.tableOccupied,
+                                    fontSize: 13,
+                                  ),
+                                ),
+                              ],
+                            ),
+                          ),
+                        ],
+                      ),
+                    ],
+                  ],
                 ),
               ],
             ),
@@ -246,7 +328,9 @@ class TableCard extends StatelessWidget {
                         const SizedBox(width: 6),
                         Expanded(
                           child: Text(
-                            'Customer: ${session!.customerName}',
+                            session!.customerPhone.isNotEmpty
+                                ? 'Customer: ${session!.customerName} (${session!.customerPhone})'
+                                : 'Customer: ${session!.customerName}',
                             style: const TextStyle(
                               color: AppColors.primaryText,
                               fontWeight: FontWeight.w700,
@@ -534,21 +618,46 @@ class TableCard extends StatelessWidget {
                       ),
                     ),
 
-                  // Admin Only: Configure Rates Button
-                  if (activeOperator.isAdmin) ...[
-                    const SizedBox(height: 8),
-                    TextButton.icon(
-                      onPressed: () {
-                        AppHaptics.light();
-                        onConfigureRates();
-                      },
-                      icon: const Icon(Icons.tune, size: 16),
-                      label: const Text('Configure Prices & Times'),
-                      style: TextButton.styleFrom(
-                        foregroundColor: AppColors.secondaryText,
-                      ),
-                    ),
-                  ],
+                  // Admin Only: Edit & Delete Table Buttons
+                  // if (activeOperator.isAdmin) ...[
+                  //   const SizedBox(height: 10),
+                  //   Row(
+                  //     children: [
+                  //       Expanded(
+                  //         child: TextButton.icon(
+                  //           onPressed: () {
+                  //             AppHaptics.light();
+                  //             onConfigureRates();
+                  //           },
+                  //           icon: const Icon(Icons.edit_outlined, size: 15),
+                  //           label: const Text('Edit Table'),
+                  //           style: TextButton.styleFrom(
+                  //             foregroundColor: AppColors.secondaryText,
+                  //           ),
+                  //         ),
+                  //       ),
+                  //       if (onDeleteTable != null)
+                  //         TextButton.icon(
+                  //           onPressed: () {
+                  //             AppHaptics.light();
+                  //             onDeleteTable!();
+                  //           },
+                  //           icon: const Icon(
+                  //             Icons.delete_outline,
+                  //             size: 15,
+                  //             color: AppColors.tableOccupied,
+                  //           ),
+                  //           label: const Text(
+                  //             'Delete',
+                  //             style: TextStyle(color: AppColors.tableOccupied),
+                  //           ),
+                  //           style: TextButton.styleFrom(
+                  //             foregroundColor: AppColors.tableOccupied,
+                  //           ),
+                  //         ),
+                  //     ],
+                  //   ),
+                  // ],
                 ],
               ],
             ),

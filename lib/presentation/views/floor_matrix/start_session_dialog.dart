@@ -24,6 +24,7 @@ class StartSessionDialog extends StatefulWidget {
 
 class _StartSessionDialogState extends State<StartSessionDialog> {
   final _customerController = TextEditingController();
+  final _customerPhoneController = TextEditingController();
   final _notesController = TextEditingController();
   final _minutesAgoController = TextEditingController();
   final _formKey = GlobalKey<FormState>();
@@ -35,6 +36,7 @@ class _StartSessionDialogState extends State<StartSessionDialog> {
   @override
   void dispose() {
     _customerController.dispose();
+    _customerPhoneController.dispose();
     _notesController.dispose();
     _minutesAgoController.dispose();
     super.dispose();
@@ -318,6 +320,38 @@ class _StartSessionDialogState extends State<StartSessionDialog> {
                   validator: (val) => val == null || val.trim().isEmpty
                       ? 'Customer name is required to start table'
                       : null,
+                ),
+                const SizedBox(height: 14),
+
+                // Customer Phone Input (Optional)
+                TextFormField(
+                  controller: _customerPhoneController,
+                  keyboardType: TextInputType.phone,
+                  inputFormatters: [
+                    FilteringTextInputFormatter.digitsOnly,
+                    LengthLimitingTextInputFormatter(10),
+                  ],
+                  maxLength: 10,
+                  buildCounter: (
+                    context, {
+                    required currentLength,
+                    required isFocused,
+                    maxLength,
+                  }) =>
+                      null,
+                  decoration: const InputDecoration(
+                    labelText: 'Customer Number (Optional)',
+                    hintText: 'Enter 10-digit mobile number',
+                    prefixIcon: Icon(Icons.phone_outlined),
+                  ),
+                  validator: (val) {
+                    if (val != null &&
+                        val.trim().isNotEmpty &&
+                        val.trim().length != 10) {
+                      return 'Customer number must be 10 digits';
+                    }
+                    return null;
+                  },
                 ),
                 const SizedBox(height: 18),
 
@@ -738,6 +772,7 @@ class _StartSessionDialogState extends State<StartSessionDialog> {
                             tableId: widget.table.id,
                             tableName: widget.table.name,
                             customerName: _customerController.text.trim(),
+                            customerPhone: _customerPhoneController.text.trim(),
                             startedById: widget.activeOperator.id,
                             startedByName: widget.activeOperator.name,
                             startTime: chosenStart,

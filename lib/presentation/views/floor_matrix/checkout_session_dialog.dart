@@ -31,6 +31,7 @@ class CheckoutSessionDialog extends StatefulWidget {
 class _CheckoutSessionDialogState extends State<CheckoutSessionDialog> {
   double get _dueBuffer => widget.dueBufferAmount;
   final _closingPersonCtrl = TextEditingController();
+  final _customerPhoneCtrl = TextEditingController();
   final _closingNameCtrl = TextEditingController();
   final _notesCtrl = TextEditingController();
   final _partialAmountCtrl = TextEditingController();
@@ -51,12 +52,14 @@ class _CheckoutSessionDialogState extends State<CheckoutSessionDialog> {
   void initState() {
     super.initState();
     _closingPersonCtrl.text = widget.session.customerName;
+    _customerPhoneCtrl.text = widget.session.customerPhone;
     _closingNameCtrl.text = widget.activeOperator.name;
   }
 
   @override
   void dispose() {
     _closingPersonCtrl.dispose();
+    _customerPhoneCtrl.dispose();
     _closingNameCtrl.dispose();
     _notesCtrl.dispose();
     _partialAmountCtrl.dispose();
@@ -796,6 +799,38 @@ class _CheckoutSessionDialogState extends State<CheckoutSessionDialog> {
                 ),
                 const SizedBox(height: 14),
 
+                // Customer Phone Field (Optional)
+                TextFormField(
+                  controller: _customerPhoneCtrl,
+                  keyboardType: TextInputType.phone,
+                  inputFormatters: [
+                    FilteringTextInputFormatter.digitsOnly,
+                    LengthLimitingTextInputFormatter(10),
+                  ],
+                  maxLength: 10,
+                  buildCounter: (
+                    context, {
+                    required currentLength,
+                    required isFocused,
+                    maxLength,
+                  }) =>
+                      null,
+                  decoration: const InputDecoration(
+                    labelText: 'Customer Number (Optional)',
+                    hintText: 'Enter 10-digit mobile number',
+                    prefixIcon: Icon(Icons.phone_outlined),
+                  ),
+                  validator: (val) {
+                    if (val != null &&
+                        val.trim().isNotEmpty &&
+                        val.trim().length != 10) {
+                      return 'Customer number must be 10 digits';
+                    }
+                    return null;
+                  },
+                ),
+                const SizedBox(height: 14),
+
                 // Closing Staff Name Field (Staff closing this table)
                 TextFormField(
                   controller: _closingNameCtrl,
@@ -1287,6 +1322,7 @@ class _CheckoutSessionDialogState extends State<CheckoutSessionDialog> {
                             tableId: widget.session.tableId,
                             tableName: widget.session.tableName,
                             customerName: _closingPersonCtrl.text.trim(),
+                            customerPhone: _customerPhoneCtrl.text.trim(),
                             startedByName: widget.session.startedByName,
                             closedByName: _closingNameCtrl.text.trim(),
                             startedAt: widget.session.startTime,

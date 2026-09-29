@@ -10,6 +10,7 @@ class TableHistoryRecord extends Equatable {
   final String tableId;
   final String tableName;
   final String customerName;
+  final String customerPhone;
   final String startedByName;
   final String closedByName;
   final DateTime startedAt;
@@ -32,6 +33,7 @@ class TableHistoryRecord extends Equatable {
     required this.tableId,
     required this.tableName,
     required this.customerName,
+    this.customerPhone = '',
     required this.startedByName,
     required this.closedByName,
     required this.startedAt,
@@ -75,6 +77,7 @@ class TableHistoryRecord extends Equatable {
     String? tableId,
     String? tableName,
     String? customerName,
+    String? customerPhone,
     String? startedByName,
     String? closedByName,
     DateTime? startedAt,
@@ -97,6 +100,7 @@ class TableHistoryRecord extends Equatable {
       tableId: tableId ?? this.tableId,
       tableName: tableName ?? this.tableName,
       customerName: customerName ?? this.customerName,
+      customerPhone: customerPhone ?? this.customerPhone,
       startedByName: startedByName ?? this.startedByName,
       closedByName: closedByName ?? this.closedByName,
       startedAt: startedAt ?? this.startedAt,
@@ -121,6 +125,7 @@ class TableHistoryRecord extends Equatable {
       'tableId': tableId,
       'tableName': tableName,
       'customerName': customerName,
+      'customerPhone': customerPhone,
       'startedByName': startedByName,
       'closedByName': closedByName,
       'startedAt': Timestamp.fromDate(startedAt),
@@ -187,6 +192,7 @@ class TableHistoryRecord extends Equatable {
       tableId: map['tableId'] as String? ?? '',
       tableName: map['tableName'] as String? ?? '',
       customerName: map['customerName'] as String? ?? '',
+      customerPhone: map['customerPhone'] as String? ?? '',
       startedByName: map['startedByName'] as String? ?? '',
       closedByName: map['closedByName'] as String? ?? '',
       startedAt: parseDate(map['startedAt']),
@@ -212,6 +218,7 @@ class TableHistoryRecord extends Equatable {
         tableId,
         tableName,
         customerName,
+        customerPhone,
         startedByName,
         closedByName,
         startedAt,

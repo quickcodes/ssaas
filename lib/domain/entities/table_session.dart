@@ -9,6 +9,7 @@ class TableSession extends Equatable {
   final String tableId;
   final String tableName;
   final String customerName;
+  final String customerPhone;
   final String startedById;
   final String startedByName;
   final String closingName;
@@ -30,6 +31,7 @@ class TableSession extends Equatable {
     required this.tableId,
     required this.tableName,
     required this.customerName,
+    this.customerPhone = '',
     required this.startedById,
     required this.startedByName,
     this.closingName = '',
@@ -113,6 +115,7 @@ class TableSession extends Equatable {
     String? tableId,
     String? tableName,
     String? customerName,
+    String? customerPhone,
     String? startedById,
     String? startedByName,
     String? closingName,
@@ -134,6 +137,7 @@ class TableSession extends Equatable {
       tableId: tableId ?? this.tableId,
       tableName: tableName ?? this.tableName,
       customerName: customerName ?? this.customerName,
+      customerPhone: customerPhone ?? this.customerPhone,
       startedById: startedById ?? this.startedById,
       startedByName: startedByName ?? this.startedByName,
       closingName: closingName ?? this.closingName,
@@ -158,6 +162,7 @@ class TableSession extends Equatable {
       'tableId': tableId,
       'tableName': tableName,
       'customerName': customerName,
+      'customerPhone': customerPhone,
       'startedById': startedById,
       'startedByName': startedByName,
       'closingName': closingName,
@@ -205,6 +210,7 @@ class TableSession extends Equatable {
       tableId: map['tableId'] as String? ?? '',
       tableName: map['tableName'] as String? ?? '',
       customerName: map['customerName'] as String? ?? '',
+      customerPhone: map['customerPhone'] as String? ?? '',
       startedById: map['startedById'] as String? ?? '',
       startedByName: map['startedByName'] as String? ?? '',
       closingName: map['closingName'] as String? ?? '',
@@ -229,6 +235,7 @@ class TableSession extends Equatable {
         tableId,
         tableName,
         customerName,
+        customerPhone,
         startedById,
         startedByName,
         closingName,
