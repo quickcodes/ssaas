@@ -1,12 +1,15 @@
 import 'package:flutter/material.dart';
 import 'package:intl/intl.dart';
+import '../../../core/di/service_locator.dart';
 import '../../../core/theme/app_colors.dart';
 import '../../../core/utils/formatters.dart';
 import '../../../core/utils/history_report_exporter.dart';
+import '../../../data/datasources/firestore_service.dart';
 import '../../../domain/entities/table_history_record.dart';
 
 class ShareHistoryReportDialog extends StatefulWidget {
   final String companyName;
+  final String? companyId;
   final List<TableHistoryRecord> allRecords;
   final HistoryReportPreset? initialPreset;
   final DateTimeRange? initialCustomDateRange;
@@ -14,6 +17,7 @@ class ShareHistoryReportDialog extends StatefulWidget {
   const ShareHistoryReportDialog({
     super.key,
     required this.companyName,
+    this.companyId,
     required this.allRecords,
     this.initialPreset,
     this.initialCustomDateRange,
@@ -89,12 +93,36 @@ class _ShareHistoryReportDialogState extends State<ShareHistoryReportDialog> {
   }
 
   Future<void> _handleShare() async {
-    final records = _filteredRecords;
-    if (records.isEmpty) return;
-
     setState(() => _isSharing = true);
 
     try {
+      List<TableHistoryRecord> records = _filteredRecords;
+      if (widget.companyId != null &&
+          (_selectedPreset != widget.initialPreset || records.isEmpty)) {
+        final range = _activeDateRange;
+        records = await sl<FirestoreService>().getTablesHistory(
+          widget.companyId!,
+          startDate: _selectedPreset == HistoryReportPreset.allTime
+              ? null
+              : range.start,
+          endDate: _selectedPreset == HistoryReportPreset.allTime
+              ? null
+              : range.end,
+        );
+      }
+      if (records.isEmpty) {
+        if (mounted) {
+          ScaffoldMessenger.of(context).showSnackBar(
+            const SnackBar(
+              content: Text('No records found for the selected period.'),
+              backgroundColor: AppColors.cardBorderStroke,
+            ),
+          );
+        }
+        return;
+      }
+      if (!mounted) return;
+
       // Find button RenderBox for anchor origin on iPad/macOS
       Rect? origin;
       final renderBox =

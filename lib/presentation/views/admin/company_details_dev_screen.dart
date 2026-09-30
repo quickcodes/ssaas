@@ -13,6 +13,7 @@ import '../../../domain/entities/stock_item.dart';
 import '../../../domain/entities/table_history_record.dart';
 import '../../../domain/entities/table_session.dart';
 import '../../../domain/entities/user_account.dart';
+import '../../../domain/entities/company_daily_usage.dart';
 import '../../widgets/bouncing_tap.dart';
 
 class CompanyDetailsDevScreen extends StatefulWidget {
@@ -36,7 +37,7 @@ class _CompanyDetailsDevScreenState extends State<CompanyDetailsDevScreen>
   @override
   void initState() {
     super.initState();
-    _tabController = TabController(length: 4, vsync: this);
+    _tabController = TabController(length: 5, vsync: this);
   }
 
   @override
@@ -214,6 +215,16 @@ class _CompanyDetailsDevScreenState extends State<CompanyDetailsDevScreen>
                                 ],
                               ),
                             ),
+                            Tab(
+                              child: Row(
+                                mainAxisSize: MainAxisSize.min,
+                                children: [
+                                  Icon(Icons.data_usage_rounded, size: 15),
+                                  SizedBox(width: 6),
+                                  Text('Quota & Usage'),
+                                ],
+                              ),
+                            ),
                           ],
                         ),
                       ),
@@ -236,6 +247,9 @@ class _CompanyDetailsDevScreenState extends State<CompanyDetailsDevScreen>
 
                 // Tab 4: Inventory & Reminders
                 _buildInventoryTab(companyId: company.id, isMobile: isMobile),
+
+                // Tab 5: Daily Firebase Quota & Usage
+                _buildUsageTab(companyId: company.id, isMobile: isMobile),
               ],
             ),
           ),
@@ -2039,6 +2053,504 @@ class _CompanyDetailsDevScreenState extends State<CompanyDetailsDevScreen>
             child: const Text('Confirm'),
           ),
         ],
+      ),
+    );
+  }
+
+  // -------------------------------------------------------------
+  // TAB 5: DAILY FIREBASE USAGE & QUOTA
+  // -------------------------------------------------------------
+
+  Widget _buildUsageTab({
+    required String companyId,
+    required bool isMobile,
+  }) {
+    final firestoreService = sl<FirestoreService>();
+    final todayStr = DateFormat('yyyy-MM-dd').format(DateTime.now());
+
+    return StreamBuilder<List<CompanyDailyUsage>>(
+      stream: firestoreService.watchUsageHistory(companyId),
+      builder: (context, snapshot) {
+        if (snapshot.connectionState == ConnectionState.waiting &&
+            !snapshot.hasData) {
+          return const Center(
+            child: CircularProgressIndicator(color: AppColors.brandAccent),
+          );
+        }
+
+        final usageList = snapshot.data ?? [];
+        final todayUsage = usageList.firstWhere(
+          (u) => u.date == todayStr,
+          orElse: () => CompanyDailyUsage(
+            date: todayStr,
+            reads: 0,
+            writes: 0,
+            deletes: 0,
+            lastUpdated: DateTime.now(),
+          ),
+        );
+
+        return ListView(
+          padding: EdgeInsets.symmetric(
+            horizontal: isMobile ? 12 : 24,
+            vertical: 16,
+          ),
+          children: [
+            // Top Overview Card: Today's Quota Breakdown
+            _buildTodayQuotaCard(todayUsage, isMobile),
+
+            const SizedBox(height: 16),
+
+            // Flush Info & Manual Sync Row
+            _buildSyncInfoCard(context),
+
+            const SizedBox(height: 20),
+
+            // Section Header
+            Row(
+              children: [
+                const Icon(
+                  Icons.calendar_month_rounded,
+                  size: 18,
+                  color: AppColors.secondaryText,
+                ),
+                const SizedBox(width: 8),
+                const Text(
+                  'Daily Usage History (Last 30 Days)',
+                  style: TextStyle(
+                    color: AppColors.primaryText,
+                    fontSize: 15,
+                    fontWeight: FontWeight.w700,
+                  ),
+                ),
+                const Spacer(),
+                Text(
+                  '${usageList.length} recorded',
+                  style: const TextStyle(
+                    color: AppColors.secondaryText,
+                    fontSize: 12,
+                  ),
+                ),
+              ],
+            ),
+
+            const SizedBox(height: 12),
+
+            if (usageList.isEmpty)
+              Container(
+                padding: const EdgeInsets.all(24),
+                decoration: BoxDecoration(
+                  color: AppColors.cardSurface,
+                  borderRadius: BorderRadius.circular(14),
+                  border: Border.all(color: AppColors.cardBorderStroke),
+                ),
+                child: const Column(
+                  children: [
+                    Icon(
+                      Icons.cloud_sync_outlined,
+                      size: 40,
+                      color: AppColors.secondaryText,
+                    ),
+                    SizedBox(height: 12),
+                    Text(
+                      'No usage recorded yet',
+                      style: TextStyle(
+                        color: AppColors.primaryText,
+                        fontSize: 15,
+                        fontWeight: FontWeight.w600,
+                      ),
+                    ),
+                    SizedBox(height: 6),
+                    Text(
+                      'Usage counts are buffered in-memory and committed to Firestore every 5 minutes or when the app is paused/closed.',
+                      textAlign: TextAlign.center,
+                      style: TextStyle(
+                        color: AppColors.secondaryText,
+                        fontSize: 12,
+                      ),
+                    ),
+                  ],
+                ),
+              )
+            else
+              ...usageList.map((entry) => _buildUsageHistoryRow(entry, todayStr)),
+
+            const SizedBox(height: 32),
+          ],
+        );
+      },
+    );
+  }
+
+  Widget _buildTodayQuotaCard(CompanyDailyUsage usage, bool isMobile) {
+    const maxReads = 50000;
+    const maxWrites = 20000;
+    const maxDeletes = 20000;
+
+    return Container(
+      padding: const EdgeInsets.all(18),
+      decoration: BoxDecoration(
+        color: AppColors.cardSurface,
+        borderRadius: BorderRadius.circular(16),
+        border: Border.all(color: AppColors.cardBorderStroke),
+      ),
+      child: Column(
+        crossAxisAlignment: CrossAxisAlignment.start,
+        children: [
+          Row(
+            children: [
+              Container(
+                padding: const EdgeInsets.all(8),
+                decoration: BoxDecoration(
+                  color: AppColors.brandAccent.withAlpha(30),
+                  borderRadius: BorderRadius.circular(10),
+                ),
+                child: const Icon(
+                  Icons.speed_rounded,
+                  color: AppColors.brandAccent,
+                  size: 20,
+                ),
+              ),
+              const SizedBox(width: 12),
+              Expanded(
+                child: Column(
+                  crossAxisAlignment: CrossAxisAlignment.start,
+                  children: [
+                    const Text(
+                      "Today's Firebase Free Tier Usage",
+                      style: TextStyle(
+                        color: AppColors.primaryText,
+                        fontSize: 16,
+                        fontWeight: FontWeight.w700,
+                      ),
+                      maxLines: 1,
+                      overflow: TextOverflow.ellipsis,
+                    ),
+                    Text(
+                      (usage.reads == 0 && usage.writes == 0 && usage.deletes == 0)
+                          ? 'Pending initial flush cycle'
+                          : 'Last flush: ${DateFormat('hh:mm:ss a').format(usage.lastUpdated)}',
+                      style: const TextStyle(
+                        color: AppColors.secondaryText,
+                        fontSize: 12,
+                      ),
+                      maxLines: 1,
+                      overflow: TextOverflow.ellipsis,
+                    ),
+                  ],
+                ),
+              ),
+            ],
+          ),
+          const SizedBox(height: 18),
+          _buildQuotaProgressBar(
+            title: 'Document Reads',
+            used: usage.reads,
+            limit: maxReads,
+            accentColor: const Color(0xFF38BDF8),
+          ),
+          const SizedBox(height: 14),
+          _buildQuotaProgressBar(
+            title: 'Document Writes',
+            used: usage.writes,
+            limit: maxWrites,
+            accentColor: const Color(0xFF34D399),
+          ),
+          const SizedBox(height: 14),
+          _buildQuotaProgressBar(
+            title: 'Document Deletes',
+            used: usage.deletes,
+            limit: maxDeletes,
+            accentColor: const Color(0xFFF87171),
+          ),
+        ],
+      ),
+    );
+  }
+
+  Widget _buildQuotaProgressBar({
+    required String title,
+    required int used,
+    required int limit,
+    required Color accentColor,
+  }) {
+    final percentage = (limit > 0 ? (used / limit) : 0.0).clamp(0.0, 1.0);
+    final percentStr = (percentage * 100).toStringAsFixed(1);
+    final isWarning = percentage >= 0.8;
+    final isCritical = percentage >= 0.95;
+
+    final barColor = isCritical
+        ? AppColors.tableOccupied
+        : (isWarning ? const Color(0xFFF59E0B) : accentColor);
+
+    return Column(
+      crossAxisAlignment: CrossAxisAlignment.start,
+      children: [
+        Row(
+          mainAxisAlignment: MainAxisAlignment.spaceBetween,
+          children: [
+            Expanded(
+              child: Text(
+                title,
+                style: const TextStyle(
+                  color: AppColors.primaryText,
+                  fontSize: 13,
+                  fontWeight: FontWeight.w600,
+                ),
+                maxLines: 1,
+                overflow: TextOverflow.ellipsis,
+              ),
+            ),
+            const SizedBox(width: 8),
+            RichText(
+              text: TextSpan(
+                children: [
+                  TextSpan(
+                    text: NumberFormat('#,###').format(used),
+                    style: TextStyle(
+                      color: barColor,
+                      fontSize: 13,
+                      fontWeight: FontWeight.w700,
+                    ),
+                  ),
+                  TextSpan(
+                    text: ' / ${NumberFormat('#,###').format(limit)} ($percentStr%)',
+                    style: const TextStyle(
+                      color: AppColors.secondaryText,
+                      fontSize: 12,
+                    ),
+                  ),
+                ],
+              ),
+            ),
+          ],
+        ),
+        const SizedBox(height: 6),
+        ClipRRect(
+          borderRadius: BorderRadius.circular(6),
+          child: LinearProgressIndicator(
+            value: percentage,
+            minHeight: 8,
+            backgroundColor: AppColors.backgroundBase,
+            valueColor: AlwaysStoppedAnimation<Color>(barColor),
+          ),
+        ),
+      ],
+    );
+  }
+
+  Widget _buildSyncInfoCard(BuildContext context) {
+    return Container(
+      padding: const EdgeInsets.symmetric(horizontal: 14, vertical: 12),
+      decoration: BoxDecoration(
+        color: AppColors.cardSurface,
+        borderRadius: BorderRadius.circular(14),
+        border: Border.all(color: AppColors.cardBorderStroke),
+      ),
+      child: Row(
+        children: [
+          const Icon(
+            Icons.info_outline_rounded,
+            size: 18,
+            color: AppColors.brandAccent,
+          ),
+          const SizedBox(width: 10),
+          const Expanded(
+            child: Text(
+              'Buffered in-memory & flushed every 5 min or on app exit to prevent burning write quotas.',
+              style: TextStyle(
+                color: AppColors.secondaryText,
+                fontSize: 12,
+                height: 1.3,
+              ),
+            ),
+          ),
+          const SizedBox(width: 8),
+          TextButton.icon(
+            onPressed: () async {
+              AppHaptics.light();
+              await sl<FirestoreService>().flushAllUsage();
+              if (context.mounted) {
+                ScaffoldMessenger.of(context).showSnackBar(
+                  const SnackBar(
+                    content: Text('Pending usage metrics flushed to Firestore.'),
+                    backgroundColor: AppColors.tableAvailable,
+                    duration: Duration(seconds: 2),
+                  ),
+                );
+              }
+            },
+            icon: const Icon(Icons.sync_rounded, size: 16),
+            label: const Text('Flush Now', style: TextStyle(fontSize: 12)),
+            style: TextButton.styleFrom(
+              foregroundColor: AppColors.brandAccent,
+              padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 6),
+            ),
+          ),
+        ],
+      ),
+    );
+  }
+
+  Widget _buildUsageHistoryRow(CompanyDailyUsage entry, String todayStr) {
+    final isToday = entry.date == todayStr;
+    DateTime? parsedDate;
+    try {
+      parsedDate = DateFormat('yyyy-MM-dd').parse(entry.date);
+    } catch (_) {}
+
+    final dateLabel = parsedDate != null
+        ? DateFormat('dd MMM yyyy').format(parsedDate)
+        : entry.date;
+
+    return Container(
+      margin: const EdgeInsets.only(bottom: 10),
+      padding: const EdgeInsets.all(14),
+      decoration: BoxDecoration(
+        color: AppColors.cardSurface,
+        borderRadius: BorderRadius.circular(14),
+        border: Border.all(
+          color: isToday
+              ? AppColors.brandAccent.withAlpha(90)
+              : AppColors.cardBorderStroke,
+        ),
+      ),
+      child: Row(
+        children: [
+          Container(
+            padding: const EdgeInsets.all(8),
+            decoration: BoxDecoration(
+              color: isToday
+                  ? AppColors.brandAccent.withAlpha(30)
+                  : AppColors.backgroundBase,
+              borderRadius: BorderRadius.circular(10),
+            ),
+            child: Icon(
+              Icons.bar_chart_rounded,
+              size: 20,
+              color: isToday ? AppColors.brandAccent : AppColors.secondaryText,
+            ),
+          ),
+          const SizedBox(width: 12),
+          Expanded(
+            child: Column(
+              crossAxisAlignment: CrossAxisAlignment.start,
+              children: [
+                Row(
+                  mainAxisSize: MainAxisSize.min,
+                  children: [
+                    Flexible(
+                      child: Text(
+                        dateLabel,
+                        style: const TextStyle(
+                          color: AppColors.primaryText,
+                          fontSize: 13,
+                          fontWeight: FontWeight.w700,
+                        ),
+                        maxLines: 1,
+                        overflow: TextOverflow.ellipsis,
+                      ),
+                    ),
+                    if (isToday) ...[
+                      const SizedBox(width: 6),
+                      Container(
+                        padding: const EdgeInsets.symmetric(
+                          horizontal: 5,
+                          vertical: 1.5,
+                        ),
+                        decoration: BoxDecoration(
+                          color: AppColors.brandAccent.withAlpha(30),
+                          borderRadius: BorderRadius.circular(5),
+                        ),
+                        child: const Text(
+                          'TODAY',
+                          style: TextStyle(
+                            color: AppColors.brandAccent,
+                            fontSize: 9,
+                            fontWeight: FontWeight.w700,
+                          ),
+                        ),
+                      ),
+                    ],
+                  ],
+                ),
+                const SizedBox(height: 4),
+                Text(
+                  'Last synced at ${DateFormat('hh:mm a').format(entry.lastUpdated)}',
+                  style: const TextStyle(
+                    color: AppColors.secondaryText,
+                    fontSize: 11,
+                  ),
+                  maxLines: 1,
+                  overflow: TextOverflow.ellipsis,
+                ),
+              ],
+            ),
+          ),
+          const SizedBox(width: 8),
+          // Metric Badges
+          _buildUsageBadge(
+            label: 'R',
+            value: entry.reads,
+            color: const Color(0xFF38BDF8),
+            tooltip: 'Reads: ${entry.reads}',
+          ),
+          const SizedBox(width: 6),
+          _buildUsageBadge(
+            label: 'W',
+            value: entry.writes,
+            color: const Color(0xFF34D399),
+            tooltip: 'Writes: ${entry.writes}',
+          ),
+          const SizedBox(width: 6),
+          _buildUsageBadge(
+            label: 'D',
+            value: entry.deletes,
+            color: const Color(0xFFF87171),
+            tooltip: 'Deletes: ${entry.deletes}',
+          ),
+        ],
+      ),
+    );
+  }
+
+  Widget _buildUsageBadge({
+    required String label,
+    required int value,
+    required Color color,
+    required String tooltip,
+  }) {
+    return Tooltip(
+      message: tooltip,
+      child: Container(
+        padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 4),
+        decoration: BoxDecoration(
+          color: color.withAlpha(20),
+          borderRadius: BorderRadius.circular(8),
+          border: Border.all(color: color.withAlpha(60)),
+        ),
+        child: Row(
+          mainAxisSize: MainAxisSize.min,
+          children: [
+            Text(
+              label,
+              style: TextStyle(
+                color: color,
+                fontSize: 10,
+                fontWeight: FontWeight.w800,
+              ),
+            ),
+            const SizedBox(width: 4),
+            Text(
+              NumberFormat.compact().format(value),
+              style: TextStyle(
+                color: color,
+                fontSize: 12,
+                fontWeight: FontWeight.w700,
+              ),
+            ),
+          ],
+        ),
       ),
     );
   }

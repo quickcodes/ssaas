@@ -18,7 +18,7 @@ class HistoryFilterOption {
   });
 
   bool get isFilterActive =>
-      preset != HistoryReportPreset.allTime || status != 'All';
+      preset != HistoryReportPreset.today || status != 'All';
 }
 
 /// Modal dialog for filtering match history by date presets (daily, weekly, monthly, etc.)
@@ -431,7 +431,7 @@ class _HistoryFilterDialogState extends State<HistoryFilterDialog> {
                         AppHaptics.light();
                         Navigator.of(context).pop(
                           const HistoryFilterOption(
-                            preset: HistoryReportPreset.allTime,
+                            preset: HistoryReportPreset.today,
                             customRange: null,
                             status: 'All',
                           ),

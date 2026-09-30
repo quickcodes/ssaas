@@ -27,7 +27,7 @@ class TablesHistoryView extends StatefulWidget {
 class _TablesHistoryViewState extends State<TablesHistoryView> {
   String _filterStatus = 'All'; // 'All', 'Received', 'Due'
   String _searchQuery = '';
-  HistoryReportPreset _selectedDatePreset = HistoryReportPreset.allTime;
+  HistoryReportPreset _selectedDatePreset = HistoryReportPreset.today;
   DateTimeRange? _customDateRange;
   final TextEditingController _searchController = TextEditingController();
 
@@ -41,15 +41,15 @@ class _TablesHistoryViewState extends State<TablesHistoryView> {
     BuildContext context,
     List<TableHistoryRecord> allHistory,
     String companyName,
+    String companyId,
   ) {
     showDialog(
       context: context,
       builder: (_) => ShareHistoryReportDialog(
         companyName: companyName,
+        companyId: companyId,
         allRecords: allHistory,
-        initialPreset: _selectedDatePreset != HistoryReportPreset.allTime
-            ? _selectedDatePreset
-            : null,
+        initialPreset: _selectedDatePreset,
         initialCustomDateRange: _customDateRange,
       ),
     );
@@ -73,27 +73,6 @@ class _TablesHistoryViewState extends State<TablesHistoryView> {
         _customDateRange = result.customRange;
         _filterStatus = result.status;
       });
-    }
-  }
-
-  String _getPresetShortLabel(HistoryReportPreset preset) {
-    switch (preset) {
-      case HistoryReportPreset.thisMonth:
-        return 'This Month';
-      case HistoryReportPreset.last30Days:
-        return '30 Days';
-      case HistoryReportPreset.thisWeek:
-        return 'This Week';
-      case HistoryReportPreset.last7Days:
-        return '7 Days';
-      case HistoryReportPreset.today:
-        return 'Today';
-      case HistoryReportPreset.thisYear:
-        return 'This Year';
-      case HistoryReportPreset.allTime:
-        return 'All Time';
-      case HistoryReportPreset.custom:
-        return 'Custom';
     }
   }
 
@@ -578,8 +557,19 @@ class _TablesHistoryViewState extends State<TablesHistoryView> {
     final companyId = activeCompany.id;
     final companyName = activeCompany.name;
 
+    final activeRange = _selectedDatePreset == HistoryReportPreset.allTime
+        ? null
+        : HistoryReportDateRange.fromPreset(
+            _selectedDatePreset,
+            customRange: _customDateRange,
+          );
+
     return StreamBuilder<List<TableHistoryRecord>>(
-      stream: sl<FirestoreService>().watchTablesHistory(companyId),
+      stream: sl<FirestoreService>().watchTablesHistory(
+        companyId,
+        startDate: activeRange?.start,
+        endDate: activeRange?.end,
+      ),
       builder: (context, snapshot) {
         if (!snapshot.hasData) {
           return const Center(child: CircularProgressIndicator());
@@ -634,7 +624,7 @@ class _TablesHistoryViewState extends State<TablesHistoryView> {
         }).toList();
 
         final isFilterActive =
-            _selectedDatePreset != HistoryReportPreset.allTime ||
+            _selectedDatePreset != HistoryReportPreset.today ||
             _filterStatus != 'All';
 
         return Scaffold(
@@ -679,6 +669,7 @@ class _TablesHistoryViewState extends State<TablesHistoryView> {
                         context,
                         allHistory,
                         companyName,
+                        companyId,
                       ),
                       icon: const Icon(Icons.share_outlined, size: 18),
                       label: const Text(
@@ -798,7 +789,7 @@ class _TablesHistoryViewState extends State<TablesHistoryView> {
                                   AppHaptics.light();
                                   setState(() {
                                     _selectedDatePreset =
-                                        HistoryReportPreset.allTime;
+                                        HistoryReportPreset.today;
                                     _customDateRange = null;
                                     _filterStatus = 'All';
                                     _searchQuery = '';
@@ -1243,77 +1234,60 @@ class _TablesHistoryViewState extends State<TablesHistoryView> {
 
   Widget _buildFilterButton(List<TableHistoryRecord> allHistory) {
     final isFilterActive =
-        _selectedDatePreset != HistoryReportPreset.allTime ||
+        _selectedDatePreset != HistoryReportPreset.today ||
         _filterStatus != 'All';
     final isMobile = Responsive.isMobile(context);
 
-    return Material(
-      color: Colors.transparent,
-      child: InkWell(
-        onTap: () => _openFilterDialog(allHistory),
-        borderRadius: BorderRadius.circular(10),
-        child: AnimatedContainer(
-          duration: const Duration(milliseconds: 150),
-          padding: EdgeInsets.symmetric(
-            horizontal: isMobile ? 12 : 16,
-          ),
-          decoration: BoxDecoration(
-            color: isFilterActive
-                ? AppColors.brandAccent.withAlpha(35)
-                : AppColors.inputSurface,
-            borderRadius: BorderRadius.circular(10),
-            border: Border.all(
-              color: isFilterActive
-                  ? AppColors.brandAccentLight
-                  : AppColors.cardBorderStroke,
-              width: isFilterActive ? 1.5 : 1.0,
+    return Tooltip(
+      message: 'Filter History',
+      child: Material(
+        color: Colors.transparent,
+        child: InkWell(
+          onTap: () => _openFilterDialog(allHistory),
+          borderRadius: BorderRadius.circular(10),
+          child: AnimatedContainer(
+            duration: const Duration(milliseconds: 150),
+            padding: EdgeInsets.symmetric(
+              horizontal: isMobile ? 12 : 14,
             ),
-          ),
-          alignment: Alignment.center,
-          child: Row(
-            mainAxisSize: MainAxisSize.min,
-            mainAxisAlignment: MainAxisAlignment.center,
-            children: [
-              Stack(
-                clipBehavior: Clip.none,
-                children: [
-                  Icon(
-                    Icons.tune_rounded,
-                    size: 20,
-                    color: isFilterActive
-                        ? AppColors.brandAccentLight
-                        : AppColors.secondaryText,
-                  ),
-                  if (isFilterActive)
-                    Positioned(
-                      top: -2,
-                      right: -2,
-                      child: Container(
-                        width: 7,
-                        height: 7,
-                        decoration: const BoxDecoration(
-                          color: AppColors.brandAccentLight,
-                          shape: BoxShape.circle,
-                        ),
-                      ),
-                    ),
-                ],
+            decoration: BoxDecoration(
+              color: isFilterActive
+                  ? AppColors.brandAccent.withAlpha(35)
+                  : AppColors.inputSurface,
+              borderRadius: BorderRadius.circular(10),
+              border: Border.all(
+                color: isFilterActive
+                    ? AppColors.brandAccentLight
+                    : AppColors.cardBorderStroke,
+                width: isFilterActive ? 1.5 : 1.0,
               ),
-              const SizedBox(width: 8),
-              Text(
-                isFilterActive
-                    ? _getPresetShortLabel(_selectedDatePreset)
-                    : 'Filter',
-                style: TextStyle(
+            ),
+            alignment: Alignment.center,
+            child: Stack(
+              clipBehavior: Clip.none,
+              children: [
+                Icon(
+                  Icons.tune_rounded,
+                  size: 20,
                   color: isFilterActive
                       ? AppColors.brandAccentLight
-                      : AppColors.primaryText,
-                  fontSize: 13,
-                  fontWeight:
-                      isFilterActive ? FontWeight.w700 : FontWeight.w600,
+                      : AppColors.secondaryText,
                 ),
-              ),
-            ],
+                if (isFilterActive)
+                  Positioned(
+                    top: -2,
+                    right: -2,
+                    child: Container(
+                      width: 7,
+                      height: 7,
+                      decoration: const BoxDecoration(
+                        color: AppColors.brandAccentLight,
+                        shape: BoxShape.circle,
+                      ),
+                    ),
+                  ),
+              ],
+            ),
           ),
         ),
       ),
@@ -1368,7 +1342,7 @@ class _TablesHistoryViewState extends State<TablesHistoryView> {
             onTap: () {
               AppHaptics.light();
               setState(() {
-                _selectedDatePreset = HistoryReportPreset.allTime;
+                _selectedDatePreset = HistoryReportPreset.today;
                 _customDateRange = null;
                 _filterStatus = 'All';
               });

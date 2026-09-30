@@ -233,26 +233,9 @@ class _MainDashboardViewState extends State<MainDashboardView> {
               Expanded(
                 child: Stack(
                   children: [
-                    AnimatedSwitcher(
-                      duration: const Duration(milliseconds: 240),
-                      switchInCurve: Curves.easeOutCubic,
-                      switchOutCurve: Curves.easeInCubic,
-                      transitionBuilder: (child, animation) {
-                        return FadeTransition(
-                          opacity: animation,
-                          child: SlideTransition(
-                            position: Tween<Offset>(
-                              begin: const Offset(0.01, 0),
-                              end: Offset.zero,
-                            ).animate(animation),
-                            child: child,
-                          ),
-                        );
-                      },
-                      child: KeyedSubtree(
-                        key: ValueKey<int>(_selectedTabIndex),
-                        child: screens[_selectedTabIndex],
-                      ),
+                    IndexedStack(
+                      index: _selectedTabIndex.clamp(0, screens.length - 1),
+                      children: screens,
                     ),
 
                     // Mobile Drawer Barrier & Floating Menu (if opened via hamburger)

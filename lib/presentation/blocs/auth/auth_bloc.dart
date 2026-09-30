@@ -613,6 +613,13 @@ class AuthBloc extends Bloc<AuthEvent, AuthState> {
         }
       }
 
+      // Flush pending usage metrics and clean up memory tracker
+      if (state.activeCompany != null) {
+        try {
+          await _firestoreService.disposeTracker(state.activeCompany!.id);
+        } catch (_) {}
+      }
+
       try {
         await _sessionLocalStorage.clearSession();
       } catch (e) {
@@ -947,9 +954,10 @@ class AuthBloc extends Bloc<AuthEvent, AuthState> {
   }
 
   @override
-  Future<void> close() {
-    _companySub?.cancel();
-    _usersSub?.cancel();
+  Future<void> close() async {
+    await _companySub?.cancel();
+    await _usersSub?.cancel();
+    await _firestoreService.disposeAllTrackers();
     return super.close();
   }
 }

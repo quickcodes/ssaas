@@ -40,6 +40,7 @@ class FloorMatrixView extends StatefulWidget {
 
 class _FloorMatrixViewState extends State<FloorMatrixView> {
   List<StockItem> _canteenItems = [];
+  StreamSubscription<List<StockItem>>? _canteenSub;
   Timer? _snackBarDismissTimer;
   bool _isNavigating = false;
 
@@ -52,7 +53,8 @@ class _FloorMatrixViewState extends State<FloorMatrixView> {
   void _loadCanteenStock() {
     final companyId = context.read<AuthBloc>().state.activeCompany?.id;
     if (companyId != null) {
-      sl<FirestoreService>().watchFoodCanteen(companyId).listen((items) {
+      _canteenSub?.cancel();
+      _canteenSub = sl<FirestoreService>().watchFoodCanteen(companyId).listen((items) {
         if (mounted) {
           setState(() => _canteenItems = items);
         }
@@ -567,6 +569,7 @@ class _FloorMatrixViewState extends State<FloorMatrixView> {
 
   @override
   void dispose() {
+    _canteenSub?.cancel();
     _snackBarDismissTimer?.cancel();
     super.dispose();
   }

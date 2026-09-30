@@ -7,15 +7,61 @@ import '../../domain/entities/club_table.dart';
 import '../../domain/entities/company.dart';
 import '../../domain/entities/stock_item.dart';
 import '../../domain/entities/table_billing_item.dart';
+import 'package:intl/intl.dart';
 import '../../domain/entities/table_history_record.dart';
 import '../../domain/entities/table_session.dart';
 import '../../domain/entities/user_account.dart';
+import '../../domain/entities/company_daily_usage.dart';
+import 'company_usage_tracker.dart';
 
 class FirestoreService {
   final FirebaseFirestore _firestore;
+  final Map<String, CompanyUsageTracker> _usageTrackers = {};
 
   FirestoreService({FirebaseFirestore? firestore})
       : _firestore = firestore ?? FirebaseFirestore.instance;
+
+  CompanyUsageTracker _getOrCreateTracker(String companyId) {
+    return _usageTrackers.putIfAbsent(
+      companyId,
+      () => CompanyUsageTracker(_firestore, companyId),
+    );
+  }
+
+  void trackRead(String? companyId, [int count = 1]) {
+    if (companyId == null || companyId.isEmpty || count <= 0) return;
+    _getOrCreateTracker(companyId).recordReads(count);
+  }
+
+  void trackWrite(String? companyId, [int count = 1]) {
+    if (companyId == null || companyId.isEmpty || count <= 0) return;
+    _getOrCreateTracker(companyId).recordWrite(count);
+  }
+
+  void trackDelete(String? companyId, [int count = 1]) {
+    if (companyId == null || companyId.isEmpty || count <= 0) return;
+    _getOrCreateTracker(companyId).recordDelete(count);
+  }
+
+  Future<void> flushAllUsage() async {
+    for (final tracker in _usageTrackers.values) {
+      await tracker.flush();
+    }
+  }
+
+  Future<void> disposeTracker(String companyId) async {
+    final tracker = _usageTrackers.remove(companyId);
+    if (tracker != null) {
+      await tracker.dispose();
+    }
+  }
+
+  Future<void> disposeAllTrackers() async {
+    for (final tracker in _usageTrackers.values) {
+      await tracker.dispose();
+    }
+    _usageTrackers.clear();
+  }
 
   // -------------------------------------------------------------
   // COMPANIES COLLECTION
@@ -38,12 +84,14 @@ class FirestoreService {
   Stream<Company?> watchCompany(String companyId) {
     return _companiesCol.doc(companyId).snapshots().map((doc) {
       if (!doc.exists || doc.data() == null) return null;
+      trackRead(companyId, 1);
       return Company.fromMap(doc.id, doc.data()!);
     });
   }
 
   Future<Company?> getCompanyById(String companyId) async {
     final doc = await _companiesCol.doc(companyId).get();
+    trackRead(companyId, 1);
     if (!doc.exists || doc.data() == null) return null;
     return Company.fromMap(doc.id, doc.data()!);
   }
@@ -77,17 +125,17 @@ class FirestoreService {
     return null;
   }
 
-  /// Ensures that the company document in Firestore contains the [dueBufferAmount] field.
-  /// If missing from Firestore, it writes [Constants.dueBufferAmount] into the company document.
   Future<Company> ensureCompanyDueBuffer(Company company) async {
     try {
       final doc = await _companiesCol.doc(company.id).get();
+      trackRead(company.id, 1);
       if (doc.exists && doc.data() != null) {
         final data = doc.data()!;
         if (!data.containsKey('dueBufferAmount')) {
           await _companiesCol.doc(company.id).set({
             'dueBufferAmount': Constants.dueBufferAmount,
           }, SetOptions(merge: true));
+          trackWrite(company.id, 1);
           return company.copyWith(dueBufferAmount: Constants.dueBufferAmount);
         } else {
           final buffer = (data['dueBufferAmount'] as num?)?.toDouble() ??
@@ -107,6 +155,7 @@ class FirestoreService {
     await _companiesCol.doc(companyId).set({
       'dueBufferAmount': amount,
     }, SetOptions(merge: true));
+    trackWrite(companyId, 1);
   }
 
   /// Dev-only company creation with initial admin user
@@ -161,6 +210,7 @@ class FirestoreService {
     batch.set(userDoc, initialAdmin.toMap());
 
     await batch.commit();
+    trackWrite(companyId, 2);
     return company;
   }
 
@@ -173,6 +223,7 @@ class FirestoreService {
 
   Stream<List<UserAccount>> watchCompanyUsers(String companyId) {
     return _usersCol(companyId).snapshots().map((snapshot) {
+      trackRead(companyId, snapshot.docs.length);
       return snapshot.docs
           .map((doc) => UserAccount.fromMap(doc.id, doc.data()))
           .toList();
@@ -181,6 +232,7 @@ class FirestoreService {
 
   Future<List<UserAccount>> getCompanyUsers(String companyId) async {
     final snapshot = await _usersCol(companyId).get();
+    trackRead(companyId, snapshot.docs.length);
     return snapshot.docs
         .map((doc) => UserAccount.fromMap(doc.id, doc.data()))
         .toList();
@@ -210,6 +262,7 @@ class FirestoreService {
         ? _usersCol(user.companyId).doc()
         : _usersCol(user.companyId).doc(user.id);
     await doc.set(user.toMap());
+    trackWrite(user.companyId, 1);
   }
 
   Future<void> updateUserAdminStatus(
@@ -221,6 +274,7 @@ class FirestoreService {
       'isAdmin': isAdmin,
       'role': isAdmin ? 'owner' : 'employee',
     }, SetOptions(merge: true));
+    trackWrite(companyId, 1);
   }
 
   Future<void> updateUserActiveStatus(
@@ -240,6 +294,7 @@ class FirestoreService {
       updates,
       SetOptions(merge: true),
     );
+    trackWrite(companyId, 1);
   }
 
   Future<void> updateUserRole(
@@ -252,6 +307,7 @@ class FirestoreService {
       'role': role.toLowerCase(),
       'isAdmin': isOwnerRole,
     }, SetOptions(merge: true));
+    trackWrite(companyId, 1);
   }
 
   Future<void> updateUserPassword(
@@ -262,6 +318,7 @@ class FirestoreService {
     await _usersCol(companyId).doc(userId).set({
       'password': newPassword.trim(),
     }, SetOptions(merge: true));
+    trackWrite(companyId, 1);
   }
 
   Future<void> updateCompanyExpiryDate(
@@ -271,6 +328,7 @@ class FirestoreService {
     await _companiesCol.doc(companyId).set({
       'expiryDate': Timestamp.fromDate(newExpiryDate),
     }, SetOptions(merge: true));
+    trackWrite(companyId, 1);
   }
 
   Future<void> updateCompanyBasicInfo(
@@ -283,12 +341,14 @@ class FirestoreService {
     if (number != null) updates['number'] = number.trim();
     if (updates.isNotEmpty) {
       await _companiesCol.doc(companyId).set(updates, SetOptions(merge: true));
+      trackWrite(companyId, 1);
     }
   }
 
   Future<UserAccount?> getUserById(String companyId, String userId) async {
     try {
       final doc = await _usersCol(companyId).doc(userId).get();
+      trackRead(companyId, 1);
       if (!doc.exists || doc.data() == null) return null;
       return UserAccount.fromMap(doc.id, doc.data()!);
     } catch (_) {
@@ -306,6 +366,7 @@ class FirestoreService {
           ? Timestamp.fromDate(sessionExpiresAt)
           : null,
     }, SetOptions(merge: true));
+    trackWrite(companyId, 1);
   }
 
   Future<({bool success, String? conflictingUserName})> setUserOnlineStatus({
@@ -370,6 +431,7 @@ class FirestoreService {
       'isOnline': isOnline,
       'shifts': rawShifts,
     }, SetOptions(merge: true));
+    trackWrite(companyId, 1);
 
     return (success: true, conflictingUserName: null);
   }
@@ -383,6 +445,7 @@ class FirestoreService {
 
   Stream<List<ClubTable>> watchTables(String companyId) {
     return _tablesCol(companyId).snapshots().map((snapshot) {
+      trackRead(companyId, snapshot.docs.length);
       return snapshot.docs
           .map((doc) => ClubTable.fromMap(doc.id, doc.data()))
           .toList();
@@ -391,6 +454,7 @@ class FirestoreService {
 
   Future<List<ClubTable>> getTables(String companyId) async {
     final snapshot = await _tablesCol(companyId).get();
+    trackRead(companyId, snapshot.docs.length);
     return snapshot.docs
         .map((doc) => ClubTable.fromMap(doc.id, doc.data()))
         .toList();
@@ -398,6 +462,7 @@ class FirestoreService {
 
   Future<ClubTable?> getTableById(String companyId, String tableId) async {
     final doc = await _tablesCol(companyId).doc(tableId).get();
+    trackRead(companyId, 1);
     if (!doc.exists || doc.data() == null) return null;
     return ClubTable.fromMap(doc.id, doc.data()!);
   }
@@ -407,6 +472,7 @@ class FirestoreService {
         ? _tablesCol(table.companyId).doc()
         : _tablesCol(table.companyId).doc(table.id);
     await doc.set(table.toMap());
+    trackWrite(table.companyId, 1);
   }
 
   Future<void> updateTableStatus(
@@ -420,10 +486,12 @@ class FirestoreService {
       'currentSessionId': sessionId,
     };
     await _tablesCol(companyId).doc(tableId).update(updateData);
+    trackWrite(companyId, 1);
   }
 
   Future<void> deleteTable(String companyId, String tableId) async {
     await _tablesCol(companyId).doc(tableId).delete();
+    trackDelete(companyId, 1);
   }
 
   // -------------------------------------------------------------
@@ -435,6 +503,7 @@ class FirestoreService {
 
   Stream<List<TableSession>> watchRunningTables(String companyId) {
     return _runningCol(companyId).snapshots().map((snapshot) {
+      trackRead(companyId, snapshot.docs.length);
       return snapshot.docs
           .map((doc) => TableSession.fromMap(doc.id, doc.data()))
           .toList();
@@ -443,6 +512,7 @@ class FirestoreService {
 
   Future<TableSession?> getRunningSession(String companyId, String sessionId) async {
     final doc = await _runningCol(companyId).doc(sessionId).get();
+    trackRead(companyId, 1);
     if (!doc.exists || doc.data() == null) return null;
     return TableSession.fromMap(doc.id, doc.data()!);
   }
@@ -469,6 +539,7 @@ class FirestoreService {
     });
 
     await batch.commit();
+    trackWrite(session.companyId, 2);
   }
 
   Future<void> updateRunningSession(TableSession session) async {
@@ -480,11 +551,13 @@ class FirestoreService {
     ).toMap();
     sessionMap['lastUpdated'] = Timestamp.now();
     await _runningCol(session.companyId).doc(session.id).set(sessionMap);
+    trackWrite(session.companyId, 1);
   }
 
   Future<void> pauseSession(String companyId, String sessionId) async {
     final sessionDoc = _runningCol(companyId).doc(sessionId);
     final doc = await sessionDoc.get();
+    trackRead(companyId, 1);
     if (!doc.exists || doc.data() == null) return;
     final session = TableSession.fromMap(doc.id, doc.data()!);
     // Prevent overwriting lastPauseTime if already paused
@@ -503,11 +576,13 @@ class FirestoreService {
       'lastGrandTotal': grandTotal,
       'lastUpdated': Timestamp.fromDate(now),
     });
+    trackWrite(companyId, 1);
   }
 
   Future<void> resumeSession(String companyId, String sessionId) async {
     final sessionDoc = _runningCol(companyId).doc(sessionId);
     final doc = await sessionDoc.get();
+    trackRead(companyId, 1);
     if (!doc.exists || doc.data() == null) return;
     final session = TableSession.fromMap(doc.id, doc.data()!);
     if (!session.isPaused || session.lastPauseTime == null) return;
@@ -532,6 +607,7 @@ class FirestoreService {
       'lastGrandTotal': grandTotal,
       'lastUpdated': Timestamp.fromDate(now),
     });
+    trackWrite(companyId, 1);
   }
 
   Future<void> addItemToRunningSession(
@@ -541,6 +617,7 @@ class FirestoreService {
   ) async {
     final sessionDoc = _runningCol(companyId).doc(sessionId);
     final doc = await sessionDoc.get();
+    trackRead(companyId, 1);
     if (!doc.exists || doc.data() == null) return;
     final session = TableSession.fromMap(doc.id, doc.data()!);
     final updatedItems = List<TableBillingItem>.from(session.items)..add(item);
@@ -552,6 +629,7 @@ class FirestoreService {
       'lastGrandTotal': updatedSession.computeGrandTotalAt(now),
       'lastUpdated': Timestamp.fromDate(now),
     });
+    trackWrite(companyId, 1);
   }
 
   Future<void> updateBillingItemInRunningSession(
@@ -561,6 +639,7 @@ class FirestoreService {
   ) async {
     final sessionDoc = _runningCol(companyId).doc(sessionId);
     final doc = await sessionDoc.get();
+    trackRead(companyId, 1);
     if (!doc.exists || doc.data() == null) return;
     final session = TableSession.fromMap(doc.id, doc.data()!);
     final updatedItems = session.items
@@ -574,6 +653,7 @@ class FirestoreService {
       'lastGrandTotal': updatedSession.computeGrandTotalAt(now),
       'lastUpdated': Timestamp.fromDate(now),
     });
+    trackWrite(companyId, 1);
   }
 
   Future<void> removeBillingItemFromRunningSession(
@@ -583,6 +663,7 @@ class FirestoreService {
   ) async {
     final sessionDoc = _runningCol(companyId).doc(sessionId);
     final doc = await sessionDoc.get();
+    trackRead(companyId, 1);
     if (!doc.exists || doc.data() == null) return;
     final session = TableSession.fromMap(doc.id, doc.data()!);
     final updatedItems = session.items.where((i) => i.id != itemId).toList();
@@ -594,6 +675,7 @@ class FirestoreService {
       'lastGrandTotal': updatedSession.computeGrandTotalAt(now),
       'lastUpdated': Timestamp.fromDate(now),
     });
+    trackWrite(companyId, 1);
   }
 
   /// Closes the running session, saves the history record, and frees the table
@@ -620,6 +702,8 @@ class FirestoreService {
     });
 
     await batch.commit();
+    trackWrite(companyId, 2);
+    trackDelete(companyId, 1);
   }
 
   // -------------------------------------------------------------
@@ -631,6 +715,7 @@ class FirestoreService {
 
   Stream<List<StockItem>> watchEquipmentStock(String companyId) {
     return _equipmentCol(companyId).snapshots().map((snapshot) {
+      trackRead(companyId, snapshot.docs.length);
       return snapshot.docs
           .map((doc) => StockItem.fromMap(doc.id, doc.data()))
           .toList();
@@ -642,10 +727,12 @@ class FirestoreService {
         ? _equipmentCol(item.companyId).doc()
         : _equipmentCol(item.companyId).doc(item.id);
     await doc.set(item.toMap());
+    trackWrite(item.companyId, 1);
   }
 
   Future<void> deleteEquipmentItem(String companyId, String itemId) async {
     await _equipmentCol(companyId).doc(itemId).delete();
+    trackDelete(companyId, 1);
   }
 
   // -------------------------------------------------------------
@@ -657,6 +744,7 @@ class FirestoreService {
 
   Stream<List<StockItem>> watchFoodCanteen(String companyId) {
     return _foodCol(companyId).snapshots().map((snapshot) {
+      trackRead(companyId, snapshot.docs.length);
       return snapshot.docs
           .map((doc) => StockItem.fromMap(doc.id, doc.data()))
           .toList();
@@ -668,6 +756,7 @@ class FirestoreService {
         ? _foodCol(item.companyId).doc()
         : _foodCol(item.companyId).doc(item.id);
     await doc.set(item.toMap());
+    trackWrite(item.companyId, 1);
   }
 
   Future<void> decrementFoodStock(
@@ -677,10 +766,12 @@ class FirestoreService {
   ) async {
     final doc = _foodCol(companyId).doc(itemId);
     final snapshot = await doc.get();
+    trackRead(companyId, 1);
     if (!snapshot.exists || snapshot.data() == null) return;
     final currentStock = (snapshot.data()!['stock'] as num?)?.toInt() ?? 0;
     final updated = (currentStock - quantity).clamp(0, 999999);
     await doc.update({'stock': updated});
+    trackWrite(companyId, 1);
   }
 
   Future<void> incrementFoodStock(
@@ -690,14 +781,17 @@ class FirestoreService {
   ) async {
     final doc = _foodCol(companyId).doc(itemId);
     final snapshot = await doc.get();
+    trackRead(companyId, 1);
     if (!snapshot.exists || snapshot.data() == null) return;
     final currentStock = (snapshot.data()!['stock'] as num?)?.toInt() ?? 0;
     final updated = (currentStock + quantity).clamp(0, 999999);
     await doc.update({'stock': updated});
+    trackWrite(companyId, 1);
   }
 
   Future<void> deleteFoodItem(String companyId, String itemId) async {
     await _foodCol(companyId).doc(itemId).delete();
+    trackDelete(companyId, 1);
   }
 
   // -------------------------------------------------------------
@@ -707,21 +801,55 @@ class FirestoreService {
   CollectionReference<Map<String, dynamic>> _historyCol(String companyId) =>
       _companiesCol.doc(companyId).collection('tablesHistory');
 
-  Stream<List<TableHistoryRecord>> watchTablesHistory(String companyId) {
-    return _historyCol(companyId)
+  Stream<List<TableHistoryRecord>> watchTablesHistory(
+    String companyId, {
+    DateTime? startDate,
+    DateTime? endDate,
+  }) {
+    Query<Map<String, dynamic>> query = _historyCol(companyId);
+    if (startDate != null) {
+      query = query.where(
+        'closedAt',
+        isGreaterThanOrEqualTo: Timestamp.fromDate(startDate),
+      );
+    }
+    if (endDate != null) {
+      query = query.where(
+        'closedAt',
+        isLessThanOrEqualTo: Timestamp.fromDate(endDate),
+      );
+    }
+    return query
         .orderBy('closedAt', descending: true)
         .snapshots()
         .map((snapshot) {
+      trackRead(companyId, snapshot.docs.length);
       return snapshot.docs
           .map((doc) => TableHistoryRecord.fromMap(doc.id, doc.data()))
           .toList();
     });
   }
 
-  Future<List<TableHistoryRecord>> getTablesHistory(String companyId) async {
-    final snapshot = await _historyCol(companyId)
-        .orderBy('closedAt', descending: true)
-        .get();
+  Future<List<TableHistoryRecord>> getTablesHistory(
+    String companyId, {
+    DateTime? startDate,
+    DateTime? endDate,
+  }) async {
+    Query<Map<String, dynamic>> query = _historyCol(companyId);
+    if (startDate != null) {
+      query = query.where(
+        'closedAt',
+        isGreaterThanOrEqualTo: Timestamp.fromDate(startDate),
+      );
+    }
+    if (endDate != null) {
+      query = query.where(
+        'closedAt',
+        isLessThanOrEqualTo: Timestamp.fromDate(endDate),
+      );
+    }
+    final snapshot = await query.orderBy('closedAt', descending: true).get();
+    trackRead(companyId, snapshot.docs.length);
     return snapshot.docs
         .map((doc) => TableHistoryRecord.fromMap(doc.id, doc.data()))
         .toList();
@@ -731,6 +859,7 @@ class FirestoreService {
     await _historyCol(record.companyId)
         .doc(record.id)
         .set(record.toMap(), SetOptions(merge: true));
+    trackWrite(record.companyId, 1);
   }
 
   // -------------------------------------------------------------
@@ -745,6 +874,7 @@ class FirestoreService {
         .orderBy('remindAt', descending: false)
         .snapshots()
         .map((snapshot) {
+      trackRead(companyId, snapshot.docs.length);
       return snapshot.docs
           .map((doc) => ClubReminder.fromMap(doc.id, doc.data()))
           .toList();
@@ -759,16 +889,19 @@ class FirestoreService {
     await _remindersCol(companyId)
         .doc(docId)
         .set(toSave.toMap(), SetOptions(merge: true));
+    trackWrite(companyId, 1);
   }
 
   Future<void> dismissReminder(String companyId, String reminderId) async {
     await _remindersCol(companyId)
         .doc(reminderId)
         .set({'isDismissed': true}, SetOptions(merge: true));
+    trackWrite(companyId, 1);
   }
 
   Future<void> deleteReminder(String companyId, String reminderId) async {
     await _remindersCol(companyId).doc(reminderId).delete();
+    trackDelete(companyId, 1);
   }
 
   // -------------------------------------------------------------
@@ -816,6 +949,41 @@ class FirestoreService {
         'updatedBy': updatedBy.trim(),
       if (notes != null && notes.trim().isNotEmpty) 'notes': notes.trim(),
     }, SetOptions(merge: true));
+  }
+
+  // -------------------------------------------------------------
+  // USAGE MONITORING SUBCOLLECTION: companies/{companyId}/dailyUsage
+  // -------------------------------------------------------------
+
+  CollectionReference<Map<String, dynamic>> _usageCol(String companyId) =>
+      _companiesCol.doc(companyId).collection('dailyUsage');
+
+  Stream<CompanyDailyUsage?> watchTodayUsage(String companyId) {
+    final todayStr = DateFormat('yyyy-MM-dd').format(DateTime.now());
+    return _usageCol(companyId).doc(todayStr).snapshots().map((doc) {
+      if (!doc.exists || doc.data() == null) return null;
+      return CompanyDailyUsage.fromMap(doc.id, doc.data()!);
+    });
+  }
+
+  Future<CompanyDailyUsage?> getTodayUsage(String companyId) async {
+    final todayStr = DateFormat('yyyy-MM-dd').format(DateTime.now());
+    final doc = await _usageCol(companyId).doc(todayStr).get();
+    if (!doc.exists || doc.data() == null) return null;
+    return CompanyDailyUsage.fromMap(doc.id, doc.data()!);
+  }
+
+  Stream<List<CompanyDailyUsage>> watchUsageHistory(
+    String companyId, {
+    int limit = 30,
+  }) {
+    return _usageCol(companyId)
+        .orderBy('date', descending: true)
+        .limit(limit)
+        .snapshots()
+        .map((snap) => snap.docs
+            .map((doc) => CompanyDailyUsage.fromMap(doc.id, doc.data()))
+            .toList());
   }
 }
 
