@@ -1,6 +1,7 @@
 import 'package:cloud_firestore/cloud_firestore.dart';
 import 'package:equatable/equatable.dart';
 import 'rate_schedule.dart';
+import 'rental_calculation_breakdown.dart';
 import 'table_billing_item.dart';
 
 class TableSession extends Equatable {
@@ -128,6 +129,146 @@ class TableSession extends Equatable {
   /// Total grand bill (Table dynamic time charge + Items amount)
   double computeGrandTotalAt(DateTime referenceTime) {
     return computeTableChargeAt(referenceTime) + itemsAmount;
+  }
+
+  /// Computes a full itemized breakdown of table rent including base rate,
+  /// custom pricing schedules applied, duration per rate tier, and pause time.
+  RentalCalculationBreakdown computeRentalBreakdownAt(DateTime referenceTime) {
+    final effectiveEnd = endTime ?? referenceTime;
+    if (!effectiveEnd.isAfter(startTime)) {
+      return RentalCalculationBreakdown(
+        baseHourlyRate: generalPrice,
+        totalPlayedSeconds: 0,
+        pausedSeconds: pausedSeconds,
+        totalRentAmount: 0.0,
+        hasCustomRates: customPricings.isNotEmpty,
+        segments: const [],
+      );
+    }
+
+    final activeSeconds = playedSecondsAt(referenceTime);
+    if (activeSeconds <= 0) {
+      return RentalCalculationBreakdown(
+        baseHourlyRate: generalPrice,
+        totalPlayedSeconds: 0,
+        pausedSeconds: pausedSeconds,
+        totalRentAmount: 0.0,
+        hasCustomRates: customPricings.isNotEmpty,
+        segments: const [],
+      );
+    }
+
+    if (customPricings.isEmpty) {
+      final charge = (activeSeconds / 3600.0) * generalPrice;
+      return RentalCalculationBreakdown(
+        baseHourlyRate: generalPrice,
+        totalPlayedSeconds: activeSeconds,
+        pausedSeconds: pausedSeconds,
+        totalRentAmount: charge,
+        hasCustomRates: false,
+        segments: [
+          RentalRateSegment(
+            rateName: 'Standard Hourly Rate',
+            hourlyRate: generalPrice,
+            durationSeconds: activeSeconds,
+            amount: charge,
+            isCustomRate: false,
+          ),
+        ],
+      );
+    }
+
+    // Accumulate time & cost into ordered rate buckets
+    final List<_RateBucketHelper> buckets = [];
+    const stepMinutes = 1;
+    var cursor = startTime;
+    final fullMinutes = activeSeconds ~/ 60;
+    final remainingSeconds = activeSeconds % 60;
+    int processedMinutes = 0;
+
+    void recordTimeAtCursor(DateTime time, int seconds) {
+      RateSchedule? applied;
+      for (final schedule in customPricings) {
+        if (schedule.appliesAt(time)) {
+          applied = schedule;
+          break;
+        }
+      }
+
+      final isCustom = applied != null;
+      final name = isCustom ? applied.label : 'Standard Rate';
+      final rate = isCustom ? applied.hourlyRate : generalPrice;
+      final timeWindow = applied != null
+          ? '${_formatMinuteOfDay(applied.startMinuteOfDay)} - ${_formatMinuteOfDay(applied.endMinuteOfDay)}'
+          : null;
+
+      final existingIndex = buckets.indexWhere(
+        (b) => b.rateName == name && b.hourlyRate == rate,
+      );
+
+      if (existingIndex >= 0) {
+        buckets[existingIndex].durationSeconds += seconds;
+        buckets[existingIndex].amount += (seconds / 3600.0) * rate;
+      } else {
+        buckets.add(
+          _RateBucketHelper(
+            rateName: name,
+            hourlyRate: rate,
+            durationSeconds: seconds,
+            amount: (seconds / 3600.0) * rate,
+            isCustomRate: isCustom,
+            timeWindow: timeWindow,
+          ),
+        );
+      }
+    }
+
+    while (processedMinutes < fullMinutes) {
+      final chunkMinutes = (fullMinutes - processedMinutes) < stepMinutes
+          ? (fullMinutes - processedMinutes)
+          : stepMinutes;
+      recordTimeAtCursor(cursor, chunkMinutes * 60);
+      processedMinutes += chunkMinutes;
+      cursor = cursor.add(Duration(minutes: chunkMinutes));
+    }
+
+    if (remainingSeconds > 0) {
+      recordTimeAtCursor(cursor, remainingSeconds);
+    }
+
+    final segments = buckets
+        .map(
+          (b) => RentalRateSegment(
+            rateName: b.rateName,
+            hourlyRate: b.hourlyRate,
+            durationSeconds: b.durationSeconds,
+            amount: b.amount,
+            isCustomRate: b.isCustomRate,
+            timeWindow: b.timeWindow,
+          ),
+        )
+        .toList();
+
+    final totalCost = segments.fold<double>(0.0, (acc, s) => acc + s.amount);
+    final hasActiveCustomRates = segments.any((s) => s.isCustomRate);
+
+    return RentalCalculationBreakdown(
+      baseHourlyRate: generalPrice,
+      totalPlayedSeconds: activeSeconds,
+      pausedSeconds: pausedSeconds,
+      totalRentAmount: totalCost,
+      hasCustomRates: hasActiveCustomRates || customPricings.isNotEmpty,
+      segments: segments,
+    );
+  }
+
+  static String _formatMinuteOfDay(int minuteOfDay) {
+    final h = minuteOfDay ~/ 60;
+    final m = minuteOfDay % 60;
+    final period = h >= 12 ? 'PM' : 'AM';
+    final displayH = h == 0 ? 12 : (h > 12 ? h - 12 : h);
+    final displayM = m.toString().padLeft(2, '0');
+    return '$displayH:$displayM $period';
   }
 
   TableSession copyWith({
@@ -288,3 +429,22 @@ class TableSession extends Equatable {
         lastGrandTotal,
       ];
 }
+
+class _RateBucketHelper {
+  final String rateName;
+  final double hourlyRate;
+  int durationSeconds;
+  double amount;
+  final bool isCustomRate;
+  final String? timeWindow;
+
+  _RateBucketHelper({
+    required this.rateName,
+    required this.hourlyRate,
+    required this.durationSeconds,
+    required this.amount,
+    required this.isCustomRate,
+    this.timeWindow,
+  });
+}
+

@@ -1,6 +1,7 @@
 import 'package:cloud_firestore/cloud_firestore.dart';
 import 'package:uuid/uuid.dart';
 import '../../core/constants/constants.dart';
+import '../../domain/entities/app_download_config.dart';
 import '../../domain/entities/club_reminder.dart';
 import '../../domain/entities/club_table.dart';
 import '../../domain/entities/company.dart';
@@ -768,6 +769,53 @@ class FirestoreService {
 
   Future<void> deleteReminder(String companyId, String reminderId) async {
     await _remindersCol(companyId).doc(reminderId).delete();
+  }
+
+  // -------------------------------------------------------------
+  // APP CONFIG / DOWNLOAD URL (Separate top-level collection: appConfig)
+  // -------------------------------------------------------------
+
+  CollectionReference<Map<String, dynamic>> get _appConfigCol =>
+      _firestore.collection('appConfig');
+
+  /// Stream real-time app download configuration (Google Drive / APK link)
+  Stream<AppDownloadConfig> watchAppDownloadConfig() {
+    return _appConfigCol.doc('appDownload').snapshots().map((doc) {
+      if (!doc.exists || doc.data() == null) {
+        return const AppDownloadConfig(downloadUrl: '');
+      }
+      return AppDownloadConfig.fromMap(doc.data()!);
+    });
+  }
+
+  /// Get the current app download configuration one-time
+  Future<AppDownloadConfig> getAppDownloadConfig() async {
+    try {
+      final doc = await _appConfigCol.doc('appDownload').get();
+      if (!doc.exists || doc.data() == null) {
+        return const AppDownloadConfig(downloadUrl: '');
+      }
+      return AppDownloadConfig.fromMap(doc.data()!);
+    } catch (_) {
+      return const AppDownloadConfig(downloadUrl: '');
+    }
+  }
+
+  /// Updates or uploads the app download URL, minimum required version, and metadata
+  Future<void> updateAppDownloadUrl({
+    required String downloadUrl,
+    String? minVersion,
+    String? updatedBy,
+    String? notes,
+  }) async {
+    await _appConfigCol.doc('appDownload').set({
+      'downloadUrl': downloadUrl.trim(),
+      if (minVersion != null) 'minVersion': minVersion.trim(),
+      'updatedAt': FieldValue.serverTimestamp(),
+      if (updatedBy != null && updatedBy.trim().isNotEmpty)
+        'updatedBy': updatedBy.trim(),
+      if (notes != null && notes.trim().isNotEmpty) 'notes': notes.trim(),
+    }, SetOptions(merge: true));
   }
 }
 

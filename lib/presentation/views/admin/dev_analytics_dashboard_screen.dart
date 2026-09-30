@@ -1,11 +1,14 @@
 import 'package:flutter/material.dart';
 import 'package:flutter/services.dart';
 import 'package:intl/intl.dart';
+import 'package:url_launcher/url_launcher.dart';
+import '../../../core/constants/constants.dart';
 import '../../../core/di/service_locator.dart';
 import '../../../core/theme/app_colors.dart';
 import '../../../core/utils/interactive_feedback.dart';
 import '../../../core/utils/responsive.dart';
 import '../../../data/datasources/firestore_service.dart';
+import '../../../domain/entities/app_download_config.dart';
 import '../../../domain/entities/company.dart';
 import '../auth/create_company_screen.dart';
 import 'company_details_dev_screen.dart';
@@ -61,6 +64,17 @@ class _DevAnalyticsDashboardScreenState
           ],
         ),
         actions: [
+          IconButton(
+            tooltip: 'App Download Link',
+            icon: const Icon(
+              Icons.cloud_download_rounded,
+              color: AppColors.brandAccentLight,
+            ),
+            onPressed: () {
+              AppHaptics.light();
+              _showAppDownloadUrlDialog(context, firestoreService);
+            },
+          ),
           IconButton(
             tooltip: 'Create New Company',
             icon: const Icon(
@@ -149,6 +163,10 @@ class _DevAnalyticsDashboardScreenState
                         expiredCompanies: expiredCount,
                         isMobile: isMobile,
                       ),
+                      const SizedBox(height: 16),
+
+                      // App Download Link Management Card (Separate appConfig collection)
+                      _buildAppDownloadConfigCard(firestoreService, isMobile),
                       const SizedBox(height: 16),
 
                       // Search & Filter Toolbar
@@ -695,6 +713,692 @@ class _DevAnalyticsDashboardScreenState
         }
       }
     }
+  }
+
+  Widget _buildAppDownloadConfigCard(
+    FirestoreService firestoreService,
+    bool isMobile,
+  ) {
+    return StreamBuilder<AppDownloadConfig>(
+      stream: firestoreService.watchAppDownloadConfig(),
+      builder: (context, snapshot) {
+        final config = snapshot.data ?? const AppDownloadConfig(downloadUrl: '');
+        final hasUrl = config.hasValidUrl;
+
+        return Container(
+          width: double.infinity,
+          padding: const EdgeInsets.all(16),
+          decoration: BoxDecoration(
+            color: AppColors.cardSurface,
+            borderRadius: BorderRadius.circular(16),
+            border: Border.all(
+              color: hasUrl
+                  ? AppColors.brandAccent.withAlpha(90)
+                  : AppColors.cardBorderStroke,
+              width: 1,
+            ),
+            boxShadow: [
+              BoxShadow(
+                color: Colors.black.withAlpha(40),
+                blurRadius: 10,
+                offset: const Offset(0, 3),
+              ),
+            ],
+          ),
+          child: Column(
+            crossAxisAlignment: CrossAxisAlignment.start,
+            children: [
+              Row(
+                crossAxisAlignment: CrossAxisAlignment.start,
+                children: [
+                  Container(
+                    padding: const EdgeInsets.all(10),
+                    decoration: BoxDecoration(
+                      color: hasUrl
+                          ? const Color(0xFF00E676).withAlpha(26)
+                          : AppColors.brandAccent.withAlpha(26),
+                      borderRadius: BorderRadius.circular(12),
+                    ),
+                    child: Icon(
+                      hasUrl
+                          ? Icons.android_rounded
+                          : Icons.cloud_upload_outlined,
+                      color: hasUrl
+                          ? const Color(0xFF00E676)
+                          : AppColors.brandAccentLight,
+                      size: 24,
+                    ),
+                  ),
+                  const SizedBox(width: 12),
+                  Expanded(
+                    child: Column(
+                      crossAxisAlignment: CrossAxisAlignment.start,
+                      children: [
+                        Wrap(
+                          spacing: 8,
+                          runSpacing: 4,
+                          crossAxisAlignment: WrapCrossAlignment.center,
+                          children: [
+                            const Text(
+                              'Public App Download Link',
+                              style: TextStyle(
+                                color: AppColors.primaryText,
+                                fontSize: 15,
+                                fontWeight: FontWeight.w700,
+                              ),
+                            ),
+                            Container(
+                              padding: const EdgeInsets.symmetric(
+                                horizontal: 6,
+                                vertical: 2,
+                              ),
+                              decoration: BoxDecoration(
+                                color: hasUrl
+                                    ? const Color(0xFF00E676).withAlpha(30)
+                                    : AppColors.tableOccupied.withAlpha(30),
+                                borderRadius: BorderRadius.circular(6),
+                              ),
+                              child: Text(
+                                hasUrl ? 'Active' : 'Not Set',
+                                style: TextStyle(
+                                  color: hasUrl
+                                      ? const Color(0xFF00E676)
+                                      : AppColors.tableOccupied,
+                                  fontSize: 10.5,
+                                  fontWeight: FontWeight.w700,
+                                ),
+                              ),
+                            ),
+                            if (config.hasMinimumVersionRequirement)
+                              Container(
+                                padding: const EdgeInsets.symmetric(
+                                  horizontal: 6,
+                                  vertical: 2,
+                                ),
+                                decoration: BoxDecoration(
+                                  color: const Color(0xFFFFB300).withAlpha(30),
+                                  borderRadius: BorderRadius.circular(6),
+                                ),
+                                child: Text(
+                                  'Min v${config.minVersion}',
+                                  style: const TextStyle(
+                                    color: Color(0xFFFFB300),
+                                    fontSize: 10.5,
+                                    fontWeight: FontWeight.w700,
+                                  ),
+                                ),
+                              ),
+                          ],
+                        ),
+                        const SizedBox(height: 4),
+                        Text(
+                          hasUrl
+                              ? (config.notes != null && config.notes!.isNotEmpty
+                                  ? config.notes!
+                                  : 'Operators & users can download the app from their navigation drawer.')
+                              : 'Upload a Google Drive link or direct APK URL so operators can download SSAAS from their navigation drawer.',
+                          style: const TextStyle(
+                            color: AppColors.secondaryText,
+                            fontSize: 12,
+                          ),
+                        ),
+                        const SizedBox(height: 4),
+                        Text(
+                          'Current App: v${Constants.appVersion}${config.hasMinimumVersionRequirement ? ' • Min Required: v${config.minVersion}' : ' • Min Required: None'}',
+                          style: const TextStyle(
+                            color: AppColors.textDisabled,
+                            fontSize: 11,
+                            fontWeight: FontWeight.w600,
+                          ),
+                        ),
+                      ],
+                    ),
+                  ),
+                ],
+              ),
+              if (hasUrl) ...[
+                const SizedBox(height: 12),
+                Container(
+                  width: double.infinity,
+                  padding: const EdgeInsets.symmetric(
+                    horizontal: 12,
+                    vertical: 8,
+                  ),
+                  decoration: BoxDecoration(
+                    color: AppColors.backgroundBase,
+                    borderRadius: BorderRadius.circular(8),
+                    border: Border.all(
+                      color: AppColors.cardBorderStroke,
+                      width: 0.8,
+                    ),
+                  ),
+                  child: Row(
+                    children: [
+                      const Icon(
+                        Icons.link_rounded,
+                        color: AppColors.brandAccentLight,
+                        size: 16,
+                      ),
+                      const SizedBox(width: 8),
+                      Expanded(
+                        child: Text(
+                          config.downloadUrl,
+                          maxLines: 1,
+                          overflow: TextOverflow.ellipsis,
+                          style: const TextStyle(
+                            color: AppColors.primaryText,
+                            fontFamily: 'monospace',
+                            fontSize: 11.5,
+                          ),
+                        ),
+                      ),
+                      IconButton(
+                        icon: const Icon(Icons.copy_rounded, size: 16),
+                        color: AppColors.secondaryText,
+                        tooltip: 'Copy Link',
+                        padding: EdgeInsets.zero,
+                        constraints: const BoxConstraints(),
+                        onPressed: () {
+                          AppHaptics.light();
+                          Clipboard.setData(
+                            ClipboardData(text: config.downloadUrl),
+                          );
+                          ScaffoldMessenger.of(context).showSnackBar(
+                            const SnackBar(
+                              content: Text('Download URL copied to clipboard'),
+                              behavior: SnackBarBehavior.floating,
+                            ),
+                          );
+                        },
+                      ),
+                    ],
+                  ),
+                ),
+                if (config.updatedAt != null) ...[
+                  const SizedBox(height: 6),
+                  Text(
+                    'Last updated: ${DateFormat('dd MMM yyyy, hh:mm a').format(config.updatedAt!)}',
+                    style: const TextStyle(
+                      color: AppColors.textDisabled,
+                      fontSize: 10.5,
+                    ),
+                  ),
+                ],
+              ],
+              const SizedBox(height: 14),
+              Wrap(
+                spacing: 8,
+                runSpacing: 8,
+                children: [
+                  ElevatedButton.icon(
+                    onPressed: () {
+                      AppHaptics.selection();
+                      _showAppDownloadUrlDialog(
+                        context,
+                        firestoreService,
+                        initialConfig: config,
+                      );
+                    },
+                    icon: Icon(
+                      hasUrl ? Icons.edit_rounded : Icons.upload_file_rounded,
+                      size: 16,
+                    ),
+                    label: Text(hasUrl ? 'Update Link' : 'Upload Download Link'),
+                    style: ElevatedButton.styleFrom(
+                      backgroundColor: AppColors.brandAccent,
+                      foregroundColor: Colors.white,
+                      padding: const EdgeInsets.symmetric(
+                        horizontal: 14,
+                        vertical: 10,
+                      ),
+                      shape: RoundedRectangleBorder(
+                        borderRadius: BorderRadius.circular(10),
+                      ),
+                    ),
+                  ),
+                  if (hasUrl)
+                    OutlinedButton.icon(
+                      onPressed: () async {
+                        AppHaptics.light();
+                        final uri = Uri.tryParse(config.downloadUrl);
+                        if (uri != null && uri.hasScheme) {
+                          await launchUrl(uri, mode: LaunchMode.externalApplication);
+                        } else {
+                          ScaffoldMessenger.of(context).showSnackBar(
+                            const SnackBar(
+                              content: Text('Invalid download URL format'),
+                              backgroundColor: AppColors.error,
+                              behavior: SnackBarBehavior.floating,
+                            ),
+                          );
+                        }
+                      },
+                      icon: const Icon(Icons.open_in_new_rounded, size: 16),
+                      label: const Text('Test Link'),
+                      style: OutlinedButton.styleFrom(
+                        foregroundColor: AppColors.brandAccentLight,
+                        side: const BorderSide(
+                          color: AppColors.cardBorderStroke,
+                        ),
+                        padding: const EdgeInsets.symmetric(
+                          horizontal: 14,
+                          vertical: 10,
+                        ),
+                        shape: RoundedRectangleBorder(
+                          borderRadius: BorderRadius.circular(10),
+                        ),
+                      ),
+                    ),
+                ],
+              ),
+            ],
+          ),
+        );
+      },
+    );
+  }
+
+  void _showAppDownloadUrlDialog(
+    BuildContext context,
+    FirestoreService firestoreService, {
+    AppDownloadConfig? initialConfig,
+  }) {
+    final formKey = GlobalKey<FormState>();
+    final urlController = TextEditingController(
+      text: initialConfig?.downloadUrl ?? '',
+    );
+    final minVersionController = TextEditingController(
+      text: initialConfig?.minVersion ?? '',
+    );
+    final notesController = TextEditingController(
+      text: initialConfig?.notes ?? '',
+    );
+    bool isSaving = false;
+
+    showDialog(
+      context: context,
+      builder: (ctx) {
+        return StatefulBuilder(
+          builder: (context, setDialogState) {
+            return Dialog(
+              backgroundColor: AppColors.cardSurface,
+              shape: RoundedRectangleBorder(
+                borderRadius: BorderRadius.circular(20),
+                side: const BorderSide(color: AppColors.cardBorderStroke),
+              ),
+              child: Container(
+                constraints: BoxConstraints(
+                  maxHeight: MediaQuery.of(context).size.height * 0.9,
+                  maxWidth: 580,
+                ),
+                padding: const EdgeInsets.all(24),
+                child: SingleChildScrollView(
+                  child: Form(
+                    key: formKey,
+                    child: Column(
+                      mainAxisSize: MainAxisSize.min,
+                      crossAxisAlignment: CrossAxisAlignment.start,
+                      children: [
+                        Row(
+                          children: [
+                            Container(
+                              padding: const EdgeInsets.all(8),
+                              decoration: BoxDecoration(
+                                color: AppColors.brandAccent.withAlpha(26),
+                                borderRadius: BorderRadius.circular(10),
+                              ),
+                              child: const Icon(
+                                Icons.cloud_upload_rounded,
+                                color: AppColors.brandAccentLight,
+                                size: 22,
+                              ),
+                            ),
+                            const SizedBox(width: 12),
+                            const Expanded(
+                              child: Text(
+                                'App Download Link',
+                                style: TextStyle(
+                                  color: AppColors.primaryText,
+                                  fontSize: 18,
+                                  fontWeight: FontWeight.w700,
+                                ),
+                              ),
+                            ),
+                            IconButton(
+                              icon: const Icon(Icons.close, color: AppColors.secondaryText),
+                              onPressed: isSaving ? null : () => Navigator.of(ctx).pop(),
+                            ),
+                          ],
+                        ),
+                        const SizedBox(height: 16),
+                        const Text(
+                          'Upload a Google Drive link or direct APK hosting URL. All club users will see a "Download App" button in their navigation drawer linking to this URL.',
+                          style: TextStyle(
+                            color: AppColors.secondaryText,
+                            fontSize: 13,
+                            height: 1.4,
+                          ),
+                        ),
+                        const SizedBox(height: 16),
+
+                        // Google Drive Tip Card
+                        Container(
+                          padding: const EdgeInsets.all(12),
+                          decoration: BoxDecoration(
+                            color: const Color(0xFFFFB300).withAlpha(18),
+                            borderRadius: BorderRadius.circular(12),
+                            border: Border.all(
+                              color: const Color(0xFFFFB300).withAlpha(80),
+                            ),
+                          ),
+                          child: const Row(
+                            crossAxisAlignment: CrossAxisAlignment.start,
+                            children: [
+                              Icon(
+                                Icons.info_outline_rounded,
+                                color: Color(0xFFFFB300),
+                                size: 18,
+                              ),
+                              SizedBox(width: 10),
+                              Expanded(
+                                child: Text(
+                                  'Google Drive Tip: Ensure the file link sharing is set to "Anyone with the link" with Viewer access so users can download directly without needing permission.',
+                                  style: TextStyle(
+                                    color: Color(0xFFFFD54F),
+                                    fontSize: 12,
+                                    height: 1.35,
+                                  ),
+                                ),
+                              ),
+                            ],
+                          ),
+                        ),
+                        const SizedBox(height: 20),
+
+                        // URL Field
+                        const Text(
+                          'DOWNLOAD URL *',
+                          style: TextStyle(
+                            color: AppColors.secondaryText,
+                            fontSize: 11,
+                            fontWeight: FontWeight.w700,
+                            letterSpacing: 0.8,
+                          ),
+                        ),
+                        const SizedBox(height: 6),
+                        TextFormField(
+                          controller: urlController,
+                          enabled: !isSaving,
+                          style: const TextStyle(
+                            color: AppColors.primaryText,
+                            fontSize: 13.5,
+                            fontFamily: 'monospace',
+                          ),
+                          decoration: InputDecoration(
+                            hintText: 'https://drive.google.com/file/d/...',
+                            hintStyle: const TextStyle(
+                              color: AppColors.textDisabled,
+                              fontSize: 12.5,
+                            ),
+                            prefixIcon: const Icon(
+                              Icons.link_rounded,
+                              color: AppColors.brandAccentLight,
+                            ),
+                            suffixIcon: IconButton(
+                              icon: const Icon(
+                                Icons.paste_rounded,
+                                color: AppColors.secondaryText,
+                                size: 18,
+                              ),
+                              tooltip: 'Paste from clipboard',
+                              onPressed: isSaving
+                                  ? null
+                                  : () async {
+                                      final data = await Clipboard.getData('text/plain');
+                                      if (data?.text != null && data!.text!.trim().isNotEmpty) {
+                                        urlController.text = data.text!.trim();
+                                      }
+                                    },
+                            ),
+                            filled: true,
+                            fillColor: AppColors.backgroundBase,
+                            border: OutlineInputBorder(
+                              borderRadius: BorderRadius.circular(12),
+                              borderSide: const BorderSide(color: AppColors.cardBorderStroke),
+                            ),
+                            focusedBorder: OutlineInputBorder(
+                              borderRadius: BorderRadius.circular(12),
+                              borderSide: const BorderSide(color: AppColors.brandAccentLight),
+                            ),
+                          ),
+                          validator: (value) {
+                            if (value == null || value.trim().isEmpty) {
+                              return 'Please enter a download URL';
+                            }
+                            final clean = value.trim();
+                            if (!clean.startsWith('http://') && !clean.startsWith('https://')) {
+                              return 'URL must start with http:// or https://';
+                            }
+                            return null;
+                          },
+                        ),
+                        const SizedBox(height: 16),
+
+                        // Notes Field
+                        const Text(
+                          'VERSION / RELEASE NOTES (OPTIONAL)',
+                          style: TextStyle(
+                            color: AppColors.secondaryText,
+                            fontSize: 11,
+                            fontWeight: FontWeight.w700,
+                            letterSpacing: 0.8,
+                          ),
+                        ),
+                        const SizedBox(height: 6),
+                        TextFormField(
+                          controller: notesController,
+                          enabled: !isSaving,
+                          style: const TextStyle(
+                            color: AppColors.primaryText,
+                            fontSize: 13.5,
+                          ),
+                          decoration: InputDecoration(
+                            hintText: 'e.g. v1.0.5 - Android APK Release',
+                            hintStyle: const TextStyle(
+                              color: AppColors.textDisabled,
+                              fontSize: 12.5,
+                            ),
+                            prefixIcon: const Icon(
+                              Icons.notes_rounded,
+                              color: AppColors.secondaryText,
+                            ),
+                            filled: true,
+                            fillColor: AppColors.backgroundBase,
+                            border: OutlineInputBorder(
+                              borderRadius: BorderRadius.circular(12),
+                              borderSide: const BorderSide(color: AppColors.cardBorderStroke),
+                            ),
+                            focusedBorder: OutlineInputBorder(
+                              borderRadius: BorderRadius.circular(12),
+                              borderSide: const BorderSide(color: AppColors.brandAccentLight),
+                            ),
+                          ),
+                        ),
+                        const SizedBox(height: 16),
+
+                        // Minimum Version Required Field
+                        Wrap(
+                          spacing: 8,
+                          runSpacing: 4,
+                          crossAxisAlignment: WrapCrossAlignment.center,
+                          children: [
+                            const Text(
+                              'MINIMUM APP VERSION REQUIRED',
+                              style: TextStyle(
+                                color: AppColors.secondaryText,
+                                fontSize: 11,
+                                fontWeight: FontWeight.w700,
+                                letterSpacing: 0.8,
+                              ),
+                            ),
+                            Container(
+                              padding: const EdgeInsets.symmetric(
+                                horizontal: 6,
+                                vertical: 2,
+                              ),
+                              decoration: BoxDecoration(
+                                color: AppColors.brandAccent.withAlpha(25),
+                                borderRadius: BorderRadius.circular(4),
+                              ),
+                              child: Text(
+                                'Current: v${Constants.appVersion}',
+                                style: const TextStyle(
+                                  color: AppColors.brandAccentLight,
+                                  fontSize: 10,
+                                  fontWeight: FontWeight.w700,
+                                ),
+                              ),
+                            ),
+                          ],
+                        ),
+                        const SizedBox(height: 6),
+                        TextFormField(
+                          controller: minVersionController,
+                          enabled: !isSaving,
+                          style: const TextStyle(
+                            color: AppColors.primaryText,
+                            fontSize: 13.5,
+                            fontFamily: 'monospace',
+                          ),
+                          decoration: InputDecoration(
+                            hintText: 'e.g. 1.0.1 (Leave empty to allow all versions)',
+                            hintStyle: const TextStyle(
+                              color: AppColors.textDisabled,
+                              fontSize: 12.5,
+                            ),
+                            prefixIcon: const Icon(
+                              Icons.verified_outlined,
+                              color: AppColors.brandAccentLight,
+                            ),
+                            suffixIcon: minVersionController.text.isNotEmpty
+                                ? IconButton(
+                                    icon: const Icon(Icons.clear, size: 16),
+                                    onPressed: isSaving
+                                        ? null
+                                        : () {
+                                            setDialogState(() {
+                                              minVersionController.clear();
+                                            });
+                                          },
+                                  )
+                                : null,
+                            helperText:
+                                'If set, users on an app version lower than this will be restricted from using the app and forced to update.',
+                            helperStyle: const TextStyle(
+                              color: AppColors.secondaryText,
+                              fontSize: 11,
+                            ),
+                            helperMaxLines: 2,
+                            filled: true,
+                            fillColor: AppColors.backgroundBase,
+                            border: OutlineInputBorder(
+                              borderRadius: BorderRadius.circular(12),
+                              borderSide: const BorderSide(
+                                color: AppColors.cardBorderStroke,
+                              ),
+                            ),
+                            focusedBorder: OutlineInputBorder(
+                              borderRadius: BorderRadius.circular(12),
+                              borderSide: const BorderSide(
+                                color: AppColors.brandAccentLight,
+                              ),
+                            ),
+                          ),
+                        ),
+                        const SizedBox(height: 24),
+
+                        // Action Buttons
+                        Row(
+                          mainAxisAlignment: MainAxisAlignment.end,
+                          children: [
+                            TextButton(
+                              onPressed: isSaving ? null : () => Navigator.of(ctx).pop(),
+                              child: const Text('Cancel'),
+                            ),
+                            const SizedBox(width: 12),
+                            ElevatedButton.icon(
+                              onPressed: isSaving
+                                  ? null
+                                  : () async {
+                                      if (!formKey.currentState!.validate()) return;
+                                      setDialogState(() => isSaving = true);
+                                      try {
+                                        await firestoreService.updateAppDownloadUrl(
+                                          downloadUrl: urlController.text.trim(),
+                                          minVersion: minVersionController.text.trim(),
+                                          notes: notesController.text.trim(),
+                                          updatedBy: 'Dev Admin',
+                                        );
+                                        AppHaptics.success();
+                                        if (ctx.mounted) Navigator.of(ctx).pop();
+                                        if (context.mounted) {
+                                          ScaffoldMessenger.of(context).showSnackBar(
+                                            const SnackBar(
+                                              content: Text('App download URL published successfully!'),
+                                              backgroundColor: AppColors.tableAvailable,
+                                              behavior: SnackBarBehavior.floating,
+                                            ),
+                                          );
+                                        }
+                                      } catch (e) {
+                                        setDialogState(() => isSaving = false);
+                                        AppHaptics.error();
+                                        if (context.mounted) {
+                                          ScaffoldMessenger.of(context).showSnackBar(
+                                            SnackBar(
+                                              content: Text('Failed to save URL: $e'),
+                                              backgroundColor: AppColors.error,
+                                              behavior: SnackBarBehavior.floating,
+                                            ),
+                                          );
+                                        }
+                                      }
+                                    },
+                              icon: isSaving
+                                  ? const SizedBox(
+                                      width: 16,
+                                      height: 16,
+                                      child: CircularProgressIndicator(
+                                        strokeWidth: 2,
+                                        color: Colors.white,
+                                      ),
+                                    )
+                                  : const Icon(Icons.check_rounded, size: 18),
+                              label: Text(isSaving ? 'Saving...' : 'Save & Publish'),
+                              style: ElevatedButton.styleFrom(
+                                backgroundColor: AppColors.brandAccent,
+                                foregroundColor: Colors.white,
+                                padding: const EdgeInsets.symmetric(
+                                  horizontal: 18,
+                                  vertical: 12,
+                                ),
+                                shape: RoundedRectangleBorder(
+                                  borderRadius: BorderRadius.circular(10),
+                                ),
+                              ),
+                            ),
+                          ],
+                        ),
+                      ],
+                    ),
+                  ),
+                ),
+              ),
+            );
+          },
+        );
+      },
+    );
   }
 }
 

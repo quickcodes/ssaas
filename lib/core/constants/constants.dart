@@ -2,6 +2,11 @@ class Constants {
   /// Application display name
   static const String appName = 'SSAAS';
 
+  /// Current application version (e.g. 1.0.0)
+  static const String appVersion = '1.0.0';
+  static const int appBuildNumber = 1;
+  static const String fullVersion = '$appVersion+$appBuildNumber';
+
   /// Dev-only flag for company creation.
   /// When true: The "Create Company" button appears on the Login screen and
   /// opens the dedicated company creation screen.

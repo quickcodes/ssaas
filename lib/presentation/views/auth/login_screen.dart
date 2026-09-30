@@ -42,11 +42,25 @@ class _LoginScreenState extends State<LoginScreen>
       begin: 1.0,
       end: 1.05,
     ).animate(CurvedAnimation(parent: _logoAnimCtrl, curve: Curves.easeInOut));
+
+    _companyCodeCtrl.addListener(_clearErrorOnType);
+    _identifierCtrl.addListener(_clearErrorOnType);
+    _passwordCtrl.addListener(_clearErrorOnType);
+  }
+
+  void _clearErrorOnType() {
+    final authState = context.read<AuthBloc>().state;
+    if (authState.errorMessage != null) {
+      context.read<AuthBloc>().add(ClearAuthErrorEvent());
+    }
   }
 
   @override
   void dispose() {
     _logoAnimCtrl.dispose();
+    _companyCodeCtrl.removeListener(_clearErrorOnType);
+    _identifierCtrl.removeListener(_clearErrorOnType);
+    _passwordCtrl.removeListener(_clearErrorOnType);
     _companyCodeCtrl.dispose();
     _identifierCtrl.dispose();
     _passwordCtrl.dispose();
@@ -82,14 +96,52 @@ class _LoginScreenState extends State<LoginScreen>
     final isMobile = Responsive.isMobile(context);
 
     return BlocConsumer<AuthBloc, AuthState>(
+      listenWhen: (previous, current) =>
+          current.errorMessage != previous.errorMessage ||
+          current.successMessage != previous.successMessage,
       listener: (context, state) {
         if (state.errorMessage != null) {
-          _showErrorDialog(
-            context,
-            state.errorMessage!,
-            state.isSubscriptionExpired,
-            isUserDeactivated: state.isUserDeactivated,
-          );
+          AppHaptics.error();
+          if (state.isSubscriptionExpired || state.isUserDeactivated) {
+            _showErrorDialog(
+              context,
+              state.errorMessage!,
+              state.isSubscriptionExpired,
+              isUserDeactivated: state.isUserDeactivated,
+            );
+          } else {
+            ScaffoldMessenger.of(context).hideCurrentSnackBar();
+            ScaffoldMessenger.of(context).showSnackBar(
+              SnackBar(
+                content: Row(
+                  children: [
+                    const Icon(
+                      Icons.error_outline_rounded,
+                      color: Colors.white,
+                      size: 20,
+                    ),
+                    const SizedBox(width: 10),
+                    Expanded(
+                      child: Text(
+                        state.errorMessage!,
+                        style: const TextStyle(
+                          color: Colors.white,
+                          fontWeight: FontWeight.w600,
+                          fontSize: 13,
+                        ),
+                      ),
+                    ),
+                  ],
+                ),
+                backgroundColor: AppColors.error,
+                behavior: SnackBarBehavior.floating,
+                duration: const Duration(seconds: 4),
+                shape: RoundedRectangleBorder(
+                  borderRadius: BorderRadius.circular(10),
+                ),
+              ),
+            );
+          }
         }
       },
       builder: (context, state) {
@@ -280,7 +332,64 @@ class _LoginScreenState extends State<LoginScreen>
                                 ? 'Enter your password'
                                 : null,
                           ),
-                          const SizedBox(height: 28),
+                          const SizedBox(height: 24),
+
+                          // Inline User-Friendly Error Banner
+                          if (state.errorMessage != null && !state.isLoading) ...[
+                            Container(
+                              padding: const EdgeInsets.symmetric(
+                                horizontal: 14,
+                                vertical: 12,
+                              ),
+                              decoration: BoxDecoration(
+                                color: AppColors.error.withAlpha(24),
+                                borderRadius: BorderRadius.circular(12),
+                                border: Border.all(
+                                  color: AppColors.error.withAlpha(120),
+                                ),
+                              ),
+                              child: Row(
+                                crossAxisAlignment: CrossAxisAlignment.start,
+                                children: [
+                                  const Padding(
+                                    padding: EdgeInsets.only(top: 2),
+                                    child: Icon(
+                                      Icons.error_outline_rounded,
+                                      color: AppColors.error,
+                                      size: 18,
+                                    ),
+                                  ),
+                                  const SizedBox(width: 10),
+                                  Expanded(
+                                    child: Text(
+                                      state.errorMessage!,
+                                      style: const TextStyle(
+                                        color: Color(0xFFFF8A80),
+                                        fontSize: 13,
+                                        fontWeight: FontWeight.w600,
+                                        height: 1.35,
+                                      ),
+                                    ),
+                                  ),
+                                  InkWell(
+                                    onTap: () {
+                                      context.read<AuthBloc>().add(ClearAuthErrorEvent());
+                                    },
+                                    borderRadius: BorderRadius.circular(20),
+                                    child: const Padding(
+                                      padding: EdgeInsets.all(4),
+                                      child: Icon(
+                                        Icons.close,
+                                        size: 16,
+                                        color: AppColors.secondaryText,
+                                      ),
+                                    ),
+                                  ),
+                                ],
+                              ),
+                            ),
+                            const SizedBox(height: 16),
+                          ],
 
                           // Login Button
                           BouncingTap(

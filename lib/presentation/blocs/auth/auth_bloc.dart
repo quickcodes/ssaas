@@ -123,10 +123,12 @@ class UpdateUserRoleEvent extends AuthEvent {
 class ToggleUserOnlineStatusEvent extends AuthEvent {
   final String userId;
   final bool isOnline;
+
   const ToggleUserOnlineStatusEvent({
     required this.userId,
     required this.isOnline,
   });
+
   @override
   List<Object?> get props => [userId, isOnline];
 }
@@ -423,7 +425,7 @@ class AuthBloc extends Bloc<AuthEvent, AuthState> {
           state.copyWith(
             isLoading: false,
             errorMessage:
-                'Invalid company code. No club found with code "$cleanCode".',
+                'Club code "$cleanCode" not found. Please verify your club code or contact your manager.',
           ),
         );
         return;
@@ -436,7 +438,7 @@ class AuthBloc extends Bloc<AuthEvent, AuthState> {
             isLoading: false,
             isSubscriptionExpired: true,
             errorMessage:
-                'Subscription for "${company.name}" has expired. Direct app access is disabled. Please contact developers to extend your subscription in Firebase Firestore.',
+                'Subscription for "${company.name}" has expired. Please contact developers or club administrator to renew.',
           ),
         );
         return;
@@ -453,7 +455,8 @@ class AuthBloc extends Bloc<AuthEvent, AuthState> {
         emit(
           state.copyWith(
             isLoading: false,
-            errorMessage: 'Invalid email/phone number or password.',
+            errorMessage:
+                'Incorrect phone/email or password. Please verify your details and try again.',
           ),
         );
         return;
@@ -585,51 +588,69 @@ class AuthBloc extends Bloc<AuthEvent, AuthState> {
   }
 
   Future<void> _onLogout(LogoutEvent event, Emitter<AuthState> emit) async {
-    await _companySub?.cancel();
-    await _usersSub?.cancel();
+    emit(state.copyWith(isLoading: true, clearErrorMessage: true));
+    try {
+      await _companySub?.cancel();
+      await _usersSub?.cancel();
 
-    // Invalidate session and clear online shift in Firebase DB and locally
-    if (state.activeCompany != null && state.currentUser != null) {
-      try {
-        await _firestoreService.updateUserSession(
-          state.activeCompany!.id,
-          state.currentUser!.id,
-          null,
-        );
-        if (state.currentUser!.isOnline) {
-          await _firestoreService.setUserOnlineStatus(
-            companyId: state.activeCompany!.id,
-            userId: state.currentUser!.id,
-            isOnline: false,
+      // Invalidate session and clear online shift in Firebase DB and locally
+      if (state.activeCompany != null && state.currentUser != null) {
+        try {
+          await _firestoreService.updateUserSession(
+            state.activeCompany!.id,
+            state.currentUser!.id,
+            null,
           );
+          if (state.currentUser!.isOnline) {
+            await _firestoreService.setUserOnlineStatus(
+              companyId: state.activeCompany!.id,
+              userId: state.currentUser!.id,
+              isOnline: false,
+            );
+          }
+        } catch (e) {
+          debugPrint('[AuthBloc] Non-fatal error invalidating remote session: $e');
         }
-      } catch (e) {
-        debugPrint('[AuthBloc] Non-fatal error invalidating remote session: $e');
       }
-    }
 
-    try {
-      await _sessionLocalStorage.clearSession();
+      try {
+        await _sessionLocalStorage.clearSession();
+      } catch (e) {
+        debugPrint('[AuthBloc] Error clearing local session: $e');
+      }
+
+      List<Company> companies = state.companies;
+      try {
+        companies = await _firestoreService.getCompanies();
+      } catch (e) {
+        debugPrint('[AuthBloc] Non-fatal error reloading companies on logout: $e');
+      }
+
+      emit(
+        state.copyWith(
+          clearCurrentUser: true,
+          clearActiveCompany: true,
+          companies: companies,
+          isLoading: false,
+          isSubscriptionExpired: false,
+          clearErrorMessage: true,
+        ),
+      );
     } catch (e) {
-      debugPrint('[AuthBloc] Error clearing local session: $e');
+      debugPrint('[AuthBloc] Error during logout: $e');
+      try {
+        await _sessionLocalStorage.clearSession();
+      } catch (_) {}
+      emit(
+        state.copyWith(
+          clearCurrentUser: true,
+          clearActiveCompany: true,
+          isLoading: false,
+          isSubscriptionExpired: false,
+          clearErrorMessage: true,
+        ),
+      );
     }
-
-    List<Company> companies = state.companies;
-    try {
-      companies = await _firestoreService.getCompanies();
-    } catch (e) {
-      debugPrint('[AuthBloc] Non-fatal error reloading companies on logout: $e');
-    }
-
-    emit(
-      state.copyWith(
-        clearCurrentUser: true,
-        clearActiveCompany: true,
-        companies: companies,
-        isSubscriptionExpired: false,
-        clearErrorMessage: true,
-      ),
-    );
   }
 
   Future<void> _onCreateCompanyWithAdmin(
@@ -791,6 +812,11 @@ class AuthBloc extends Bloc<AuthEvent, AuthState> {
     Emitter<AuthState> emit,
   ) async {
     if (state.activeCompany == null) return;
+    emit(state.copyWith(
+      isLoading: true,
+      clearErrorMessage: true,
+      clearSuccessMessage: true,
+    ));
     try {
       final result = await _firestoreService.setUserOnlineStatus(
         companyId: state.activeCompany!.id,
@@ -801,6 +827,7 @@ class AuthBloc extends Bloc<AuthEvent, AuthState> {
       if (!result.success) {
         emit(
           state.copyWith(
+            isLoading: false,
             errorMessage:
                 '${result.conflictingUserName ?? "Another operator"} is currently online. They must go offline before you can go online.',
           ),
@@ -808,10 +835,22 @@ class AuthBloc extends Bloc<AuthEvent, AuthState> {
         return;
       }
 
+      // Optimistically update companyUsers in local state
+      final updatedCompanyUsers = state.companyUsers.map((u) {
+        if (u.id == event.userId) {
+          return u.copyWith(isOnline: event.isOnline);
+        } else if (event.isOnline) {
+          return u.isOnline ? u.copyWith(isOnline: false) : u;
+        }
+        return u;
+      }).toList();
+
       if (state.currentUser?.id == event.userId) {
         emit(
           state.copyWith(
+            isLoading: false,
             currentUser: state.currentUser!.copyWith(isOnline: event.isOnline),
+            companyUsers: updatedCompanyUsers,
             successMessage: event.isOnline
                 ? 'You are now ONLINE. You can now open and close tables.'
                 : 'You are now OFFLINE.',
@@ -820,6 +859,8 @@ class AuthBloc extends Bloc<AuthEvent, AuthState> {
       } else {
         emit(
           state.copyWith(
+            isLoading: false,
+            companyUsers: updatedCompanyUsers,
             successMessage: event.isOnline
                 ? 'Operator status updated to ONLINE.'
                 : 'Operator status updated to OFFLINE.',
@@ -827,7 +868,10 @@ class AuthBloc extends Bloc<AuthEvent, AuthState> {
         );
       }
     } catch (e) {
-      emit(state.copyWith(errorMessage: AppErrorHandler.format(e)));
+      emit(state.copyWith(
+        isLoading: false,
+        errorMessage: AppErrorHandler.format(e),
+      ));
     }
   }
 

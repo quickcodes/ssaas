@@ -15,6 +15,7 @@ import '../../../core/utils/history_report_exporter.dart';
 import 'history_filter_dialog.dart';
 import 'settle_due_payment_screen.dart';
 import 'share_history_report_dialog.dart';
+import '../../widgets/table_rental_breakdown_card.dart';
 
 class TablesHistoryView extends StatefulWidget {
   const TablesHistoryView({super.key});
@@ -198,19 +199,10 @@ class _TablesHistoryViewState extends State<TablesHistoryView> {
                   ),
                 const SizedBox(height: 14),
 
-                // Itemization
-                const Text(
-                  'CHARGES ITEMIZATION',
-                  style: TextStyle(
-                    color: AppColors.secondaryText,
-                    fontSize: 11,
-                    fontWeight: FontWeight.w800,
-                  ),
-                ),
-                const SizedBox(height: 8),
-                _buildDetailRow(
-                  'Table Rental Charge',
-                  '₹${record.tableAmount.toStringAsFixed(2)}',
+                // Itemization & Table Rental Calculation
+                TableRentalBreakdownCard(
+                  breakdown: record.effectiveRentBreakdown,
+                  isCompact: true,
                 ),
 
                 if (record.items.isNotEmpty) ...[

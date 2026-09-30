@@ -9,6 +9,7 @@ import '../../../domain/entities/payment_transaction.dart';
 import '../../../domain/entities/table_history_record.dart';
 import '../../../domain/entities/table_session.dart';
 import '../../../domain/entities/user_account.dart';
+import '../../widgets/table_rental_breakdown_card.dart';
 
 class CheckoutSessionDialog extends StatefulWidget {
   final TableSession session;
@@ -197,7 +198,8 @@ class _CheckoutSessionDialogState extends State<CheckoutSessionDialog> {
     final effectiveClose = _effectiveCloseTime;
     final playedSeconds = widget.session.playedSecondsAt(effectiveClose);
     final durationMinutes = (playedSeconds / 60).ceil();
-    final tableCharge = widget.session.computeTableChargeAt(effectiveClose);
+    final rentalBreakdown = widget.session.computeRentalBreakdownAt(effectiveClose);
+    final tableCharge = rentalBreakdown.totalRentAmount;
     final itemsCharge = widget.session.itemsAmount;
     final grandTotal = tableCharge + itemsCharge;
 
@@ -743,14 +745,8 @@ class _CheckoutSessionDialogState extends State<CheckoutSessionDialog> {
                 ),
                 const SizedBox(height: 8),
 
-                // Table time charge
-                _buildBreakdownRow(
-                  title: 'Table Rental Fee',
-                  subtitle:
-                      'Dynamic rate • $durationMinutes mins (${(playedSeconds / 3600.0).toStringAsFixed(1)} hrs)',
-                  amount: '₹${tableCharge.toStringAsFixed(2)}',
-                  isHighlight: false,
-                ),
+                // Table time charge itemized breakdown
+                TableRentalBreakdownCard(breakdown: rentalBreakdown),
 
                 // Snacks / Canteen & Custom items
                 if (widget.session.items.isNotEmpty) ...[
@@ -1393,6 +1389,7 @@ class _CheckoutSessionDialogState extends State<CheckoutSessionDialog> {
                             transactions: transactions,
                             dueBufferAmount: _dueBuffer,
                             createdAt: DateTime.now(),
+                            rentBreakdown: rentalBreakdown,
                           );
 
                           setState(() => _isSubmitting = true);
@@ -1558,55 +1555,6 @@ class _CheckoutSessionDialogState extends State<CheckoutSessionDialog> {
             ],
           ),
         ),
-      ),
-    );
-  }
-
-  Widget _buildBreakdownRow({
-    required String title,
-    required String subtitle,
-    required String amount,
-    required bool isHighlight,
-  }) {
-    return Container(
-      padding: const EdgeInsets.all(12),
-      decoration: BoxDecoration(
-        color: AppColors.inputSurface,
-        borderRadius: BorderRadius.circular(10),
-        border: Border.all(color: AppColors.cardBorderStroke),
-      ),
-      child: Row(
-        mainAxisAlignment: MainAxisAlignment.spaceBetween,
-        children: [
-          Column(
-            crossAxisAlignment: CrossAxisAlignment.start,
-            children: [
-              Text(
-                title,
-                style: const TextStyle(
-                  color: AppColors.primaryText,
-                  fontSize: 13,
-                  fontWeight: FontWeight.w600,
-                ),
-              ),
-              Text(
-                subtitle,
-                style: const TextStyle(
-                  color: AppColors.secondaryText,
-                  fontSize: 11,
-                ),
-              ),
-            ],
-          ),
-          Text(
-            amount,
-            style: const TextStyle(
-              color: AppColors.primaryText,
-              fontSize: 14,
-              fontWeight: FontWeight.w700,
-            ),
-          ),
-        ],
       ),
     );
   }

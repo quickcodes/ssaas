@@ -227,6 +227,7 @@ class HistoryReportExporter {
       'Duration (Mins)',
       'Duration (Hours)',
       'Table Fee (₹)',
+      'Rent Calculation Breakdown',
       'Items Fee (₹)',
       'Grand Total (₹)',
       'Paid Amount (₹)',
@@ -241,6 +242,13 @@ class HistoryReportExporter {
     final dateFormat = DateFormat('dd MMM yyyy, hh:mm a');
     for (int i = 0; i < records.length; i++) {
       final r = records[i];
+      final b = r.effectiveRentBreakdown;
+      final rentBreakdownStr = b.segments.isEmpty
+          ? 'Base: ₹${b.baseHourlyRate.toStringAsFixed(0)}/hr (${b.durationMinutes}m)'
+          : b.segments
+              .map((s) =>
+                  '${s.rateName}${s.isCustomRate ? " [Custom]" : ""}: ${s.durationMinutes}m @ ₹${s.hourlyRate.toStringAsFixed(0)}/hr = ₹${s.amount.toStringAsFixed(2)}')
+              .join('; ');
 
       final itemsStr = r.items.isEmpty
           ? 'None'
@@ -268,6 +276,7 @@ class HistoryReportExporter {
         r.durationMinutes,
         (r.durationMinutes / 60.0).toStringAsFixed(2),
         r.tableAmount.toStringAsFixed(2),
+        rentBreakdownStr,
         r.itemsAmount.toStringAsFixed(2),
         r.totalAmount.toStringAsFixed(2),
         r.paidAmount.toStringAsFixed(2),
@@ -296,6 +305,7 @@ class HistoryReportExporter {
       totalMinutes,
       (totalMinutes / 60.0).toStringAsFixed(2),
       totalTableAmt.toStringAsFixed(2),
+      '',
       totalItemsAmt.toStringAsFixed(2),
       totalGrandAmt.toStringAsFixed(2),
       totalPaidAmt.toStringAsFixed(2),

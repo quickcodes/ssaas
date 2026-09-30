@@ -1,7 +1,11 @@
 import 'package:flutter/material.dart';
+import 'package:flutter/services.dart';
 import 'package:flutter_bloc/flutter_bloc.dart';
 import 'package:intl/intl.dart';
+import 'package:url_launcher/url_launcher.dart';
+import '../../../core/di/service_locator.dart';
 import '../../../core/utils/app_navigation.dart';
+import '../../../data/datasources/firestore_service.dart';
 import '../../../core/theme/app_colors.dart';
 import '../../../core/utils/interactive_feedback.dart';
 import '../../../core/utils/responsive.dart';
@@ -32,6 +36,7 @@ class MainDashboardView extends StatefulWidget {
 class _MainDashboardViewState extends State<MainDashboardView> {
   int _selectedTabIndex = 0;
   bool _isSideMenuVisible = false;
+  bool _isLoggingOut = false;
 
   @override
   void initState() {
@@ -57,30 +62,68 @@ class _MainDashboardViewState extends State<MainDashboardView> {
   Widget build(BuildContext context) {
     return BlocConsumer<AuthBloc, AuthState>(
       listener: (context, authState) {
+        if (!authState.isAuthenticated && _isLoggingOut) {
+          _isLoggingOut = false;
+        }
         if (authState.isUserDeactivated) {
           Navigator.of(context, rootNavigator: true).popUntil((route) => route.isFirst);
         }
         if (authState.activeCompany != null) {
           _triggerCompanyReload(authState.activeCompany!.id);
         }
+        if (authState.errorMessage != null) {
+          ScaffoldMessenger.of(context).showSnackBar(
+            SnackBar(
+              content: Row(
+                children: [
+                  const Icon(
+                    Icons.error_outline_rounded,
+                    color: Colors.white,
+                    size: 20,
+                  ),
+                  const SizedBox(width: 10),
+                  Expanded(
+                    child: Text(
+                      authState.errorMessage!,
+                      style: const TextStyle(fontWeight: FontWeight.w600),
+                    ),
+                  ),
+                ],
+              ),
+              backgroundColor: AppColors.error,
+              behavior: SnackBarBehavior.floating,
+              duration: const Duration(seconds: 4),
+              shape: RoundedRectangleBorder(
+                borderRadius: BorderRadius.circular(10),
+              ),
+            ),
+          );
+          context.read<AuthBloc>().add(ClearAuthErrorEvent());
+        }
       },
       builder: (context, authState) {
+        final isLoggingOut = _isLoggingOut ||
+            (authState.isLoading && authState.currentUser != null);
+
         // If not authenticated or subscription expired, show LoginScreen
         if (!authState.isAuthenticated) {
-          if (authState.isLoading) {
-            return const Scaffold(
+          if (authState.isLoading || _isLoggingOut) {
+            return Scaffold(
               backgroundColor: AppColors.backgroundBase,
               body: Center(
                 child: Column(
                   mainAxisSize: MainAxisSize.min,
                   children: [
-                    CircularProgressIndicator(color: AppColors.brandAccent),
-                    SizedBox(height: 16),
+                    const CircularProgressIndicator(color: AppColors.brandAccent),
+                    const SizedBox(height: 16),
                     Text(
-                      'Verifying active session...',
-                      style: TextStyle(
+                      _isLoggingOut
+                          ? 'Securing session & signing off...'
+                          : 'Verifying active session...',
+                      style: const TextStyle(
                         color: AppColors.secondaryText,
                         fontSize: 14,
+                        fontWeight: FontWeight.w600,
                       ),
                     ),
                   ],
@@ -163,7 +206,7 @@ class _MainDashboardViewState extends State<MainDashboardView> {
 
         final isMobile = Responsive.isMobile(context);
 
-        return Scaffold(
+        final scaffold = Scaffold(
           backgroundColor: AppColors.backgroundBase,
           appBar: _buildTopAppBar(
             context,
@@ -241,6 +284,73 @@ class _MainDashboardViewState extends State<MainDashboardView> {
               ),
             ],
           ),
+        );
+
+        if (!isLoggingOut) {
+          return scaffold;
+        }
+
+        return Stack(
+          children: [
+            scaffold,
+            const Positioned.fill(
+              child: ModalBarrier(
+                dismissible: false,
+                color: Color(0xCC000000),
+              ),
+            ),
+            Center(
+              child: Padding(
+                padding: const EdgeInsets.symmetric(horizontal: 24),
+                child: Material(
+                  color: AppColors.cardSurface,
+                  elevation: 16,
+                  shadowColor: Colors.black.withAlpha(160),
+                  shape: RoundedRectangleBorder(
+                    borderRadius: BorderRadius.circular(20),
+                    side: const BorderSide(color: AppColors.cardBorderStroke),
+                  ),
+                  child: Container(
+                    constraints: const BoxConstraints(maxWidth: 360),
+                    padding: const EdgeInsets.symmetric(horizontal: 28, vertical: 26),
+                    child: Column(
+                      mainAxisSize: MainAxisSize.min,
+                      children: [
+                        const SizedBox(
+                          width: 44,
+                          height: 44,
+                          child: CircularProgressIndicator(
+                            color: AppColors.brandAccent,
+                            strokeWidth: 3.5,
+                          ),
+                        ),
+                        const SizedBox(height: 20),
+                        const Text(
+                          'Logging out from club...',
+                          style: TextStyle(
+                            color: AppColors.primaryText,
+                            fontSize: 16,
+                            fontWeight: FontWeight.w700,
+                          ),
+                          textAlign: TextAlign.center,
+                        ),
+                        const SizedBox(height: 8),
+                        Text(
+                          'Closing shift and securing session for ${currentUser.name}.',
+                          style: const TextStyle(
+                            color: AppColors.secondaryText,
+                            fontSize: 12.5,
+                            height: 1.35,
+                          ),
+                          textAlign: TextAlign.center,
+                        ),
+                      ],
+                    ),
+                  ),
+                ),
+              ),
+            ),
+          ],
         );
       },
     );
@@ -589,6 +699,9 @@ class _MainDashboardViewState extends State<MainDashboardView> {
           // Password & Account Security
           _buildPasswordSecurityButton(currentUser),
 
+          // Download App (Google Drive / APK link)
+          _buildDownloadAppButton(),
+
           // Pricing & Subscription Plans Button
           _buildPricingAndContactButton(),
 
@@ -687,6 +800,11 @@ class _MainDashboardViewState extends State<MainDashboardView> {
                   // Password & Account Security
                   _buildPasswordSecurityButton(
                     currentUser,
+                    onTap: () => setState(() => _isSideMenuVisible = false),
+                  ),
+
+                  // Download App (Google Drive / APK link)
+                  _buildDownloadAppButton(
                     onTap: () => setState(() => _isSideMenuVisible = false),
                   ),
 
@@ -1010,6 +1128,145 @@ class _MainDashboardViewState extends State<MainDashboardView> {
         ),
       ),
     );
+  }
+
+  Widget _buildDownloadAppButton({VoidCallback? onTap}) {
+    return Padding(
+      padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 3),
+      child: InkWell(
+        onTap: () {
+          AppHaptics.selection();
+          onTap?.call();
+          _handleDownloadAppClick(context);
+        },
+        borderRadius: BorderRadius.circular(12),
+        child: Container(
+          padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 10),
+          decoration: BoxDecoration(
+            color: const Color(0xFF00E676).withAlpha(20),
+            borderRadius: BorderRadius.circular(12),
+            border: Border.all(
+              color: const Color(0xFF00E676).withAlpha(70),
+            ),
+          ),
+          child: const Row(
+            children: [
+              Icon(
+                Icons.android_rounded,
+                color: Color(0xFF00E676),
+                size: 20,
+              ),
+              SizedBox(width: 10),
+              Expanded(
+                child: Column(
+                  crossAxisAlignment: CrossAxisAlignment.start,
+                  children: [
+                    Text(
+                      'Download App',
+                      style: TextStyle(
+                        color: AppColors.primaryText,
+                        fontWeight: FontWeight.w700,
+                        fontSize: 13,
+                      ),
+                      maxLines: 1,
+                      overflow: TextOverflow.ellipsis,
+                    ),
+                    Text(
+                      'Get latest Android APK',
+                      style: TextStyle(
+                        color: AppColors.secondaryText,
+                        fontSize: 10,
+                      ),
+                      maxLines: 1,
+                      overflow: TextOverflow.ellipsis,
+                    ),
+                  ],
+                ),
+              ),
+              Icon(
+                Icons.open_in_new_rounded,
+                size: 13,
+                color: Color(0xFF00E676),
+              ),
+            ],
+          ),
+        ),
+      ),
+    );
+  }
+
+  Future<void> _handleDownloadAppClick(BuildContext context) async {
+    try {
+      final config = await sl<FirestoreService>().getAppDownloadConfig();
+      if (!context.mounted) return;
+
+      if (!config.hasValidUrl) {
+        showDialog(
+          context: context,
+          builder: (ctx) => AlertDialog(
+            backgroundColor: AppColors.cardSurface,
+            shape: RoundedRectangleBorder(
+              borderRadius: BorderRadius.circular(16),
+              side: const BorderSide(color: AppColors.cardBorderStroke),
+            ),
+            title: const Row(
+              children: [
+                Icon(
+                  Icons.install_mobile_rounded,
+                  color: AppColors.brandAccentLight,
+                  size: 22,
+                ),
+                SizedBox(width: 10),
+                Text('Download App'),
+              ],
+            ),
+            content: const Text(
+              'No download link has been published yet. Please contact your club administrator or support for the latest APK.',
+              style: TextStyle(
+                color: AppColors.secondaryText,
+                fontSize: 13.5,
+                height: 1.4,
+              ),
+            ),
+            actions: [
+              TextButton(
+                onPressed: () => Navigator.of(ctx).pop(),
+                child: const Text('OK'),
+              ),
+            ],
+          ),
+        );
+        return;
+      }
+
+      final uri = Uri.tryParse(config.downloadUrl.trim());
+      if (uri == null || !uri.hasScheme) {
+        throw 'Invalid download link format';
+      }
+
+      final launched = await launchUrl(uri, mode: LaunchMode.externalApplication);
+      if (!context.mounted) return;
+      if (!launched) {
+        await Clipboard.setData(ClipboardData(text: config.downloadUrl));
+        if (!context.mounted) return;
+        ScaffoldMessenger.of(context).showSnackBar(
+          const SnackBar(
+            content: Text('Download URL copied to clipboard.'),
+            behavior: SnackBarBehavior.floating,
+          ),
+        );
+      }
+    } catch (e) {
+      if (context.mounted) {
+        ScaffoldMessenger.of(context).showSnackBar(
+          SnackBar(
+            content: Text('Could not open download link: $e'),
+            backgroundColor: AppColors.error,
+            behavior: SnackBarBehavior.floating,
+          ),
+        );
+      }
+    }
   }
 
   Widget _buildOwnerInfoCard(UserAccount? owner, Company activeCompany) {
@@ -1371,6 +1628,7 @@ class _MainDashboardViewState extends State<MainDashboardView> {
           ElevatedButton(
             onPressed: () {
               Navigator.of(ctx).pop();
+              setState(() => _isLoggingOut = true);
               context.read<AuthBloc>().add(LogoutEvent());
             },
             style: ElevatedButton.styleFrom(

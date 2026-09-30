@@ -2,6 +2,7 @@ import 'package:cloud_firestore/cloud_firestore.dart';
 import 'package:equatable/equatable.dart';
 import '../../core/constants/constants.dart';
 import 'payment_transaction.dart';
+import 'rental_calculation_breakdown.dart';
 import 'table_billing_item.dart';
 
 class TableHistoryRecord extends Equatable {
@@ -26,6 +27,7 @@ class TableHistoryRecord extends Equatable {
   final List<PaymentTransaction> transactions;
   final double dueBufferAmount;
   final DateTime createdAt;
+  final RentalCalculationBreakdown? rentBreakdown;
 
   const TableHistoryRecord({
     required this.id,
@@ -49,6 +51,7 @@ class TableHistoryRecord extends Equatable {
     this.transactions = const [],
     this.dueBufferAmount = Constants.dueBufferAmount,
     required this.createdAt,
+    this.rentBreakdown,
   }) : _paidAmount = paidAmount;
 
   double get paidAmount {
@@ -56,6 +59,28 @@ class TableHistoryRecord extends Equatable {
       return transactions.fold<double>(0.0, (total, t) => total + t.amount);
     }
     return _paidAmount ?? 0.0;
+  }
+
+  RentalCalculationBreakdown get effectiveRentBreakdown {
+    if (rentBreakdown != null) return rentBreakdown!;
+    final rate = durationMinutes > 0
+        ? (tableAmount / (durationMinutes / 60.0))
+        : 0.0;
+    return RentalCalculationBreakdown(
+      baseHourlyRate: rate,
+      totalPlayedSeconds: durationMinutes * 60,
+      totalRentAmount: tableAmount,
+      hasCustomRates: false,
+      segments: [
+        RentalRateSegment(
+          rateName: 'Standard Hourly Rate',
+          hourlyRate: rate,
+          durationSeconds: durationMinutes * 60,
+          amount: tableAmount,
+          isCustomRate: false,
+        ),
+      ],
+    );
   }
 
   double get dueAmount {
@@ -93,6 +118,7 @@ class TableHistoryRecord extends Equatable {
     List<PaymentTransaction>? transactions,
     double? dueBufferAmount,
     DateTime? createdAt,
+    RentalCalculationBreakdown? rentBreakdown,
   }) {
     return TableHistoryRecord(
       id: id ?? this.id,
@@ -116,6 +142,7 @@ class TableHistoryRecord extends Equatable {
       transactions: transactions ?? this.transactions,
       dueBufferAmount: dueBufferAmount ?? this.dueBufferAmount,
       createdAt: createdAt ?? this.createdAt,
+      rentBreakdown: rentBreakdown ?? this.rentBreakdown,
     );
   }
 
@@ -141,6 +168,7 @@ class TableHistoryRecord extends Equatable {
       'transactions': transactions.map((t) => t.toMap()).toList(),
       'dueBufferAmount': dueBufferAmount,
       'createdAt': Timestamp.fromDate(createdAt),
+      if (rentBreakdown != null) 'rentBreakdown': rentBreakdown!.toMap(),
     };
   }
 
@@ -186,6 +214,11 @@ class TableHistoryRecord extends Equatable {
       ];
     }
 
+    final rawBreakdown = map['rentBreakdown'] as Map<String, dynamic>?;
+    final rentBreakdown = rawBreakdown != null
+        ? RentalCalculationBreakdown.fromMap(rawBreakdown)
+        : null;
+
     return TableHistoryRecord(
       id: id,
       companyId: map['companyId'] as String? ?? '',
@@ -208,6 +241,7 @@ class TableHistoryRecord extends Equatable {
       transactions: transactions,
       dueBufferAmount: buffer,
       createdAt: parseDate(map['createdAt']),
+      rentBreakdown: rentBreakdown,
     );
   }
 
@@ -234,6 +268,7 @@ class TableHistoryRecord extends Equatable {
         transactions,
         dueBufferAmount,
         createdAt,
+        rentBreakdown,
       ];
 }
 
