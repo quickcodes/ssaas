@@ -294,26 +294,18 @@ class _FloorMatrixViewState extends State<FloorMatrixView> {
                                   table,
                                   activeUser,
                                 ),
-                                onPauseSession: () {
-                                  if (session != null) {
-                                    context.read<FloorMatrixBloc>().add(
-                                          PauseTableSessionEvent(
-                                            activeCompany.id,
-                                            session.id,
-                                          ),
-                                        );
-                                  }
-                                },
-                                onResumeSession: () {
-                                  if (session != null) {
-                                    context.read<FloorMatrixBloc>().add(
-                                          ResumeTableSessionEvent(
-                                            activeCompany.id,
-                                            session.id,
-                                          ),
-                                        );
-                                  }
-                                },
+                                onPauseSession: () => _handlePauseSession(
+                                  context,
+                                  activeCompany.id,
+                                  session,
+                                  activeUser,
+                                ),
+                                onResumeSession: () => _handleResumeSession(
+                                  context,
+                                  activeCompany.id,
+                                  session,
+                                  activeUser,
+                                ),
                                 onAddItem: () => _handleAddItem(
                                   context,
                                   activeCompany.id,
@@ -337,6 +329,14 @@ class _FloorMatrixViewState extends State<FloorMatrixView> {
                                   activeUser,
                                 ),
                                 onUpdateStatus: (newStatus) {
+                                  if (!activeUser.isOnline) {
+                                    _showOfflineOperatorSnackBar(
+                                      context,
+                                      activeUser,
+                                      'change table status',
+                                    );
+                                    return;
+                                  }
                                   context.read<FloorMatrixBloc>().add(
                                         UpdateTableStatusDirectEvent(
                                           activeCompany.id,
@@ -627,6 +627,44 @@ class _FloorMatrixViewState extends State<FloorMatrixView> {
     });
   }
 
+  void _handlePauseSession(
+    BuildContext context,
+    String companyId,
+    TableSession? session,
+    UserAccount activeUser,
+  ) {
+    if (session == null) return;
+    if (!activeUser.isOnline) {
+      _showOfflineOperatorSnackBar(context, activeUser, 'pause tables');
+      return;
+    }
+    context.read<FloorMatrixBloc>().add(
+          PauseTableSessionEvent(
+            companyId,
+            session.id,
+          ),
+        );
+  }
+
+  void _handleResumeSession(
+    BuildContext context,
+    String companyId,
+    TableSession? session,
+    UserAccount activeUser,
+  ) {
+    if (session == null) return;
+    if (!activeUser.isOnline) {
+      _showOfflineOperatorSnackBar(context, activeUser, 'resume tables');
+      return;
+    }
+    context.read<FloorMatrixBloc>().add(
+          ResumeTableSessionEvent(
+            companyId,
+            session.id,
+          ),
+        );
+  }
+
   void _handleStartSession(
     BuildContext context,
     ClubTable table,
@@ -712,6 +750,14 @@ class _FloorMatrixViewState extends State<FloorMatrixView> {
     UserAccount activeUser,
   ) async {
     if (session == null) return;
+    if (!activeUser.isOnline) {
+      _showOfflineOperatorSnackBar(
+        context,
+        activeUser,
+        'manage table items',
+      );
+      return;
+    }
     if (_isNavigating) return;
     _isNavigating = true;
     try {

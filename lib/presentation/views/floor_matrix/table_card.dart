@@ -687,26 +687,24 @@ class TableCard extends StatelessWidget {
                             onPauseSession();
                           }
                         },
-                        child: IconButton(
-                          onPressed: () {
-                            AppHaptics.medium();
-                            if (session!.isPaused) {
-                              onResumeSession();
-                            } else {
-                              onPauseSession();
-                            }
-                          },
-                          tooltip: session!.isPaused
+                        child: Tooltip(
+                          message: session!.isPaused
                               ? 'Resume Clock'
                               : 'Pause Clock',
-                          icon: Icon(
-                            session!.isPaused ? Icons.play_arrow : Icons.pause,
-                            color: session!.isPaused
-                                ? AppColors.tableAvailable
-                                : AppColors.tableOccupied,
-                          ),
-                          style: IconButton.styleFrom(
-                            backgroundColor: AppColors.inputSurface,
+                          child: Container(
+                            height: 38,
+                            width: 38,
+                            decoration: BoxDecoration(
+                              color: AppColors.inputSurface,
+                              borderRadius: BorderRadius.circular(8),
+                            ),
+                            child: Icon(
+                              session!.isPaused ? Icons.play_arrow : Icons.pause,
+                              color: session!.isPaused
+                                  ? AppColors.tableAvailable
+                                  : AppColors.tableOccupied,
+                              size: 20,
+                            ),
                           ),
                         ),
                       ),

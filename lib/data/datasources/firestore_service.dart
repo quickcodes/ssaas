@@ -223,7 +223,7 @@ class FirestoreService {
 
   Stream<List<UserAccount>> watchCompanyUsers(String companyId) {
     return _usersCol(companyId).snapshots().map((snapshot) {
-      trackRead(companyId, snapshot.docs.length);
+      trackRead(companyId, snapshot.docChanges.length);
       return snapshot.docs
           .map((doc) => UserAccount.fromMap(doc.id, doc.data()))
           .toList();
@@ -445,7 +445,7 @@ class FirestoreService {
 
   Stream<List<ClubTable>> watchTables(String companyId) {
     return _tablesCol(companyId).snapshots().map((snapshot) {
-      trackRead(companyId, snapshot.docs.length);
+      trackRead(companyId, snapshot.docChanges.length);
       return snapshot.docs
           .map((doc) => ClubTable.fromMap(doc.id, doc.data()))
           .toList();
@@ -503,7 +503,7 @@ class FirestoreService {
 
   Stream<List<TableSession>> watchRunningTables(String companyId) {
     return _runningCol(companyId).snapshots().map((snapshot) {
-      trackRead(companyId, snapshot.docs.length);
+      trackRead(companyId, snapshot.docChanges.length);
       return snapshot.docs
           .map((doc) => TableSession.fromMap(doc.id, doc.data()))
           .toList();
@@ -715,7 +715,7 @@ class FirestoreService {
 
   Stream<List<StockItem>> watchEquipmentStock(String companyId) {
     return _equipmentCol(companyId).snapshots().map((snapshot) {
-      trackRead(companyId, snapshot.docs.length);
+      trackRead(companyId, snapshot.docChanges.length);
       return snapshot.docs
           .map((doc) => StockItem.fromMap(doc.id, doc.data()))
           .toList();
@@ -744,7 +744,7 @@ class FirestoreService {
 
   Stream<List<StockItem>> watchFoodCanteen(String companyId) {
     return _foodCol(companyId).snapshots().map((snapshot) {
-      trackRead(companyId, snapshot.docs.length);
+      trackRead(companyId, snapshot.docChanges.length);
       return snapshot.docs
           .map((doc) => StockItem.fromMap(doc.id, doc.data()))
           .toList();
@@ -823,7 +823,7 @@ class FirestoreService {
         .orderBy('closedAt', descending: true)
         .snapshots()
         .map((snapshot) {
-      trackRead(companyId, snapshot.docs.length);
+      trackRead(companyId, snapshot.docChanges.length);
       return snapshot.docs
           .map((doc) => TableHistoryRecord.fromMap(doc.id, doc.data()))
           .toList();
@@ -874,7 +874,7 @@ class FirestoreService {
         .orderBy('remindAt', descending: false)
         .snapshots()
         .map((snapshot) {
-      trackRead(companyId, snapshot.docs.length);
+      trackRead(companyId, snapshot.docChanges.length);
       return snapshot.docs
           .map((doc) => ClubReminder.fromMap(doc.id, doc.data()))
           .toList();
