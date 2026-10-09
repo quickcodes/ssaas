@@ -6,13 +6,14 @@ description: >-
 
 # SSAAS Table & Live Session Management
 
-This skill documents the table management system, pricing models, running session timers, and checkout procedures in SSAAS (Constants.appName).
+This skill documents the table management system, pricing models, running session timers, and checkout procedures in SSAAS (`Constants.appName`).
 
 ## 1. Domain Entities & Firestore Structure
 
-Tables and sessions are scoped per club/company under Firestore:
+Tables and active running sessions are scoped per club/company under Firestore:
 
-- Collection: `companies/{companyId}/snookerTables/{tableId}`
+- Snooker Tables: `companies/{companyId}/snookerTables/{tableId}`
+- Running Sessions: `companies/{companyId}/runningTables/{sessionId}`
 
 ### Key Entities
 
@@ -20,23 +21,27 @@ Tables and sessions are scoped per club/company under Firestore:
   - `id`, `companyId`, `name`, `type` (Snooker, English Billiards, 8-Ball Pool, 9-Ball Pool).
   - `ratePerHour`: Base hourly rate.
   - `frameRate`: Per-frame billing option.
-  - `status`: `'available'`, `'occupied'`, `'maintenance'`.
-  - `currentSession`: Embedded `TableSession` object when status is `'occupied'`, `null` when available.
+  - `status`: `TableStatus` enum (`available`, `occupied`, `maintenance`, `reserved`).
+  - `currentSessionId`: ID of active `TableSession` when occupied.
 
 - **`TableSession`** (`lib/domain/entities/table_session.dart`):
   - `id`: Session UUID.
+  - `companyId`, `tableId`, `tableName`.
   - `customerName`: Initial player/customer who opened the table.
   - `startedByName`: Staff operator who started the table.
   - `startTime`: `DateTime` when match commenced.
   - `pricingType`: Regular hourly, Frame-based, Peak hour, or Fixed slot.
   - `items`: `List<TableBillingItem>` (snacks, beverages, chalk, etc. ordered to table).
+  - `isPaused`: Pause toggle boolean.
+  - `lastPauseTime`: `DateTime?` timestamp when paused.
+  - `pausedSeconds`: Accumulated paused duration in seconds.
   - `itemsAmount`: Computed total of all added billing items.
 
 ---
 
 ## 2. Rate & Duration Calculation Rules
 
-All time-based calculations use seconds elapsed to prevent drift:
+All time-based calculations use seconds elapsed to prevent timer drift across restarts:
 
 ```dart
 int playedSeconds = session.playedSecondsAt(now);
@@ -51,8 +56,6 @@ int durationMinutes = (playedSeconds / 60).ceil();
 
 ---
 
----
-
 ## 3. Starting a Table Session & Retroactive Start Time
 
 Handled via `StartSessionDialog` (`lib/presentation/views/floor_matrix/start_session_dialog.dart`):
@@ -63,18 +66,20 @@ Handled via `StartSessionDialog` (`lib/presentation/views/floor_matrix/start_ses
   - **Quick Presets**: `-5 min`, `-10 min`, `-15 min`, `-30 min`, `-45 min`, `-1 hr`.
   - **Custom Time**: Clock time picker (`showTimePicker`) or direct "Minutes ago" numeric input.
   - Validated: Start time cannot be set to a future timestamp.
-  - Live Preview: Real-time calculation of elapsed timer and already accrued table charges based on the table's hourly rate and rate schedules.
+  - Live Preview: Real-time calculation of elapsed timer and accrued charges.
   - Audit Trail: Appends `[Started at HH:mm]` to session notes when backdated.
+
+Dispatches `StartTableSessionEvent(session)` through `FloorMatrixBloc`.
 
 ---
 
-## 4. Adding Items to Live Tables
+## 4. Adding & Managing Items on Live Tables
 
-Use `AddTableItemDialog` (`lib/presentation/views/floor_matrix/add_table_item_dialog.dart`):
+Use `AddTableItemDialog` (`lib/presentation/views/floor_matrix/add_table_item_dialog.dart`) and `ManageTableItemsDialog` (`lib/presentation/views/floor_matrix/manage_table_items_dialog.dart`):
 
-- Staff can add items from Canteen stock (`CanteenItem`) or Custom ad-hoc items.
-- Item contains: `id`, `name`, `unitPrice`, `quantity`, `totalPrice`, `addedAt`.
-- Adding an item emits `AddSessionBillingItemEvent` in `FloorMatrixBloc`, atomically updating the table's `currentSession.items` array in Firestore.
+- Staff can add items from Canteen stock (`StockItem`) or Custom ad-hoc items.
+- Item contains: `id`, `name`, `unitPrice`, `quantity`, `totalPrice`, `addedAt`, `stockItemId`.
+- Adding an item dispatches `AddBillingItemEvent` in `FloorMatrixBloc`, updating the running session in Firestore and decrementing canteen stock.
 
 ---
 
@@ -82,50 +87,26 @@ Use `AddTableItemDialog` (`lib/presentation/views/floor_matrix/add_table_item_di
 
 Closing a table is handled via `CheckoutSessionDialog` (`lib/presentation/views/floor_matrix/checkout_session_dialog.dart`):
 
-### Table Close Time & Retroactive Close Options:
+### Table Close Time & Retroactive Options:
 
 - **Now** (Default): Ends session at the current moment.
 - **Quick Presets**: `-5 min`, `-10 min`, `-15 min`, `-30 min`, `-45 min`, `-1 hr`.
-  - Presets that would fall before the table's actual start time are automatically disabled/clamped.
-- **Custom Time**: Clock time picker (`showTimePicker`) or "Mins ago" numeric input.
+  - Presets prior to match start time are disabled/clamped.
 - **Strict Validations**:
   - Close time cannot be in the future.
-  - Close time cannot be earlier than or equal to the session start time (`widget.session.startTime`).
-- **Dynamic Recalculation**: Duration played, dynamic hourly/frame table charges, items total, and settlement amounts recalculate in real-time based on the chosen effective close time.
-- **Audit Badge**: Displays a yellow/amber retroactive badge (`CLOSED AT PREVIOUS TIME (Xm ago)`) and explicit end timestamp.
-
-### Required Input Fields:
-
-1. **Closing Person Name (`customerName`)**:
-   - Pre-filled with `session.customerName`.
-   - **Crucial**: Staff can change this to another player at the table if someone else is settling or responsible for the bill (e.g., loser pays).
-   - Validated: Cannot be empty.
-2. **Closed By Staff / Marker (`closedByName`)**:
-   - Pre-filled with `activeOperator.name`.
-   - Validated: Cannot be empty.
+  - Close time cannot be earlier than or equal to `session.startTime`.
+- **Dynamic Recalculation**: Duration, hourly charges, items total, and settlement amounts recalculate in real-time based on effective close time.
 
 ### Settlement Modes:
 
-Staff select one of 3 payment modes:
+1. **Full Paid**: 100% of bill paid. Status = `'Received'`. Appends `PaymentTransaction` for `grandTotal`.
+2. **Partial Paid**: Customer pays partial amount now, remainder due. Status = `'Due'`. Requires positive numeric amount `<= grandTotal`.
+3. **Full Due**: ₹0 paid now; full amount pending. Status = `'Due'`.
 
-1. **Full Paid**:
-   - 100% of the bill is paid.
-   - Status set to `'Received'`.
-   - Appends a `PaymentTransaction` for the entire `grandTotal`.
-2. **Partial Paid**:
-   - Customer pays a partial amount now, remainder is marked due.
-   - Requires amount received input with strict validation:
-     - Cannot be negative or non-numeric (`FilteringTextInputFormatter.allow(RegExp(r'^\d*\.?\d{0,2}'))`).
-     - Cannot be `>= grandTotal` (prompts staff to select Full Paid).
-   - Appends a `PaymentTransaction` for the partial amount received.
-   - Status set to `'Due'`.
-3. **Full Due**:
-   - ₹0 paid now; full amount pending.
-   - Status set to `'Due'`. No transactions recorded yet.
-
-### Completing the Session:
+### Completing Checkout:
 
 Dispatches `CloseTableSessionEvent(companyId, sessionId, historyRecord)`:
 
-1. Saves the finalized `TableHistoryRecord` to `companies/{companyId}/tablesHistory/{recordId}`.
-2. Resets `ClubTable.currentSession = null` and `status = 'available'` in Firestore.
+1. Saves `TableHistoryRecord` to `companies/{companyId}/tablesHistory/{recordId}`.
+2. Removes session from `companies/{companyId}/runningTables/{sessionId}`.
+3. Resets `ClubTable.status = 'available'` and `currentSessionId = null`.

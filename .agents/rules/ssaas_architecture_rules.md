@@ -1,52 +1,44 @@
-# SSAAS Architecture & Coding Rules
+# SSAAS Architecture & Data Rules
 
-These guidelines are mandatory for all AI agents working on SSAAS (Constants.appName).
+These guidelines are mandatory for all AI agents working on SSAAS (`Constants.appName`).
 
-## 1. State Management
-- **BLoC Pattern**: Use `FloorMatrixBloc` for tables, running sessions, pricing, and live orders. Use `AuthBloc` for tenant club context, operator identity, and session authentication.
-- **No Rogue State**: Never manage shared table or financial states via isolated widget `setState`. Always dispatch events through the corresponding BLoC.
-- **Auto-Initialization**: Any BLoC requiring startup verification (such as `AuthBloc` session checks) must dispatch its initialization event in its constructor so hot reload / hot restart never leaves the bloc in an uninitialized state.
+## 1. Clean Architecture & Layer Responsibilities
+- **Domain Layer (`lib/domain/`)**: Contains pure Dart domain entities (`ClubTable`, `TableSession`, `TableHistoryRecord`, `UserAccount`, `StockItem`, `PaymentTransaction`, `ClubReminder`). Contains NO Flutter dependencies (`package:flutter`) or data source packages (`cloud_firestore`).
+- **Data Layer (`lib/data/`)**: Handles remote Firestore CRUD & stream queries (`FirestoreService`), local session storage (`SessionLocalStorage`), and usage analytics tracking (`CompanyUsageTracker`).
+- **Presentation Layer (`lib/presentation/`)**: Contains views, dialogs, custom widgets, and BLoC state management (`AuthBloc`, `FloorMatrixBloc`). UI communicates with data through BLoCs or service locator (`sl<FirestoreService>()`).
+- **Core Layer (`lib/core/`)**: Cross-cutting utilities, theme constants, DI locator, formatters, and error handling.
 
-## 2. Multi-Tenant Firestore Schema
-- **Tenant Scope**: Every document belongs strictly to its parent company:
-  - Tables: `companies/{companyId}/snookerTables/{tableId}`
-  - Users: `companies/{companyId}/users/{userId}`
-  - History: `companies/{companyId}/tablesHistory/{recordId}`
-  - Canteen: `companies/{companyId}/canteenItems/{itemId}`
-  - Equipment: `companies/{companyId}/equipmentItems/{itemId}`
-- **Merge Updates**: Always use `.set(data, SetOptions(merge: true))` when modifying user sessions or financial records to prevent overwriting existing fields or failing on unindexed subcollections.
+## 2. State Management & BLoC Pattern
+- **Bloc Providers**: `AuthBloc` and `FloorMatrixBloc` are provided at the root widget level in `main.dart`.
+- **FloorMatrixBloc**: Manages table status, running match sessions, timer ticks, billing items, table configurations, and reminders.
+- **AuthBloc**: Manages multi-tenant club selection, 10-day session verification, user authentication, active subscription state, operator online status, and user permissions.
+- **No Rogue State**: Never manage shared match, table, or payment state via isolated widget `setState()`. Always dispatch events through the corresponding BLoC.
+- **Auto-Initialization**: Any BLoC requiring startup verification (such as `AuthBloc` session checks) MUST dispatch its initialization event in its constructor (`add(InitAuthEvent())`) so hot reload / hot restart never leaves the bloc uninitialized.
 
-## 3. Financial & Monetary Safety
-- **Strict Input Formatters**: Any monetary input field must include:
-  ```dart
-  inputFormatters: [
-    FilteringTextInputFormatter.allow(RegExp(r'^\d*\.?\d{0,2}')),
-  ]
-  ```
-- **Validation**:
-  - Never allow negative numbers or zero-amount payments.
-  - In due collection dialogs, always clamp or validate that the entered payment cannot exceed `record.dueAmount`.
-  - Disable action buttons (`onPressed: null`) whenever input is empty, non-numeric, or exceeds allowable limits.
+## 3. Service Locator & Dependency Injection
+- Service locator instance is `sl` (`GetIt.instance`), defined in `lib/core/di/service_locator.dart`.
+- Singletons registered:
+  - `NetworkConnectivityService` (`sl<NetworkConnectivityService>()`)
+  - `FirestoreService` (`sl<FirestoreService>()`)
+  - `SessionLocalStorage` (`sl<SessionLocalStorage>()`)
 
-## 4. Layout & Flutter RenderFlex Safety
-- **Modal Dialogs**: Every modal dialog or bottom sheet MUST have a responsive maximum height constraint and be wrapped in a `SingleChildScrollView`:
-  ```dart
-  constraints: BoxConstraints(
-    maxHeight: MediaQuery.of(context).size.height * 0.9,
-    maxWidth: 580,
-  )
-  ```
-- **Rows & Badges**: Never place unbounded dynamic text or timestamp rows inside rigid `Row`s. Always wrap in `Expanded(child: Text(..., maxLines: 1, overflow: TextOverflow.ellipsis))` or use `Wrap(runSpacing: 4, children: [...])`.
+## 4. Multi-Tenant Firestore Schema & Collection Names
+Every club document belongs strictly to its parent company document under `companies/{companyId}`:
 
-## 5. Session Management
-- **10-Day Duration**: User sessions last 10 days from login.
-- **Dual Verification**: Sessions are stored locally via `SharedPreferences` in `SessionLocalStorage` and remotely on `users/{userId}.sessionExpiresAt` as a Firestore `Timestamp`.
-- **Auto-Login**: On launch, verify that the local session has not expired and that the user's remote `sessionExpiresAt` timestamp in Firestore is valid before opening the dashboard.
+- **Tables**: `companies/{companyId}/snookerTables/{tableId}`
+- **Running Sessions**: `companies/{companyId}/runningTables/{sessionId}`
+- **Users**: `companies/{companyId}/users/{userId}`
+- **Match History**: `companies/{companyId}/tablesHistory/{recordId}`
+- **Canteen Inventory**: `companies/{companyId}/foodCanteen/{itemId}`
+- **Equipment Stock**: `companies/{companyId}/equipmentStock/{itemId}`
+- **Club Reminders**: `companies/{companyId}/reminders/{reminderId}`
+- **Daily Quota Log**: `companies/{companyId}/dailyUsage/{dateStr}`
+- **Global App Config**: `appConfig/appDownload`
 
-## 6. Tooling & Flutter Version Management (FVM)
-- **FVM Enforcement**: This project strictly uses FVM (Flutter Version Management). All Flutter and Dart commands executed via CLI must use `fvm`:
-  - Builds: `fvm flutter build apk --release`, `fvm flutter build web`, etc.
-  - Package Management: `fvm flutter pub get`, `fvm flutter pub add <pkg>`
-  - Static Analysis & Testing: `fvm flutter analyze`, `fvm flutter test`
-  - Code Generation / Dart Tools: `fvm dart run build_runner build`
-- **Global Tooling Prohibition**: Never execute global `flutter` or `dart` directly to prevent SDK version mismatches.
+### Firestore Atomic Operations & Merge Rules
+- **Merge Updates**: Always use `.set(data, SetOptions(merge: true))` when modifying existing user sessions, table configs, or financial records to prevent accidental field deletion.
+- **Batch Writes**: When starting or closing a session, use Firestore batch writes (`_firestore.batch()`) to update the session state and table status atomically.
+
+## 5. Daily Usage & Quota Monitoring
+- All Firestore CRUD operations in `FirestoreService` report reads/writes/deletes through `CompanyUsageTracker` (`trackRead`, `trackWrite`, `trackDelete`).
+- Flushing usage logs writes aggregated daily usage metrics into `companies/{companyId}/dailyUsage/yyyy-MM-dd`.

@@ -6,29 +6,35 @@ description: >-
 
 # SSAAS Canteen & Equipment Stock Management
 
-This skill documents the canteen POS, inventory tracking, equipment maintenance, and stock integration with table billing in SSAAS (Constants.appName).
+This skill documents the canteen POS, inventory tracking, equipment maintenance, and stock integration with table billing in SSAAS (`Constants.appName`).
 
 ## 1. Domain Entities & Firestore Structure
 
-### A. Food Canteen (`companies/{companyId}/canteenItems/{itemId}`)
+Both food canteen and equipment items use the `StockItem` entity (`lib/domain/entities/stock_item.dart`).
 
-- **`CanteenItem`**:
+### A. Food Canteen (`companies/{companyId}/foodCanteen/{itemId}`)
+
+- **`StockItem`** fields for food:
   - `id`: Unique UUID.
-  - `name`: Food or beverage name (e.g. "Cold Coffee", "Sandwich", "Mineral Water").
+  - `companyId`: Parent club ID.
+  - `name`: Food or beverage name (e.g. "Cold Coffee", "Sandwich", "Water Bottle").
   - `category`: `'Beverages'`, `'Snacks'`, `'Meals'`, `'Others'`.
   - `price`: Unit sale price in ₹.
-  - `stock`: Current units in stock.
-  - `isAvailable`: Quick toggle to mark sold-out items.
+  - `stock`: Current units available in inventory.
+  - `unit`: Measurement unit (`'pcs'`, `'bottles'`, `'plates'`).
+  - `isAvailable`: Quick availability toggle.
 
-### B. Equipment & Club Stock (`companies/{companyId}/equipmentItems/{itemId}`)
+### B. Equipment & Club Stock (`companies/{companyId}/equipmentStock/{itemId}`)
 
-- **`EquipmentItem`**:
+- **`StockItem`** fields for equipment:
   - `id`: Unique UUID.
-  - `name`: Equipment asset name (e.g. "Master Chalk (Blue)", "Aramith Tournament Balls", "Cue Tip 10mm").
-  - `quantity`: Quantity currently in possession or storage.
+  - `companyId`: Parent club ID.
+  - `name`: Asset name (e.g. "Master Chalk (Blue)", "Aramith Ball Set", "Cue Tip 10mm").
+  - `category`: `'Cues'`, `'Balls'`, `'Chalk'`, `'Cloth'`, `'Lighting'`, `'Maintenance'`.
+  - `stock`: Current quantity in possession or storage.
   - `condition`: `'Excellent'`, `'Good'`, `'Needs Maintenance'`, or `'Replaced'`.
   - `unitCost`: Procurement cost.
-  - `notes`: Maintenance or storage log notes.
+  - `notes`: Maintenance log notes.
 
 ---
 
@@ -36,10 +42,10 @@ This skill documents the canteen POS, inventory tracking, equipment maintenance,
 
 In `FoodCanteenView` (`lib/presentation/views/canteen/food_canteen_view.dart`):
 
-- Category filter tabs: All, Beverages, Snacks, Meals, Others.
-- Stock increment/decrement shortcuts with immediate Firestore updates.
-- Real-time Firestore stream listener updates all connected terminals instantaneously.
-- Low-stock visual warning badges when inventory falls below minimum threshold.
+- Category tabs: All, Beverages, Snacks, Meals, Others.
+- Stock adjustment: Increment (`incrementFoodStock`) or Decrement (`decrementFoodStock`) shortcuts in `FirestoreService` update Firestore in real-time.
+- Real-time Stream: `_firestoreService.watchFoodCanteen(companyId)` broadcasts live stock updates across all active club devices.
+- Low-Stock Badges: Visual warnings displayed when inventory drops below 5 units.
 
 ---
 
@@ -47,18 +53,21 @@ In `FoodCanteenView` (`lib/presentation/views/canteen/food_canteen_view.dart`):
 
 In `EquipmentStockView` (`lib/presentation/views/equipment/equipment_stock_view.dart`):
 
-- Tracks capital club equipment (cues, balls, table heaters, cloth).
-- Add/Edit modal with name, stock quantity, condition rating, and notes.
-- Quick filtering by condition and stock availability.
+- Capital asset tracking (cues, ball sets, heaters, cloth, lighting).
+- Add/Edit modal via `AddEditEquipmentItemScreen` (`lib/presentation/views/equipment/add_edit_equipment_item_screen.dart`).
+- Track stock counts, asset condition ratings, unit procurement costs, and maintenance logs.
 
 ---
 
-## 4. Cross-Module Integration with Table Sessions
+## 4. Integration with Running Table Sessions
 
-When items are sold directly to a table:
+When canteen items are added directly to a running match:
 
-1. Staff tap **"+ Item / Snacks"** on a running table card or in `FloorMatrixView`.
-2. `AddTableItemDialog` displays active `CanteenItem`s with stock counts.
-3. Upon selecting quantity and tapping "Add to Table", `AddSessionBillingItemEvent` is dispatched to `FloorMatrixBloc`.
-4. The item is embedded inside `table.currentSession.items` and immediately increases `itemsAmount` and `grandTotal`.
-5. At checkout, itemized lines appear in the bill breakdown and persist into `TableHistoryRecord`.
+1. Operator taps **"+ Add Item"** on a running table card in `FloorMatrixView` or inside `ManageTableItemsDialog`.
+2. `AddTableItemDialog` lists active food items from `watchFoodCanteen`.
+3. Tapping "Add to Table" dispatches `AddBillingItemEvent` to `FloorMatrixBloc`:
+   - Adds `TableBillingItem` into `session.items`.
+   - Calls `_firestoreService.decrementFoodStock(companyId, item.stockItemId, quantity)`.
+4. Removing an item from table bill dispatches `RemoveBillingItemEvent`:
+   - Removes item from `session.items`.
+   - Restores stock count via `_firestoreService.incrementFoodStock(companyId, stockItemId, quantity)`.

@@ -1,182 +1,152 @@
-# SSAAS Project - AI Agent Guidelines
+# SSAAS Project - AI Agent Master Guidelines
 
-This document contains mandatory guidelines for all AI agents working on the SSAAS (Constants.appName) Flutter project. These rules are enforced and should be followed in all code modifications, bug fixes, and feature implementations.
-
----
-
-## 1. State Management Rules
-
-### BLoC Pattern Enforcement
-- **Use FloorMatrixBloc** for table management, running sessions, pricing configuration, and live orders
-- **Use AuthBloc** for tenant club context, operator identity verification, and session authentication
-- **Never manage shared state via isolated widget setState()**. All state changes must go through the appropriate BLoC event dispatch
-
-### Auto-Initialization Requirement
-- Any BLoC requiring startup verification (such as `AuthBloc` session checks) **MUST** dispatch its initialization event in its constructor
-- This ensures hot reload / hot restart never leaves the bloc in an uninitialized state
-- Example: `AuthBloc` automatically calls `add(InitAuthEvent())` on construction
+This document is the primary entry point and mandatory guideline handbook for AI agents working on the SSAAS (Snooker & Billiards Management System) Flutter application.
 
 ---
 
-## 2. Multi-Tenant Firestore Architecture
+## 1. Project Overview & Core Architecture
 
-### Tenant Scope Enforcement
-Every document belongs strictly to its parent company using this structure:
+SSAAS is a multi-tenant Flutter application designed for snooker, pool, and billiards club management, offering live match duration tracking, food canteen POS, equipment stock tracking, match history, and payment collection.
 
-```
-companies/{companyId}/tables/{tableId}      // Snooker tables
-companies/{companyId}/users/{userId}        // Club users/operators
-companies/{companyId}/tablesHistory/{recordId}  // Table session history
-companies/{companyId}/canteenItems/{itemId}   // Canteen menu items
-companies/{companyId}/equipmentItems/{itemId} // Equipment stock
-```
-
-### Merge Updates Rule
-When modifying user sessions or financial records, **ALWAYS** use `.set(data, SetOptions(merge: true))` to prevent overwriting existing fields or failing on unindexed subcollections.
+### Architectural Blueprint (Clean Architecture + BLoC)
+- **Presentation Layer** (`lib/presentation/`): Views, dialogs, custom widgets, and BLoC state management (`AuthBloc`, `FloorMatrixBloc`).
+- **Domain Layer** (`lib/domain/`): Pure Dart entities, immutable value objects (`ClubTable`, `TableSession`, `TableHistoryRecord`, `UserAccount`, `StockItem`, `PaymentTransaction`). Independent of Flutter framework and data sources.
+- **Data Layer** (`lib/data/`): Remote data sources (`FirestoreService`), local storage (`SessionLocalStorage`), and usage analytics tracking (`CompanyUsageTracker`).
+- **Core Layer** (`lib/core/`): DI service locator (`service_locator.dart`), theme and color design tokens (`app_colors.dart`, `app_theme.dart`), error handling (`error_handler.dart`), formatters (`formatters.dart`), responsive layout helpers (`responsive.dart`), haptics (`interactive_feedback.dart`), and app constants (`constants.dart`).
 
 ---
 
-## 3. Financial & Monetary Safety
-
-### Input Formatting
-All monetary input fields MUST include this formatter:
-
-```dart
-inputFormatters: [
-  FilteringTextInputFormatter.allow(RegExp(r'^\d*\.?\d{0,2}')),
-]
-```
-
-### Validation Rules
-- **Never allow negative numbers or zero-amount payments**
-- In due collection dialogs, always clamp or validate that the entered payment cannot exceed `record.dueAmount`
-- Disable action buttons (`onPressed: null`) whenever input is empty, non-numeric, or exceeds allowable limits
-
----
-
-## 4. Layout & Flutter RenderFlex Safety
-
-### Modal Dialogs
-Every modal dialog or bottom sheet MUST have responsive constraints and be wrapped in a `SingleChildScrollView`:
-
-```dart
-constraints: BoxConstraints(
-  maxHeight: MediaQuery.of(context).size.height * 0.9,
-  maxWidth: 580,
-),
-child: SingleChildScrollView(
-  child: contentWidget,
-)
-```
-
-### Text Overflow Handling
-- **Never place unbounded dynamic text or timestamp rows inside rigid Row/Flex widgets**
-- Always wrap in `Expanded(child: Text(..., maxLines: 1, overflow: TextOverflow.ellipsis))` or use `Wrap(runSpacing: 4, children: [...])`
-
----
-
-## 5. Session Management Rules
-
-### Duration & Storage
-- User sessions last **10 days** from login time
-- Sessions are stored in TWO places:
-  1. **Local**: `SharedPreferences` key `'ssaas_club_user_session'` (with fallback to `'snooker_club_user_session'`) with payload `{ "companyId": "...", "userId": "...", "expiresAt": "2026-09-26T..." }`
-  2. **Remote**: Firestore document `users/{userId}` field `sessionExpiresAt` as a `Timestamp`
-
-### Auto-Login Flow
-On app launch, verify that:
-1. Local session has not expired (`DateTime.now().isAfter(expiresAt)` → invalid)
-2. Remote Firestore `sessionExpiresAt` timestamp is valid
-3. Company subscription is active (not expired)
-
-If all checks pass → auto-login and open main dashboard immediately. Otherwise → show login screen.
-
----
-
-## 6. Tooling & Flutter Version Management (FVM)
-
-### FVM Enforcement
-This project **STRICTLY** uses FVM (Flutter Version Management). All commands must use `fvm`:
-
-| Command | FVM Format |
-|---------|------------|
-| Build APK | `fvm flutter build apk --release` |
-| Build Web | `fvm flutter build web` |
-| Package Get | `fvm flutter pub get` |
-| Add Package | `fvm flutter pub add <pkg>` |
-| Analyze | `fvm flutter analyze` |
-| Run Tests | `fvm flutter test` |
-| Build Runner | `fvm dart run build_runner build` |
-
-### Global Tooling Prohibition
-**NEVER** execute global `flutter` or `dart` directly to prevent SDK version mismatches. Always use FVM-wrapped commands.
-
----
-
-## 7. Code Quality & Conventions
-
-### Entity Design
-- Domain entities in `lib/domain/entities/` must be independent of data sources and UI layers
-- Use `equatable` package for value equality checks in BLoCs
-- Implement `copyWith()` methods for all state classes to enable immutable updates
-
-### Error Handling
-- Catch errors at the datasource layer, not in business logic
-- Emit descriptive error messages through BLoC states instead of printing directly
-- Use `debugPrint()` only for debugging; never in production code
-
-### Testing Requirements
-- Do not Write any unit tests for any BLoCs or critical datasources
-
----
-
-## 8. Common Pitfalls to Avoid
-
-| Pitfall | Correct Approach |
-|---------|------------------|
-| Managing table state in widget setState() | Dispatch events through FloorMatrixBloc |
-| Overwriting Firestore documents without merge | Use `.set(data, SetOptions(merge: true))` |
-| Allowing negative payment amounts | Validate input with regex and disable buttons when invalid |
-| Rigid Row/Flex layouts with dynamic content | Wrap text in Expanded + TextOverflow.ellipsis |
-| Skipping auto-login initialization | Always call init event in BLoC constructor |
-
----
-
-## 9. Quick Reference: Key Files & Classes
+## 2. Directory Structure Quick Reference
 
 ```
 lib/
+├── main.dart                             # Application entry, global BlocProviders, error builders
+├── firebase_options.dart                 # Firebase platform configuration
 ├── core/
-│   ├── constants/constants.dart          # Constants.appName, app version
-│   ├── di/service_locator.dart           # GetIt singleton for DI
-│   ├── services/network_connectivity_service.dart
-│   └── theme/app_theme.dart
-├── data/datasources/
-│   ├── firestore_service.dart             # Firebase CRUD + streams
-│   └── session_local_storage.dart         # SharedPreferences wrapper
-├── domain/entities/                       # Business logic models
-│   ├── company.dart
-│   ├── user_account.dart
-│   ├── table_session.dart
-│   └── ...
+│   ├── constants/constants.dart          # Constants.appName ('SSAAS'), version, due buffer
+│   ├── di/service_locator.dart           # GetIt service locator singleton initialization
+│   ├── services/network_connectivity_service.dart # Real-time connectivity watcher
+│   ├── theme/                            # AppColors (Dark Obsidian) & AppTheme (Material 3)
+│   └── utils/                            # Responsive, AppNavigation, Formatters, ErrorHandler, Haptics
+├── data/
+│   └── datasources/
+│       ├── firestore_service.dart        # Multi-tenant Firestore CRUD, streams & batch writes
+│       ├── session_local_storage.dart    # SharedPreferences 10-day session cache
+│       └── company_usage_tracker.dart    # Firestore read/write/delete quota tracking
+├── domain/
+│   └── entities/                         # Core domain models (ClubTable, UserAccount, TableSession, etc.)
 └── presentation/
     ├── blocs/
-    │   ├── auth/auth_bloc.dart            # Auth + session management
-    │   └── floor_matrix/floor_matrix_bloc.dart  # Table operations
-    └── views/                              # UI screens
+    │   ├── auth/auth_bloc.dart           # Tenant auth, 10-day session validation, user roles
+    │   └── floor_matrix/floor_matrix_bloc.dart # Running tables, timer tick, POS orders, checkout
+    ├── views/                            # Screen views categorized by feature module
+    │   ├── admin/                        # Dev analytics & company details
+    │   ├── auth/                         # Login, account security, company creation
+    │   ├── canteen/                      # Food canteen POS & stock manager
+    │   ├── contact_and_pricing/          # Pricing info & developer support contact
+    │   ├── dashboard/                    # Main dashboard, navigation, online operator status
+    │   ├── equipment/                    # Equipment asset stock tracking & maintenance
+    │   ├── floor_matrix/                 # Live table matrix, session start/checkout/order dialogs
+    │   ├── history/                      # Match history, due collection, CSV export
+    │   ├── manual/                       # Operational guide & user manual
+    │   └── users/                        # Associated user administration & permissions
+    └── widgets/                          # Reusable UI widgets (AppVersionGuard, NetworkAwareOverlay, etc.)
 ```
 
 ---
 
-## 10. When to Use This Skill
+## 3. Essential Tooling & Development Commands
 
-Use this skill when:
-- Modifying authentication flows or session persistence logic
-- Working with multi-tenant Firestore data structures
-- Implementing financial calculations or payment features
-- Creating modal dialogs or handling responsive layouts
-- Debugging state management issues across BLoCs
+This project **STRICTLY** uses Flutter Version Management (**FVM**). Direct execution of global `flutter` or `dart` commands is prohibited to avoid SDK version drift.
+
+| Action | Supported Command |
+|--------|-------------------|
+| Install Dependencies | `fvm flutter pub get` |
+| Add Package | `fvm flutter pub add <package>` |
+| Run Static Analyzer | `fvm flutter analyze` |
+| Run Test Suite | `fvm flutter test` |
+| Build Android APK | `fvm flutter build apk --release` |
+| Build Web Bundle | `fvm flutter build web` |
+| Run Code Generator | `fvm dart run build_runner build` |
 
 ---
 
+## 4. Key Coding Conventions & Architectural Rules
+
+### A. State Management & BLoCs
+- **Global Providers**: `AuthBloc` and `FloorMatrixBloc` are provided globally at root in `main.dart`.
+- **Auto-Initialization**: BLoCs requiring startup state verification MUST trigger their initialization event in their constructor (e.g., `AuthBloc` dispatches `InitAuthEvent()` on creation).
+- **No Rogue Widget State**: Never manage shared match, pricing, or financial state in isolated widget `setState()`. Always dispatch events through the appropriate BLoC.
+
+### B. Multi-Tenant Firestore Rules
+- Document hierarchy MUST be strictly scoped by `companyId`:
+  - Snooker Tables: `companies/{companyId}/snookerTables/{tableId}`
+  - Running Sessions: `companies/{companyId}/runningTables/{sessionId}`
+  - User Accounts: `companies/{companyId}/users/{userId}`
+  - Match History: `companies/{companyId}/tablesHistory/{recordId}`
+  - Canteen Stock: `companies/{companyId}/foodCanteen/{itemId}`
+  - Equipment Stock: `companies/{companyId}/equipmentStock/{itemId}`
+  - Reminders: `companies/{companyId}/reminders/{reminderId}`
+  - Usage Log: `companies/{companyId}/dailyUsage/{dateStr}`
+- **Merge Updates**: Always use `.set(data, SetOptions(merge: true))` when modifying existing Firestore documents to prevent field overwrites.
+
+### C. Financial & Monetary Safety
+- Monetary inputs MUST use the standard regex formatter:
+  ```dart
+  inputFormatters: [
+    FilteringTextInputFormatter.allow(RegExp(r'^\d*\.?\d{0,2}')),
+  ]
+  ```
+- **Clamping & Validation**: Never allow negative payment values. In due collection dialogs, always clamp or validate that payments cannot exceed `record.dueAmount`. Action buttons MUST be disabled (`onPressed: null`) when inputs are invalid or empty.
+
+### D. Layout & RenderFlex Protection
+- **Modal Constraints**: Modal sheets and dialogs must have responsive maximum height limits and wrap dynamic content in a `SingleChildScrollView`:
+  ```dart
+  constraints: BoxConstraints(
+    maxHeight: MediaQuery.of(context).size.height * 0.9,
+    maxWidth: 580,
+  ),
+  child: SingleChildScrollView(child: contentWidget),
+  ```
+- **Adaptive Display**: Use `Responsive.showAdaptiveModal()` for modals (`showModalBottomSheet` on mobile `<680px`, `showDialog` on desktop/tablet `>=680px`).
+- **Text Overflow**: Wrap dynamic string rows in `Expanded(child: Text(..., maxLines: 1, overflow: TextOverflow.ellipsis))` or `Wrap` widgets to avoid RenderFlex overflows.
+
+---
+
+## 5. Session Management & Security
+
+- **10-Day Persistence**: User sessions remain active for 10 days from login.
+- **Dual Tier Persistence**:
+  1. Local storage via `SharedPreferences` key `'ssaas_club_user_session'` (`SessionLocalStorage`).
+  2. Cloud document `companies/{companyId}/users/{userId}` field `sessionExpiresAt` (`Timestamp`).
+- **Auto-Login**: On launch, `AuthBloc` verifies local session validity, fetches the company record to confirm active subscription, checks remote `sessionExpiresAt`, and confirms account `isActive`.
+
+---
+
+## 6. Testing & Quality Expectations
+
+- Run `fvm flutter analyze` before completing changes to verify zero static analysis errors.
+- Run `fvm flutter test` to ensure existing unit tests pass.
+- Maintain immutability on domain entities (`copyWith()`, `Equatable`).
+- Route all user-facing errors through `AppErrorHandler.format()` or `AppErrorHandler.showErrorSnackBar()`.
+
+---
+
+## 7. Rules and Skills Index
+
+Refer to specialized documentation in `.agents/` for task-specific workflows:
+
+### Rules (`.agents/rules/`)
+- [`ssaas_architecture_rules.md`](.agents/rules/ssaas_architecture_rules.md): Core architecture, multi-tenant Firestore schema, layer responsibilities, DI, and state management.
+- [`ssaas_ui_and_design_system_rules.md`](.agents/rules/ssaas_ui_and_design_system_rules.md): Dark obsidian color system, Material 3 theme, responsive breakpoints, adaptive modals, and layout safety.
+- [`ssaas_coding_and_testing_rules.md`](.agents/rules/ssaas_coding_and_testing_rules.md): Dart/Flutter conventions, entity design, error formatting, FVM workflows, and testing guidelines.
+
+### Skills (`.agents/skills/`)
+- [`ssaas-table-management`](.agents/skills/ssaas-table-management/SKILL.md): Snooker tables, live match timers, pricing rules, order items, and checkout settlement.
+- [`ssaas-auth-and-sessions`](.agents/skills/ssaas-auth-and-sessions/SKILL.md): Multi-tenant auth, 10-day session persistence, user roles, auto-login, and operator concurrency.
+- [`ssaas-stock-and-canteen`](.agents/skills/ssaas-stock-and-canteen/SKILL.md): Food canteen POS, inventory stock increment/decrement, equipment maintenance, and table billing integration.
+- [`ssaas-billing-and-history`](.agents/skills/ssaas-billing-and-history/SKILL.md): Match history records, partial payment tracking, due collection settlement, and RFC-4180 CSV export.
+- [`ssaas-feature-and-ui-development`](.agents/skills/ssaas-feature-and-ui-development/SKILL.md): Creating or modifying views, adaptive modals, BLoC events, responsive layouts, and UI tokens.
+
+---
 *Last updated: September 2026*
