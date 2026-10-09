@@ -3,6 +3,7 @@ import 'package:uuid/uuid.dart';
 import '../../core/constants/constants.dart';
 import '../../domain/entities/app_download_config.dart';
 import '../../domain/entities/club_reminder.dart';
+import '../../domain/entities/club_expense.dart';
 import '../../domain/entities/club_table.dart';
 import '../../domain/entities/company.dart';
 import '../../domain/entities/stock_item.dart';
@@ -863,6 +864,80 @@ class FirestoreService {
   }
 
   // -------------------------------------------------------------
+  // EXPENSES SUBCOLLECTION: companies/{companyId}/expenses
+  // -------------------------------------------------------------
+
+  CollectionReference<Map<String, dynamic>> _expensesCol(String companyId) =>
+      _companiesCol.doc(companyId).collection('expenses');
+
+  Stream<List<ClubExpense>> watchCompanyExpenses(
+    String companyId, {
+    DateTime? startDate,
+    DateTime? endDate,
+  }) {
+    Query<Map<String, dynamic>> query = _expensesCol(companyId);
+    if (startDate != null) {
+      query = query.where(
+        'expenseDate',
+        isGreaterThanOrEqualTo: Timestamp.fromDate(startDate),
+      );
+    }
+    if (endDate != null) {
+      query = query.where(
+        'expenseDate',
+        isLessThanOrEqualTo: Timestamp.fromDate(endDate),
+      );
+    }
+    return query.orderBy('expenseDate', descending: true).snapshots().map(
+      (snapshot) {
+        trackRead(companyId, snapshot.docChanges.length);
+        return snapshot.docs
+            .map((doc) => ClubExpense.fromMap(doc.id, doc.data()))
+            .toList();
+      },
+    );
+  }
+
+  Future<List<ClubExpense>> getCompanyExpenses(
+    String companyId, {
+    DateTime? startDate,
+    DateTime? endDate,
+  }) async {
+    Query<Map<String, dynamic>> query = _expensesCol(companyId);
+    if (startDate != null) {
+      query = query.where(
+        'expenseDate',
+        isGreaterThanOrEqualTo: Timestamp.fromDate(startDate),
+      );
+    }
+    if (endDate != null) {
+      query = query.where(
+        'expenseDate',
+        isLessThanOrEqualTo: Timestamp.fromDate(endDate),
+      );
+    }
+    final snapshot = await query.orderBy('expenseDate', descending: true).get();
+    trackRead(companyId, snapshot.docs.length);
+    return snapshot.docs
+        .map((doc) => ClubExpense.fromMap(doc.id, doc.data()))
+        .toList();
+  }
+
+  Future<void> saveExpense(ClubExpense expense) async {
+    final docId = expense.id.isEmpty ? _expensesCol(expense.companyId).doc().id : expense.id;
+    final toSave = expense.copyWith(id: docId);
+    await _expensesCol(expense.companyId)
+        .doc(docId)
+        .set(toSave.toMap(), SetOptions(merge: true));
+    trackWrite(expense.companyId, 1);
+  }
+
+  Future<void> deleteExpense(String companyId, String expenseId) async {
+    await _expensesCol(companyId).doc(expenseId).delete();
+    trackDelete(companyId, 1);
+  }
+
+  // -------------------------------------------------------------
   // REMINDERS SUBCOLLECTION: companies/{companyId}/reminders
   // -------------------------------------------------------------
 
@@ -986,4 +1061,3 @@ class FirestoreService {
             .toList());
   }
 }
-

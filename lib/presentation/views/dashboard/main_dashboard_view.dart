@@ -13,10 +13,12 @@ import '../../../domain/entities/company.dart';
 import '../../../domain/entities/user_account.dart';
 import '../../blocs/auth/auth_bloc.dart';
 import '../../blocs/floor_matrix/floor_matrix_bloc.dart';
+import '../../blocs/expense/expense_bloc.dart';
 import '../auth/account_security_screen.dart';
 import '../auth/login_screen.dart';
 import '../canteen/food_canteen_view.dart';
 import '../equipment/equipment_stock_view.dart';
+import '../expense/expenses_view.dart';
 import '../floor_matrix/floor_matrix_view.dart';
 import '../history/tables_history_view.dart';
 import '../manual/user_manual_view.dart';
@@ -37,6 +39,7 @@ class _MainDashboardViewState extends State<MainDashboardView> {
   int _selectedTabIndex = 0;
   bool _isSideMenuVisible = false;
   bool _isLoggingOut = false;
+  String? _loadedCompanyId;
 
   @override
   void initState() {
@@ -46,6 +49,12 @@ class _MainDashboardViewState extends State<MainDashboardView> {
 
   void _triggerCompanyReload(String companyId) {
     context.read<FloorMatrixBloc>().add(LoadFloorMatrixEvent(companyId));
+    final now = DateTime.now();
+    context.read<ExpenseBloc>().add(LoadExpensesEvent(
+          companyId,
+          startDate: DateTime(now.year, now.month, now.day),
+          endDate: DateTime(now.year, now.month, now.day, 23, 59, 59, 999),
+        ));
   }
 
   void _selectTab(int index) {
@@ -68,8 +77,12 @@ class _MainDashboardViewState extends State<MainDashboardView> {
         if (authState.isUserDeactivated) {
           Navigator.of(context, rootNavigator: true).popUntil((route) => route.isFirst);
         }
-        if (authState.activeCompany != null) {
+        if (authState.activeCompany != null &&
+            _loadedCompanyId != authState.activeCompany!.id) {
+          _loadedCompanyId = authState.activeCompany!.id;
           _triggerCompanyReload(authState.activeCompany!.id);
+        } else if (authState.activeCompany == null) {
+          _loadedCompanyId = null;
         }
         if (authState.errorMessage != null) {
           ScaffoldMessenger.of(context).showSnackBar(
@@ -182,6 +195,12 @@ class _MainDashboardViewState extends State<MainDashboardView> {
             label: 'History',
             fullLabel: 'Tables History',
           ),
+          const _NavDestinationItem(
+            icon: Icons.account_balance_wallet_outlined,
+            activeIcon: Icons.account_balance_wallet,
+            label: 'Expenses',
+            fullLabel: 'Expense Management',
+          ),
           if (currentUser.isAdmin)
             const _NavDestinationItem(
               icon: Icons.people_outline,
@@ -196,6 +215,7 @@ class _MainDashboardViewState extends State<MainDashboardView> {
           const FoodCanteenView(),
           const EquipmentStockView(),
           const TablesHistoryView(),
+          const ExpensesView(),
           if (currentUser.isAdmin) const CompanyUsersView(),
         ];
 
@@ -215,7 +235,7 @@ class _MainDashboardViewState extends State<MainDashboardView> {
             isMobile: isMobile,
           ),
           bottomNavigationBar: isMobile
-              ? _buildMobileBottomNavigationBar(context, navItems)
+              ? _buildMobileBottomNavigationBar(context, currentUser)
               : null,
           body: Row(
             children: [
@@ -534,8 +554,11 @@ class _MainDashboardViewState extends State<MainDashboardView> {
 
   Widget _buildMobileBottomNavigationBar(
     BuildContext context,
-    List<_NavDestinationItem> items,
+    UserAccount currentUser,
   ) {
+    final selectedIndex = _selectedTabIndex == 0
+        ? 0
+        : (_selectedTabIndex == 3 ? 1 : 2);
     return Container(
       decoration: const BoxDecoration(
         color: AppColors.cardSurface,
@@ -550,20 +573,71 @@ class _MainDashboardViewState extends State<MainDashboardView> {
           elevation: 0,
           backgroundColor: AppColors.cardSurface,
           indicatorColor: AppColors.brandAccent.withAlpha(45),
-          selectedIndex: _selectedTabIndex,
-          onDestinationSelected: _selectTab,
+          selectedIndex: selectedIndex,
+          onDestinationSelected: (index) {
+            if (index == 2) {
+              _showMobileMoreSheet(context, currentUser);
+              return;
+            }
+            _selectTab(index == 1 ? 3 : 0);
+          },
           labelBehavior: NavigationDestinationLabelBehavior.alwaysShow,
-          destinations: items.map((item) {
-            return NavigationDestination(
-              icon: Icon(item.icon, color: AppColors.secondaryText, size: 22),
-              selectedIcon: Icon(
-                item.activeIcon,
-                color: AppColors.brandAccentLight,
-                size: 22,
-              ),
-              label: item.label,
-            );
-          }).toList(),
+          destinations: const [
+            NavigationDestination(
+              icon: Icon(Icons.table_restaurant_outlined, color: AppColors.secondaryText, size: 22),
+              selectedIcon: Icon(Icons.table_restaurant, color: AppColors.brandAccentLight, size: 22),
+              label: 'Tables',
+            ),
+            NavigationDestination(
+              icon: Icon(Icons.history_outlined, color: AppColors.secondaryText, size: 22),
+              selectedIcon: Icon(Icons.history, color: AppColors.brandAccentLight, size: 22),
+              label: 'History',
+            ),
+            NavigationDestination(
+              icon: Icon(Icons.more_horiz, color: AppColors.secondaryText, size: 22),
+              selectedIcon: Icon(Icons.more_horiz, color: AppColors.brandAccentLight, size: 22),
+              label: 'More',
+            ),
+          ],
+        ),
+      ),
+    );
+  }
+
+  Future<void> _showMobileMoreSheet(
+    BuildContext context,
+    UserAccount currentUser,
+  ) {
+    AppHaptics.selection();
+    return showAdaptiveModal<void>(
+      context: context,
+      builder: (sheetContext) => Container(
+        constraints: BoxConstraints(
+          maxHeight: MediaQuery.of(sheetContext).size.height * .9,
+          maxWidth: 580,
+        ),
+        padding: const EdgeInsets.all(20),
+        decoration: BoxDecoration(
+          color: AppColors.cardSurface,
+          borderRadius: const BorderRadius.vertical(top: Radius.circular(20)),
+          border: Border.all(color: AppColors.cardBorderStroke),
+        ),
+        child: SingleChildScrollView(
+          child: Column(
+            mainAxisSize: MainAxisSize.min,
+            crossAxisAlignment: CrossAxisAlignment.start,
+            children: [
+              const Text('More', style: TextStyle(color: AppColors.primaryText, fontSize: 20, fontWeight: FontWeight.w800)),
+              const SizedBox(height: 4),
+              const Text('Club operations and reports', style: TextStyle(color: AppColors.secondaryText)),
+              const SizedBox(height: 16),
+              _MobileMoreDestination(icon: Icons.account_balance_wallet_outlined, label: 'Expenses', subtitle: 'Track and analyze club costs', onTap: () { Navigator.of(sheetContext).pop(); _selectTab(4); }),
+              _MobileMoreDestination(icon: Icons.fastfood_outlined, label: 'Canteen', subtitle: 'Manage food and canteen orders', onTap: () { Navigator.of(sheetContext).pop(); _selectTab(1); }),
+              _MobileMoreDestination(icon: Icons.inventory_2_outlined, label: 'Equipment', subtitle: 'Manage equipment and stock', onTap: () { Navigator.of(sheetContext).pop(); _selectTab(2); }),
+              if (currentUser.isAdmin)
+                _MobileMoreDestination(icon: Icons.people_outline, label: 'Users', subtitle: 'Manage associated users', onTap: () { Navigator.of(sheetContext).pop(); _selectTab(5); }),
+            ],
+          ),
         ),
       ),
     );
@@ -773,46 +847,129 @@ class _MainDashboardViewState extends State<MainDashboardView> {
                 crossAxisAlignment: CrossAxisAlignment.stretch,
                 mainAxisSize: MainAxisSize.min,
                 children: [
-                  // Reminders & Bookings Button (Admins only)
-                  _buildRemindersDrawerButton(
-                    currentUser,
-                    activeCompany,
-                    onTap: () => setState(() => _isSideMenuVisible = false),
+                  if (currentUser.isAdmin)
+                    BlocBuilder<FloorMatrixBloc, FloorMatrixState>(
+                      builder: (context, matrixState) => Column(
+                        crossAxisAlignment: CrossAxisAlignment.stretch,
+                        children: [
+                          const _DrawerSectionLabel('OPERATIONS'),
+                          _buildCompactDrawerAction(
+                            icon: Icons.alarm_add_rounded,
+                            label: 'Reminders & bookings',
+                            subtitle: 'Manage upcoming table alerts',
+                            badge: matrixState.activeUpcomingReminders.isEmpty
+                                ? null
+                                : '${matrixState.activeUpcomingReminders.length}',
+                            onTap: () {
+                              setState(() => _isSideMenuVisible = false);
+                              showDialog(
+                                context: context,
+                                builder: (_) => ClubRemindersDialog(
+                                  activeCompany: activeCompany,
+                                  currentUser: currentUser,
+                                ),
+                              );
+                            },
+                          ),
+                        ],
+                      ),
+                    ),
+                  const _DrawerSectionLabel('ACCOUNT & HELP'),
+                  _buildCompactDrawerAction(
+                    icon: Icons.lock_reset_rounded,
+                    label: 'Password & security',
+                    subtitle: 'View and change your password',
+                    onTap: () {
+                      setState(() => _isSideMenuVisible = false);
+                      AppNavigation.pushSmooth(context, const AccountSecurityScreen());
+                    },
                   ),
-
-                  // Password & Account Security
-                  _buildPasswordSecurityButton(
-                    currentUser,
-                    onTap: () => setState(() => _isSideMenuVisible = false),
+                  _buildCompactDrawerAction(
+                    icon: Icons.menu_book_rounded,
+                    label: 'User manual',
+                    subtitle: 'Operations and guides',
+                    onTap: () {
+                      setState(() => _isSideMenuVisible = false);
+                      AppNavigation.pushSmooth(context, const UserManualView());
+                    },
                   ),
-
-                  // Download App (Google Drive / APK link)
-                  _buildDownloadAppButton(
-                    onTap: () => setState(() => _isSideMenuVisible = false),
+                  _buildCompactDrawerAction(
+                    icon: Icons.android_rounded,
+                    label: 'Download app',
+                    subtitle: 'Get the latest Android APK',
+                    onTap: () {
+                      setState(() => _isSideMenuVisible = false);
+                      _handleDownloadAppClick(context);
+                    },
                   ),
-
-                  // Pricing & Subscription Plans Button
-                  _buildPricingAndContactButton(
-                    onTap: () => setState(() => _isSideMenuVisible = false),
+                  _buildCompactDrawerAction(
+                    icon: Icons.sell_outlined,
+                    label: 'Pricing & contact',
+                    subtitle: 'Plans and support details',
+                    onTap: () {
+                      setState(() => _isSideMenuVisible = false);
+                      AppNavigation.pushSmooth(context, const PricingAndContactView());
+                    },
                   ),
-
-                  // User Manual Action Button
-                  _buildUserManualButton(
-                    onTap: () => setState(() => _isSideMenuVisible = false),
+                  const Padding(
+                    padding: EdgeInsets.fromLTRB(14, 14, 14, 5),
+                    child: Divider(color: AppColors.cardBorderStroke),
                   ),
-
-                  const SizedBox(height: 6),
-
-                  // Owner Info Card in Drawer
+                  const _DrawerSectionLabel('CLUB CONTACT'),
                   _buildOwnerInfoCard(ownerUser, activeCompany),
-
-                  // Bottom Company Details Card
+                  const _DrawerSectionLabel('SUBSCRIPTION'),
                   _buildCompanyInfoCard(activeCompany),
                 ],
               ),
             ),
           ),
         ],
+      ),
+    );
+  }
+
+  Widget _buildCompactDrawerAction({
+    required IconData icon,
+    required String label,
+    required String subtitle,
+    required VoidCallback onTap,
+    String? badge,
+  }) {
+    return Padding(
+      padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 1),
+      child: InkWell(
+        onTap: () {
+          AppHaptics.selection();
+          onTap();
+        },
+        borderRadius: BorderRadius.circular(10),
+        child: Padding(
+          padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 9),
+          child: Row(
+            children: [
+              Icon(icon, color: AppColors.brandAccentLight, size: 19),
+              const SizedBox(width: 12),
+              Expanded(
+                child: Column(
+                  crossAxisAlignment: CrossAxisAlignment.start,
+                  children: [
+                    Text(label, maxLines: 1, overflow: TextOverflow.ellipsis, style: const TextStyle(color: AppColors.primaryText, fontSize: 13, fontWeight: FontWeight.w600)),
+                    const SizedBox(height: 1),
+                    Text(subtitle, maxLines: 1, overflow: TextOverflow.ellipsis, style: const TextStyle(color: AppColors.secondaryText, fontSize: 10.5)),
+                  ],
+                ),
+              ),
+              if (badge != null)
+                Container(
+                  margin: const EdgeInsets.only(right: 7),
+                  padding: const EdgeInsets.symmetric(horizontal: 6, vertical: 2),
+                  decoration: BoxDecoration(color: AppColors.brandAccent.withAlpha(45), borderRadius: BorderRadius.circular(10)),
+                  child: Text(badge, style: const TextStyle(color: AppColors.brandAccentLight, fontSize: 10, fontWeight: FontWeight.w800)),
+                ),
+              const Icon(Icons.chevron_right_rounded, color: AppColors.secondaryText, size: 18),
+            ],
+          ),
+        ),
       ),
     );
   }
@@ -1637,4 +1794,64 @@ class _NavDestinationItem {
     required this.label,
     required this.fullLabel,
   });
+}
+
+class _MobileMoreDestination extends StatelessWidget {
+  final IconData icon;
+  final String label;
+  final String subtitle;
+  final VoidCallback onTap;
+
+  const _MobileMoreDestination({
+    required this.icon,
+    required this.label,
+    required this.subtitle,
+    required this.onTap,
+  });
+
+  @override
+  Widget build(BuildContext context) {
+    return Padding(
+      padding: const EdgeInsets.only(bottom: 8),
+      child: InkWell(
+        onTap: () { AppHaptics.light(); onTap(); },
+        borderRadius: BorderRadius.circular(12),
+        child: Container(
+          padding: const EdgeInsets.all(14),
+          decoration: BoxDecoration(color: AppColors.inputSurface, borderRadius: BorderRadius.circular(12), border: Border.all(color: AppColors.cardBorderStroke)),
+          child: Row(children: [
+            Icon(icon, color: AppColors.brandAccentLight),
+            const SizedBox(width: 12),
+            Expanded(child: Column(crossAxisAlignment: CrossAxisAlignment.start, children: [
+              Text(label, style: const TextStyle(color: AppColors.primaryText, fontWeight: FontWeight.w700)),
+              Text(subtitle, maxLines: 1, overflow: TextOverflow.ellipsis, style: const TextStyle(color: AppColors.secondaryText, fontSize: 12)),
+            ])),
+            const Icon(Icons.chevron_right, color: AppColors.secondaryText),
+          ]),
+        ),
+      ),
+    );
+  }
+}
+
+class _DrawerSectionLabel extends StatelessWidget {
+  final String label;
+
+  const _DrawerSectionLabel(this.label);
+
+  @override
+  Widget build(BuildContext context) {
+    return Padding(
+      padding: const EdgeInsets.fromLTRB(20, 13, 20, 5),
+      child: Text(
+        label,
+        style: const TextStyle(
+          color: AppColors.secondaryText,
+          fontSize: 10,
+          fontWeight: FontWeight.w800,
+          letterSpacing: 1,
+        ),
+      ),
+    );
+  }
 }

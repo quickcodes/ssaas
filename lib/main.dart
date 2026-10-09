@@ -11,6 +11,7 @@ import 'data/datasources/firestore_service.dart';
 import 'data/datasources/session_local_storage.dart';
 import 'presentation/blocs/auth/auth_bloc.dart';
 import 'presentation/blocs/floor_matrix/floor_matrix_bloc.dart';
+import 'presentation/blocs/expense/expense_bloc.dart';
 import 'presentation/views/dashboard/main_dashboard_view.dart';
 import 'presentation/widgets/app_version_guard.dart';
 import 'presentation/widgets/network_aware_overlay.dart';
@@ -101,6 +102,11 @@ class SsaasApp extends StatelessWidget {
         ),
         BlocProvider<FloorMatrixBloc>(
           create: (_) => FloorMatrixBloc(
+            firestoreService: sl<FirestoreService>(),
+          ),
+        ),
+        BlocProvider<ExpenseBloc>(
+          create: (_) => ExpenseBloc(
             firestoreService: sl<FirestoreService>(),
           ),
         ),
