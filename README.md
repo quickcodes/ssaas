@@ -266,4 +266,6 @@ class Constants {
 
 ## License
 
-This project is proprietary and confidential. Developed by the SSAAS engineering team.
+Copyright (c) 2026 Dhruv Soni. All rights reserved.
+
+This project is proprietary and confidential. Unauthorized copying, reproduction, modification, distribution, or public use of any files or code within this repository is strictly prohibited without prior written permission.
