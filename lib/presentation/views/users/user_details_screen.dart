@@ -2,8 +2,10 @@ import 'package:flutter/material.dart';
 import 'package:flutter_bloc/flutter_bloc.dart';
 import 'package:intl/intl.dart';
 import '../../../core/theme/app_colors.dart';
+import '../../../core/di/service_locator.dart';
 import '../../../core/utils/interactive_feedback.dart';
 import '../../../core/utils/responsive.dart';
+import '../../../data/datasources/firestore_service.dart';
 import '../../../domain/entities/user_account.dart';
 import '../../../domain/entities/user_shift_record.dart';
 import '../../blocs/auth/auth_bloc.dart';
@@ -113,16 +115,24 @@ class UserDetailsScreen extends StatelessWidget {
           orElse: () => user,
         );
 
-        final sortedShifts = List<UserShiftRecord>.from(liveUser.shifts)
-          ..sort((a, b) => b.onlineAt.compareTo(a.onlineAt));
+        return StreamBuilder<List<UserShiftRecord>>(
+          stream: sl<FirestoreService>().watchUserShifts(
+            liveUser.companyId,
+            liveUser.id,
+          ),
+          builder: (context, shiftSnapshot) {
+            final sortedShifts = shiftSnapshot.data ?? const <UserShiftRecord>[];
+            final totalDuration = sortedShifts.fold<Duration>(
+              Duration.zero,
+              (total, shift) => total + shift.duration,
+            );
+            final totalHours = _formatDuration(totalDuration);
+            final activeShift = sortedShifts.where((shift) => shift.isActive).firstOrNull;
+            final isOwner = liveUser.isOwner;
+            final isActive = liveUser.isActive;
+            final canOwnerManage = (currentUser?.isOwner ?? false) && !isSelf;
 
-        final totalHours = _formatDuration(liveUser.totalWorkingDuration);
-        final activeShift = liveUser.activeShift;
-        final isOwner = liveUser.isOwner;
-        final isActive = liveUser.isActive;
-        final canOwnerManage = (currentUser?.isOwner ?? false) && !isSelf;
-
-        return Scaffold(
+            return Scaffold(
           backgroundColor: AppColors.backgroundBase,
           appBar: AppBar(
             backgroundColor: AppColors.cardSurface,
@@ -515,7 +525,7 @@ class UserDetailsScreen extends StatelessWidget {
                         child: _buildMetricCard(
                           icon: Icons.history_toggle_off,
                           title: 'TOTAL SHIFTS',
-                          value: '${user.shifts.length}',
+                          value: '${sortedShifts.length}',
                           accentColor: AppColors.tableReserved,
                         ),
                       ),
@@ -735,9 +745,11 @@ class UserDetailsScreen extends StatelessWidget {
         ),
       ),
     );
-  },
-);
-}
+          },
+        );
+      },
+    );
+  }
 
   Widget _buildDetailRow({
     required IconData icon,

@@ -12,6 +12,7 @@ import 'package:intl/intl.dart';
 import '../../domain/entities/table_history_record.dart';
 import '../../domain/entities/table_session.dart';
 import '../../domain/entities/user_account.dart';
+import '../../domain/entities/user_shift_record.dart';
 import '../../domain/entities/company_daily_usage.dart';
 import 'company_usage_tracker.dart';
 
@@ -20,7 +21,7 @@ class FirestoreService {
   final Map<String, CompanyUsageTracker> _usageTrackers = {};
 
   FirestoreService({FirebaseFirestore? firestore})
-      : _firestore = firestore ?? FirebaseFirestore.instance;
+    : _firestore = firestore ?? FirebaseFirestore.instance;
 
   CompanyUsageTracker _getOrCreateTracker(String companyId) {
     return _usageTrackers.putIfAbsent(
@@ -73,13 +74,17 @@ class FirestoreService {
 
   Stream<List<Company>> watchCompanies() {
     return _companiesCol.snapshots().map((snapshot) {
-      return snapshot.docs.map((doc) => Company.fromMap(doc.id, doc.data())).toList();
+      return snapshot.docs
+          .map((doc) => Company.fromMap(doc.id, doc.data()))
+          .toList();
     });
   }
 
   Future<List<Company>> getCompanies() async {
     final snapshot = await _companiesCol.get();
-    return snapshot.docs.map((doc) => Company.fromMap(doc.id, doc.data())).toList();
+    return snapshot.docs
+        .map((doc) => Company.fromMap(doc.id, doc.data()))
+        .toList();
   }
 
   Stream<Company?> watchCompany(String companyId) {
@@ -100,16 +105,20 @@ class FirestoreService {
   /// Checks if a unique company code already exists
   Future<bool> isCompanyCodeTaken(String code) async {
     final clean = code.trim().toUpperCase();
-    final query =
-        await _companiesCol.where('code', isEqualTo: clean).limit(1).get();
+    final query = await _companiesCol
+        .where('code', isEqualTo: clean)
+        .limit(1)
+        .get();
     return query.docs.isNotEmpty;
   }
 
   /// Retrieves a company by its unique code (with doc ID fallback)
   Future<Company?> getCompanyByCode(String code) async {
     final clean = code.trim().toUpperCase();
-    final query =
-        await _companiesCol.where('code', isEqualTo: clean).limit(1).get();
+    final query = await _companiesCol
+        .where('code', isEqualTo: clean)
+        .limit(1)
+        .get();
     if (query.docs.isNotEmpty) {
       final doc = query.docs.first;
       return Company.fromMap(doc.id, doc.data());
@@ -139,7 +148,8 @@ class FirestoreService {
           trackWrite(company.id, 1);
           return company.copyWith(dueBufferAmount: Constants.dueBufferAmount);
         } else {
-          final buffer = (data['dueBufferAmount'] as num?)?.toDouble() ??
+          final buffer =
+              (data['dueBufferAmount'] as num?)?.toDouble() ??
               Constants.dueBufferAmount;
           return company.copyWith(dueBufferAmount: buffer);
         }
@@ -222,6 +232,113 @@ class FirestoreService {
   CollectionReference<Map<String, dynamic>> _usersCol(String companyId) =>
       _companiesCol.doc(companyId).collection('users');
 
+  CollectionReference<Map<String, dynamic>> _userShiftsCol(
+    String companyId,
+    String userId,
+  ) => _usersCol(companyId).doc(userId).collection('shifts');
+
+  /// Moves the legacy embedded shift array into user shift documents once.
+  /// The user document retains only lightweight aggregate fields afterwards.
+  Future<void> migrateLegacyUserShifts(String companyId, String userId) async {
+    final userRef = _usersCol(companyId).doc(userId);
+    final userSnap = await userRef.get();
+    trackRead(companyId, 1);
+    final data = userSnap.data();
+    final legacyShifts = data?['shifts'] as List<dynamic>?;
+    if (data == null || legacyShifts == null) return;
+
+    final now = DateTime.now();
+    var totalSeconds = 0;
+    final batch = _firestore.batch();
+    for (final raw in legacyShifts) {
+      final shift = UserShiftRecord.fromMap(
+        Map<String, dynamic>.from(raw as Map),
+      );
+      final shiftRef = _userShiftsCol(
+        companyId,
+        userId,
+      ).doc(shift.id.isEmpty ? const Uuid().v4() : shift.id);
+      batch.set(
+        shiftRef,
+        shift.copyWith(id: shiftRef.id).toMap(),
+        SetOptions(merge: true),
+      );
+      totalSeconds += (shift.offlineAt ?? now)
+          .difference(shift.onlineAt)
+          .inSeconds
+          .clamp(0, 1 << 31);
+    }
+    batch.set(userRef, {
+      'shifts': FieldValue.delete(),
+      'shiftCount': legacyShifts.length,
+      'totalWorkingSeconds': totalSeconds,
+      'shiftsMigratedAt': Timestamp.now(),
+    }, SetOptions(merge: true));
+    await batch.commit();
+    trackWrite(companyId, legacyShifts.length + 1);
+  }
+
+  Future<void> migrateCompanyLegacyUserShifts(String companyId) async {
+    final users = await _usersCol(companyId).get();
+    trackRead(companyId, users.docs.length);
+    for (final user in users.docs) {
+      if (user.data()['shifts'] is List<dynamic>) {
+        await migrateLegacyUserShifts(companyId, user.id);
+      }
+    }
+  }
+
+  Stream<List<UserShiftRecord>> watchUserShifts(
+    String companyId,
+    String userId,
+  ) {
+    return _userShiftsCol(
+      companyId,
+      userId,
+    ).orderBy('onlineAt', descending: true).snapshots().map((snapshot) {
+      trackRead(companyId, snapshot.docChanges.length);
+      return snapshot.docs
+          .map((doc) => UserShiftRecord.fromMap({...doc.data(), 'id': doc.id}))
+          .toList();
+    });
+  }
+
+  /// Fetches a paginated slice of user shifts ordered by onlineAt descending.
+  Future<({
+    List<UserShiftRecord> shifts,
+    DocumentSnapshot<Map<String, dynamic>>? lastDocument,
+    bool hasMore,
+  })> getUserShiftsPaginated({
+    required String companyId,
+    required String userId,
+    int limit = 10,
+    DocumentSnapshot<Map<String, dynamic>>? startAfter,
+  }) async {
+    Query<Map<String, dynamic>> query = _userShiftsCol(companyId, userId)
+        .orderBy('onlineAt', descending: true)
+        .limit(limit);
+
+    if (startAfter != null) {
+      query = query.startAfterDocument(startAfter);
+    }
+
+    final snapshot = await query.get();
+    trackRead(companyId, snapshot.docs.length);
+
+    final shifts = snapshot.docs
+        .map((doc) => UserShiftRecord.fromMap({...doc.data(), 'id': doc.id}))
+        .toList();
+
+    final lastDoc = snapshot.docs.isNotEmpty ? snapshot.docs.last : null;
+    final hasMore = snapshot.docs.length == limit;
+
+    return (
+      shifts: shifts,
+      lastDocument: lastDoc,
+      hasMore: hasMore,
+    );
+  }
+
   Stream<List<UserAccount>> watchCompanyUsers(String companyId) {
     return _usersCol(companyId).snapshots().map((snapshot) {
       trackRead(companyId, snapshot.docChanges.length);
@@ -249,7 +366,8 @@ class FirestoreService {
     try {
       final user = users.firstWhere(
         (u) =>
-            (u.email.toLowerCase() == normalized || u.number.trim() == normalized) &&
+            (u.email.toLowerCase() == normalized ||
+                u.number.trim() == normalized) &&
             u.password == password,
       );
       return user;
@@ -288,13 +406,16 @@ class FirestoreService {
       'isDeactivated': !isActive,
     };
     if (!isActive) {
+      await setUserOnlineStatus(
+        companyId: companyId,
+        userId: userId,
+        isOnline: false,
+      );
       updates['sessionExpiresAt'] = null;
-      updates['isOnline'] = false;
     }
-    await _usersCol(companyId).doc(userId).set(
-      updates,
-      SetOptions(merge: true),
-    );
+    await _usersCol(
+      companyId,
+    ).doc(userId).set(updates, SetOptions(merge: true));
     trackWrite(companyId, 1);
   }
 
@@ -376,10 +497,12 @@ class FirestoreService {
     required bool isOnline,
   }) async {
     final usersCol = _usersCol(companyId);
+    await migrateLegacyUserShifts(companyId, userId);
 
     if (isOnline) {
       // Concurrency rule: Check if any other user is currently online
       final allUsersSnap = await usersCol.get();
+      trackRead(companyId, allUsersSnap.docs.length);
       for (final doc in allUsersSnap.docs) {
         if (doc.id != userId) {
           final data = doc.data();
@@ -387,52 +510,52 @@ class FirestoreService {
             final name = (data['name'] as String?)?.trim();
             return (
               success: false,
-              conflictingUserName:
-                  (name != null && name.isNotEmpty) ? name : 'Another operator',
+              conflictingUserName: (name != null && name.isNotEmpty)
+                  ? name
+                  : 'Another operator',
             );
           }
         }
       }
     }
 
-    final userDoc = await usersCol.doc(userId).get();
-    final existingData = userDoc.data() ?? {};
-    final rawShifts = List<Map<String, dynamic>>.from(
-      (existingData['shifts'] as List<dynamic>?)?.map(
-            (e) => Map<String, dynamic>.from(e as Map),
-          ) ??
-          [],
-    );
-
-    final now = Timestamp.now();
-
-    if (isOnline) {
-      // Close any previously open shift if found
-      for (final shift in rawShifts) {
-        if (shift['offlineAt'] == null) {
-          shift['offlineAt'] = now;
-        }
-      }
-      // Append new active shift
-      rawShifts.add({
-        'id': const Uuid().v4(),
-        'onlineAt': now,
-        'offlineAt': null,
+    final openShifts = await _userShiftsCol(
+      companyId,
+      userId,
+    ).where('offlineAt', isNull: true).get();
+    trackRead(companyId, openShifts.docs.length);
+    final now = DateTime.now();
+    var closedSeconds = 0;
+    final batch = _firestore.batch();
+    for (final shiftDoc in openShifts.docs) {
+      final shift = UserShiftRecord.fromMap({
+        ...shiftDoc.data(),
+        'id': shiftDoc.id,
       });
-    } else {
-      // Close active shift
-      for (final shift in rawShifts) {
-        if (shift['offlineAt'] == null) {
-          shift['offlineAt'] = now;
-        }
-      }
+      closedSeconds += now
+          .difference(shift.onlineAt)
+          .inSeconds
+          .clamp(0, 1 << 31);
+      batch.set(shiftDoc.reference, {
+        'offlineAt': Timestamp.fromDate(now),
+      }, SetOptions(merge: true));
     }
-
-    await usersCol.doc(userId).set({
+    final userUpdates = <String, dynamic>{
       'isOnline': isOnline,
-      'shifts': rawShifts,
-    }, SetOptions(merge: true));
-    trackWrite(companyId, 1);
+      if (closedSeconds > 0)
+        'totalWorkingSeconds': FieldValue.increment(closedSeconds),
+    };
+    if (isOnline) {
+      final shiftRef = _userShiftsCol(companyId, userId).doc();
+      batch.set(
+        shiftRef,
+        UserShiftRecord(id: shiftRef.id, onlineAt: now).toMap(),
+      );
+      userUpdates['shiftCount'] = FieldValue.increment(1);
+    }
+    batch.set(usersCol.doc(userId), userUpdates, SetOptions(merge: true));
+    await batch.commit();
+    trackWrite(companyId, openShifts.docs.length + (isOnline ? 2 : 1));
 
     return (success: true, conflictingUserName: null);
   }
@@ -511,7 +634,10 @@ class FirestoreService {
     });
   }
 
-  Future<TableSession?> getRunningSession(String companyId, String sessionId) async {
+  Future<TableSession?> getRunningSession(
+    String companyId,
+    String sessionId,
+  ) async {
     final doc = await _runningCol(companyId).doc(sessionId).get();
     trackRead(companyId, 1);
     if (!doc.exists || doc.data() == null) return null;
@@ -524,11 +650,13 @@ class FirestoreService {
     final playedSec = session.playedSecondsAt(session.startTime);
     final tableFee = session.computeTableChargeAt(session.startTime);
     final grandTotal = session.computeGrandTotalAt(session.startTime);
-    final sessionMap = session.copyWith(
-      lastPlayedSeconds: playedSec,
-      lastTableCharge: tableFee,
-      lastGrandTotal: grandTotal,
-    ).toMap();
+    final sessionMap = session
+        .copyWith(
+          lastPlayedSeconds: playedSec,
+          lastTableCharge: tableFee,
+          lastGrandTotal: grandTotal,
+        )
+        .toMap();
     sessionMap['lastUpdated'] = Timestamp.now();
 
     batch.set(runningDoc, sessionMap);
@@ -545,11 +673,13 @@ class FirestoreService {
 
   Future<void> updateRunningSession(TableSession session) async {
     final now = DateTime.now();
-    final sessionMap = session.copyWith(
-      lastPlayedSeconds: session.playedSecondsAt(now),
-      lastTableCharge: session.computeTableChargeAt(now),
-      lastGrandTotal: session.computeGrandTotalAt(now),
-    ).toMap();
+    final sessionMap = session
+        .copyWith(
+          lastPlayedSeconds: session.playedSecondsAt(now),
+          lastTableCharge: session.computeTableChargeAt(now),
+          lastGrandTotal: session.computeGrandTotalAt(now),
+        )
+        .toMap();
     sessionMap['lastUpdated'] = Timestamp.now();
     await _runningCol(session.companyId).doc(session.id).set(sessionMap);
     trackWrite(session.companyId, 1);
@@ -590,8 +720,10 @@ class FirestoreService {
 
     final now = DateTime.now();
     // Guard against device clock skew between pausing device and resuming device
-    final additionalPause =
-        now.difference(session.lastPauseTime!).inSeconds.clamp(0, 86400 * 30);
+    final additionalPause = now
+        .difference(session.lastPauseTime!)
+        .inSeconds
+        .clamp(0, 86400 * 30);
     final totalPaused = session.pausedSeconds + additionalPause;
 
     // Calculate played seconds up to the pause point
@@ -820,10 +952,9 @@ class FirestoreService {
         isLessThanOrEqualTo: Timestamp.fromDate(endDate),
       );
     }
-    return query
-        .orderBy('closedAt', descending: true)
-        .snapshots()
-        .map((snapshot) {
+    return query.orderBy('closedAt', descending: true).snapshots().map((
+      snapshot,
+    ) {
       trackRead(companyId, snapshot.docChanges.length);
       return snapshot.docs
           .map((doc) => TableHistoryRecord.fromMap(doc.id, doc.data()))
@@ -857,9 +988,9 @@ class FirestoreService {
   }
 
   Future<void> updateTableHistoryRecord(TableHistoryRecord record) async {
-    await _historyCol(record.companyId)
-        .doc(record.id)
-        .set(record.toMap(), SetOptions(merge: true));
+    await _historyCol(
+      record.companyId,
+    ).doc(record.id).set(record.toMap(), SetOptions(merge: true));
     trackWrite(record.companyId, 1);
   }
 
@@ -888,14 +1019,14 @@ class FirestoreService {
         isLessThanOrEqualTo: Timestamp.fromDate(endDate),
       );
     }
-    return query.orderBy('expenseDate', descending: true).snapshots().map(
-      (snapshot) {
-        trackRead(companyId, snapshot.docChanges.length);
-        return snapshot.docs
-            .map((doc) => ClubExpense.fromMap(doc.id, doc.data()))
-            .toList();
-      },
-    );
+    return query.orderBy('expenseDate', descending: true).snapshots().map((
+      snapshot,
+    ) {
+      trackRead(companyId, snapshot.docChanges.length);
+      return snapshot.docs
+          .map((doc) => ClubExpense.fromMap(doc.id, doc.data()))
+          .toList();
+    });
   }
 
   Future<List<ClubExpense>> getCompanyExpenses(
@@ -924,11 +1055,13 @@ class FirestoreService {
   }
 
   Future<void> saveExpense(ClubExpense expense) async {
-    final docId = expense.id.isEmpty ? _expensesCol(expense.companyId).doc().id : expense.id;
+    final docId = expense.id.isEmpty
+        ? _expensesCol(expense.companyId).doc().id
+        : expense.id;
     final toSave = expense.copyWith(id: docId);
-    await _expensesCol(expense.companyId)
-        .doc(docId)
-        .set(toSave.toMap(), SetOptions(merge: true));
+    await _expensesCol(
+      expense.companyId,
+    ).doc(docId).set(toSave.toMap(), SetOptions(merge: true));
     trackWrite(expense.companyId, 1);
   }
 
@@ -945,10 +1078,9 @@ class FirestoreService {
       _companiesCol.doc(companyId).collection('reminders');
 
   Stream<List<ClubReminder>> watchCompanyReminders(String companyId) {
-    return _remindersCol(companyId)
-        .orderBy('remindAt', descending: false)
-        .snapshots()
-        .map((snapshot) {
+    return _remindersCol(
+      companyId,
+    ).orderBy('remindAt', descending: false).snapshots().map((snapshot) {
       trackRead(companyId, snapshot.docChanges.length);
       return snapshot.docs
           .map((doc) => ClubReminder.fromMap(doc.id, doc.data()))
@@ -961,16 +1093,16 @@ class FirestoreService {
         ? _remindersCol(companyId).doc().id
         : reminder.id;
     final toSave = reminder.copyWith(id: docId, companyId: companyId);
-    await _remindersCol(companyId)
-        .doc(docId)
-        .set(toSave.toMap(), SetOptions(merge: true));
+    await _remindersCol(
+      companyId,
+    ).doc(docId).set(toSave.toMap(), SetOptions(merge: true));
     trackWrite(companyId, 1);
   }
 
   Future<void> dismissReminder(String companyId, String reminderId) async {
-    await _remindersCol(companyId)
-        .doc(reminderId)
-        .set({'isDismissed': true}, SetOptions(merge: true));
+    await _remindersCol(
+      companyId,
+    ).doc(reminderId).set({'isDismissed': true}, SetOptions(merge: true));
     trackWrite(companyId, 1);
   }
 
@@ -1056,8 +1188,10 @@ class FirestoreService {
         .orderBy('date', descending: true)
         .limit(limit)
         .snapshots()
-        .map((snap) => snap.docs
-            .map((doc) => CompanyDailyUsage.fromMap(doc.id, doc.data()))
-            .toList());
+        .map(
+          (snap) => snap.docs
+              .map((doc) => CompanyDailyUsage.fromMap(doc.id, doc.data()))
+              .toList(),
+        );
   }
 }

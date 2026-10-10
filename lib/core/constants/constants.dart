@@ -3,7 +3,7 @@ class Constants {
   static const String appName = 'SSAAS';
 
   /// Current application version (e.g. 1.0.0)
-  static const String appVersion = '1.0.0';
+  static const String appVersion = '2.0.0';
   static const int appBuildNumber = 1;
   static const String fullVersion = '$appVersion+$appBuildNumber';
 
@@ -22,4 +22,5 @@ class Constants {
   static const String contactPerson = 'Dhruv Soni';
   static const String contactPhone = '9009395674';
   static const String contactPhoneFormatted = '+91 9009395674';
+  static const String subscriptionUpiId = '9009395674@ybl';
 }

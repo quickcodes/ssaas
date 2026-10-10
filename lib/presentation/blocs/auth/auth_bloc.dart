@@ -69,15 +69,15 @@ class CreateCompanyWithAdminEvent extends AuthEvent {
 
   @override
   List<Object?> get props => [
-        name,
-        code,
-        number,
-        expiryDate,
-        initialUserName,
-        initialUserNumber,
-        initialUserEmail,
-        initialUserPassword,
-      ];
+    name,
+    code,
+    number,
+    expiryDate,
+    initialUserName,
+    initialUserNumber,
+    initialUserEmail,
+    initialUserPassword,
+  ];
 }
 
 class CreateCompanyUserEvent extends AuthEvent {
@@ -112,10 +112,7 @@ class ToggleUserActiveStatusEvent extends AuthEvent {
 class UpdateUserRoleEvent extends AuthEvent {
   final String userId;
   final String role;
-  const UpdateUserRoleEvent({
-    required this.userId,
-    required this.role,
-  });
+  const UpdateUserRoleEvent({required this.userId, required this.role});
   @override
   List<Object?> get props => [userId, role];
 }
@@ -222,29 +219,32 @@ class AuthState extends Equatable {
       companies: companies ?? this.companies,
       companyUsers: companyUsers ?? this.companyUsers,
       isLoading: isLoading ?? this.isLoading,
-      errorMessage: clearErrorMessage ? null : (errorMessage ?? this.errorMessage),
+      errorMessage: clearErrorMessage
+          ? null
+          : (errorMessage ?? this.errorMessage),
       successMessage: clearSuccessMessage
           ? null
           : (successMessage ?? this.successMessage),
       isSubscriptionExpired:
           isSubscriptionExpired ?? this.isSubscriptionExpired,
       isUserDeactivated:
-          isUserDeactivated ?? (clearErrorMessage ? false : this.isUserDeactivated),
+          isUserDeactivated ??
+          (clearErrorMessage ? false : this.isUserDeactivated),
     );
   }
 
   @override
   List<Object?> get props => [
-        currentUser,
-        activeCompany,
-        companies,
-        companyUsers,
-        isLoading,
-        errorMessage,
-        successMessage,
-        isSubscriptionExpired,
-        isUserDeactivated,
-      ];
+    currentUser,
+    activeCompany,
+    companies,
+    companyUsers,
+    isLoading,
+    errorMessage,
+    successMessage,
+    isSubscriptionExpired,
+    isUserDeactivated,
+  ];
 }
 
 // -------------------------------------------------------------
@@ -260,9 +260,9 @@ class AuthBloc extends Bloc<AuthEvent, AuthState> {
   AuthBloc({
     required FirestoreService firestoreService,
     required SessionLocalStorage sessionLocalStorage,
-  })  : _firestoreService = firestoreService,
-        _sessionLocalStorage = sessionLocalStorage,
-        super(const AuthState(isLoading: true)) {
+  }) : _firestoreService = firestoreService,
+       _sessionLocalStorage = sessionLocalStorage,
+       super(const AuthState(isLoading: true)) {
     on<InitAuthEvent>(_onInitAuth);
     on<LoadCompaniesEvent>(_onLoadCompanies);
     on<SelectCompanyEvent>(_onSelectCompany);
@@ -283,10 +283,7 @@ class AuthBloc extends Bloc<AuthEvent, AuthState> {
     add(InitAuthEvent());
   }
 
-  Future<void> _onInitAuth(
-    InitAuthEvent event,
-    Emitter<AuthState> emit,
-  ) async {
+  Future<void> _onInitAuth(InitAuthEvent event, Emitter<AuthState> emit) async {
     emit(state.copyWith(isLoading: true));
     try {
       // 1. Check if there is an active local session
@@ -296,8 +293,7 @@ class AuthBloc extends Bloc<AuthEvent, AuthState> {
           session.companyId.isNotEmpty &&
           session.userId.isNotEmpty) {
         // 2. Fetch company and check subscription
-        var company =
-            await _firestoreService.getCompanyById(session.companyId);
+        var company = await _firestoreService.getCompanyById(session.companyId);
         if (company != null && !company.isExpired) {
           // Ensure dueBufferAmount is present in company details and store if missing
           company = await _firestoreService.ensureCompanyDueBuffer(company);
@@ -329,17 +325,19 @@ class AuthBloc extends Bloc<AuthEvent, AuthState> {
             debugPrint(
               '[AuthBloc] Valid session found for ${user.name}. Auto-logging in...',
             );
+            await _firestoreService.migrateCompanyLegacyUserShifts(company.id);
             // Active session verified in Firebase DB! Auto-login
             _companySub?.cancel();
-            _companySub =
-                _firestoreService.watchCompany(company.id).listen((updated) {
+            _companySub = _firestoreService.watchCompany(company.id).listen((
+              updated,
+            ) {
               add(_CompanyUpdatedInternalEvent(updated));
             });
 
             _usersSub?.cancel();
-            _usersSub = _firestoreService
-                .watchCompanyUsers(company.id)
-                .listen((users) {
+            _usersSub = _firestoreService.watchCompanyUsers(company.id).listen((
+              users,
+            ) {
               add(_UsersUpdatedInternalEvent(users));
             });
 
@@ -386,10 +384,12 @@ class AuthBloc extends Bloc<AuthEvent, AuthState> {
       final companies = await _firestoreService.getCompanies();
       emit(state.copyWith(companies: companies, isLoading: false));
     } catch (e) {
-      emit(state.copyWith(
-        isLoading: false,
-        errorMessage: AppErrorHandler.format(e),
-      ));
+      emit(
+        state.copyWith(
+          isLoading: false,
+          errorMessage: AppErrorHandler.format(e),
+        ),
+      );
     }
   }
 
@@ -405,10 +405,7 @@ class AuthBloc extends Bloc<AuthEvent, AuthState> {
     }
   }
 
-  void _onSelectCompany(
-    SelectCompanyEvent event,
-    Emitter<AuthState> emit,
-  ) {
+  void _onSelectCompany(SelectCompanyEvent event, Emitter<AuthState> emit) {
     emit(state.copyWith(activeCompany: event.company));
   }
 
@@ -486,27 +483,30 @@ class AuthBloc extends Bloc<AuthEvent, AuthState> {
         userId: user.id,
         expiresAt: sessionExpiresAt,
       );
+      await _firestoreService.migrateCompanyLegacyUserShifts(company.id);
 
       final userWithSession = user.copyWith(sessionExpiresAt: sessionExpiresAt);
 
       // Ensure dueBufferAmount is present in company details and store if missing
-      final updatedCompany =
-          await _firestoreService.ensureCompanyDueBuffer(company);
+      final updatedCompany = await _firestoreService.ensureCompanyDueBuffer(
+        company,
+      );
 
       // Subscribe to active company to monitor expiry in real-time
       _companySub?.cancel();
-      _companySub =
-          _firestoreService.watchCompany(updatedCompany.id).listen((updated) {
+      _companySub = _firestoreService.watchCompany(updatedCompany.id).listen((
+        updated,
+      ) {
         add(_CompanyUpdatedInternalEvent(updated));
       });
 
       // Subscribe to company users
       _usersSub?.cancel();
-      _usersSub = _firestoreService
-          .watchCompanyUsers(updatedCompany.id)
-          .listen((users) {
-        add(_UsersUpdatedInternalEvent(users));
-      });
+      _usersSub = _firestoreService.watchCompanyUsers(updatedCompany.id).listen(
+        (users) {
+          add(_UsersUpdatedInternalEvent(users));
+        },
+      );
 
       emit(
         state.copyWith(
@@ -518,10 +518,12 @@ class AuthBloc extends Bloc<AuthEvent, AuthState> {
         ),
       );
     } catch (e) {
-      emit(state.copyWith(
-        isLoading: false,
-        errorMessage: AppErrorHandler.format(e),
-      ));
+      emit(
+        state.copyWith(
+          isLoading: false,
+          errorMessage: AppErrorHandler.format(e),
+        ),
+      );
     }
   }
 
@@ -546,7 +548,9 @@ class AuthBloc extends Bloc<AuthEvent, AuthState> {
         ),
       );
     } else {
-      emit(state.copyWith(activeCompany: company, isSubscriptionExpired: false));
+      emit(
+        state.copyWith(activeCompany: company, isSubscriptionExpired: false),
+      );
     }
   }
 
@@ -557,8 +561,9 @@ class AuthBloc extends Bloc<AuthEvent, AuthState> {
     UserAccount? updatedCurrentUser = state.currentUser;
     if (state.currentUser != null) {
       try {
-        updatedCurrentUser =
-            event.users.firstWhere((u) => u.id == state.currentUser!.id);
+        updatedCurrentUser = event.users.firstWhere(
+          (u) => u.id == state.currentUser!.id,
+        );
       } catch (_) {}
     }
 
@@ -581,10 +586,12 @@ class AuthBloc extends Bloc<AuthEvent, AuthState> {
       return;
     }
 
-    emit(state.copyWith(
-      companyUsers: event.users,
-      currentUser: updatedCurrentUser,
-    ));
+    emit(
+      state.copyWith(
+        companyUsers: event.users,
+        currentUser: updatedCurrentUser,
+      ),
+    );
   }
 
   Future<void> _onLogout(LogoutEvent event, Emitter<AuthState> emit) async {
@@ -609,7 +616,9 @@ class AuthBloc extends Bloc<AuthEvent, AuthState> {
             );
           }
         } catch (e) {
-          debugPrint('[AuthBloc] Non-fatal error invalidating remote session: $e');
+          debugPrint(
+            '[AuthBloc] Non-fatal error invalidating remote session: $e',
+          );
         }
       }
 
@@ -630,7 +639,9 @@ class AuthBloc extends Bloc<AuthEvent, AuthState> {
       try {
         companies = await _firestoreService.getCompanies();
       } catch (e) {
-        debugPrint('[AuthBloc] Non-fatal error reloading companies on logout: $e');
+        debugPrint(
+          '[AuthBloc] Non-fatal error reloading companies on logout: $e',
+        );
       }
 
       emit(
@@ -688,10 +699,12 @@ class AuthBloc extends Bloc<AuthEvent, AuthState> {
         ),
       );
     } catch (e) {
-      emit(state.copyWith(
-        isLoading: false,
-        errorMessage: AppErrorHandler.format(e),
-      ));
+      emit(
+        state.copyWith(
+          isLoading: false,
+          errorMessage: AppErrorHandler.format(e),
+        ),
+      );
     }
   }
 
@@ -699,8 +712,14 @@ class AuthBloc extends Bloc<AuthEvent, AuthState> {
     CreateCompanyUserEvent event,
     Emitter<AuthState> emit,
   ) async {
-    if ((state.currentUser?.isOwner != true && state.currentUser?.isAdmin != true) || state.activeCompany == null) {
-      emit(state.copyWith(errorMessage: 'Only the Club Owner can create new users.'));
+    if ((state.currentUser?.isOwner != true &&
+            state.currentUser?.isAdmin != true) ||
+        state.activeCompany == null) {
+      emit(
+        state.copyWith(
+          errorMessage: 'Only the Club Owner can create new users.',
+        ),
+      );
       return;
     }
     emit(state.copyWith(isLoading: true));
@@ -713,10 +732,12 @@ class AuthBloc extends Bloc<AuthEvent, AuthState> {
         ),
       );
     } catch (e) {
-      emit(state.copyWith(
-        isLoading: false,
-        errorMessage: AppErrorHandler.format(e),
-      ));
+      emit(
+        state.copyWith(
+          isLoading: false,
+          errorMessage: AppErrorHandler.format(e),
+        ),
+      );
     }
   }
 
@@ -738,11 +759,7 @@ class AuthBloc extends Bloc<AuthEvent, AuthState> {
         event.userId,
         event.isAdmin,
       );
-      emit(
-        state.copyWith(
-          successMessage: 'User role updated successfully.',
-        ),
-      );
+      emit(state.copyWith(successMessage: 'User role updated successfully.'));
     } catch (e) {
       emit(state.copyWith(errorMessage: AppErrorHandler.format(e)));
     }
@@ -755,16 +772,15 @@ class AuthBloc extends Bloc<AuthEvent, AuthState> {
     if (state.currentUser?.isOwner != true || state.activeCompany == null) {
       emit(
         state.copyWith(
-          errorMessage: 'Only the Club Owner can activate or deactivate accounts.',
+          errorMessage:
+              'Only the Club Owner can activate or deactivate accounts.',
         ),
       );
       return;
     }
     if (state.currentUser?.id == event.userId) {
       emit(
-        state.copyWith(
-          errorMessage: 'You cannot deactivate your own account.',
-        ),
+        state.copyWith(errorMessage: 'You cannot deactivate your own account.'),
       );
       return;
     }
@@ -819,11 +835,13 @@ class AuthBloc extends Bloc<AuthEvent, AuthState> {
     Emitter<AuthState> emit,
   ) async {
     if (state.activeCompany == null) return;
-    emit(state.copyWith(
-      isLoading: true,
-      clearErrorMessage: true,
-      clearSuccessMessage: true,
-    ));
+    emit(
+      state.copyWith(
+        isLoading: true,
+        clearErrorMessage: true,
+        clearSuccessMessage: true,
+      ),
+    );
     try {
       final result = await _firestoreService.setUserOnlineStatus(
         companyId: state.activeCompany!.id,
@@ -875,10 +893,12 @@ class AuthBloc extends Bloc<AuthEvent, AuthState> {
         );
       }
     } catch (e) {
-      emit(state.copyWith(
-        isLoading: false,
-        errorMessage: AppErrorHandler.format(e),
-      ));
+      emit(
+        state.copyWith(
+          isLoading: false,
+          errorMessage: AppErrorHandler.format(e),
+        ),
+      );
     }
   }
 
@@ -891,24 +911,48 @@ class AuthBloc extends Bloc<AuthEvent, AuthState> {
       return;
     }
     if (state.currentUser!.id != event.userId) {
-      emit(state.copyWith(errorMessage: 'Unauthorized: Cannot change another user\'s password.'));
+      emit(
+        state.copyWith(
+          errorMessage: 'Unauthorized: Cannot change another user\'s password.',
+        ),
+      );
       return;
     }
     if (event.currentPassword != state.currentUser!.password) {
-      emit(state.copyWith(errorMessage: 'Current password does not match your account password.'));
+      emit(
+        state.copyWith(
+          errorMessage:
+              'Current password does not match your account password.',
+        ),
+      );
       return;
     }
     final cleanNewPassword = event.newPassword.trim();
     if (cleanNewPassword.length < 4) {
-      emit(state.copyWith(errorMessage: 'New password must be at least 4 characters.'));
+      emit(
+        state.copyWith(
+          errorMessage: 'New password must be at least 4 characters.',
+        ),
+      );
       return;
     }
     if (cleanNewPassword == state.currentUser!.password) {
-      emit(state.copyWith(errorMessage: 'New password cannot be the same as your current password.'));
+      emit(
+        state.copyWith(
+          errorMessage:
+              'New password cannot be the same as your current password.',
+        ),
+      );
       return;
     }
 
-    emit(state.copyWith(isLoading: true, clearErrorMessage: true, clearSuccessMessage: true));
+    emit(
+      state.copyWith(
+        isLoading: true,
+        clearErrorMessage: true,
+        clearSuccessMessage: true,
+      ),
+    );
     try {
       await _firestoreService.updateUserPassword(
         event.companyId,
@@ -921,7 +965,9 @@ class AuthBloc extends Bloc<AuthEvent, AuthState> {
       );
 
       final updatedCompanyUsers = state.companyUsers.map((u) {
-        return u.id == event.userId ? u.copyWith(password: cleanNewPassword) : u;
+        return u.id == event.userId
+            ? u.copyWith(password: cleanNewPassword)
+            : u;
       }).toList();
 
       emit(
@@ -929,7 +975,8 @@ class AuthBloc extends Bloc<AuthEvent, AuthState> {
           currentUser: updatedUser,
           companyUsers: updatedCompanyUsers,
           isLoading: false,
-          successMessage: 'Password updated successfully! Keep your new password safe.',
+          successMessage:
+              'Password updated successfully! Keep your new password safe.',
         ),
       );
     } catch (e) {
@@ -942,15 +989,14 @@ class AuthBloc extends Bloc<AuthEvent, AuthState> {
     }
   }
 
-  void _onClearAuthError(
-    ClearAuthErrorEvent event,
-    Emitter<AuthState> emit,
-  ) {
-    emit(state.copyWith(
-      clearErrorMessage: true,
-      clearSuccessMessage: true,
-      isUserDeactivated: false,
-    ));
+  void _onClearAuthError(ClearAuthErrorEvent event, Emitter<AuthState> emit) {
+    emit(
+      state.copyWith(
+        clearErrorMessage: true,
+        clearSuccessMessage: true,
+        isUserDeactivated: false,
+      ),
+    );
   }
 
   @override

@@ -1,6 +1,5 @@
 import 'package:cloud_firestore/cloud_firestore.dart';
 import 'package:equatable/equatable.dart';
-import 'user_shift_record.dart';
 
 class UserAccount extends Equatable {
   final String id;
@@ -15,7 +14,8 @@ class UserAccount extends Equatable {
   final bool isOnline;
   final DateTime createdAt;
   final DateTime? sessionExpiresAt;
-  final List<UserShiftRecord> shifts;
+  final int shiftCount;
+  final int totalWorkingSeconds;
 
   const UserAccount({
     required this.id,
@@ -30,7 +30,8 @@ class UserAccount extends Equatable {
     this.isOnline = false,
     required this.createdAt,
     this.sessionExpiresAt,
-    this.shifts = const [],
+    this.shiftCount = 0,
+    this.totalWorkingSeconds = 0,
   });
 
   // Role permissions & helpers
@@ -52,22 +53,7 @@ class UserAccount extends Equatable {
       sessionExpiresAt != null &&
       DateTime.now().isBefore(sessionExpiresAt!);
 
-  // Shift & working hours calculations
-  Duration get totalWorkingDuration {
-    Duration total = Duration.zero;
-    for (final s in shifts) {
-      total += s.duration;
-    }
-    return total;
-  }
-
-  UserShiftRecord? get activeShift {
-    try {
-      return shifts.firstWhere((s) => s.isActive);
-    } catch (_) {
-      return null;
-    }
-  }
+  Duration get totalWorkingDuration => Duration(seconds: totalWorkingSeconds);
 
   UserAccount copyWith({
     String? id,
@@ -82,14 +68,14 @@ class UserAccount extends Equatable {
     bool? isOnline,
     DateTime? createdAt,
     DateTime? sessionExpiresAt,
-    List<UserShiftRecord>? shifts,
+    int? shiftCount,
+    int? totalWorkingSeconds,
     bool clearSession = false,
   }) {
     final effectiveRole = role ?? this.role;
-    final effectiveIsAdmin = isAdmin ??
-        (role != null
-            ? (role.toLowerCase() == 'owner')
-            : this.isAdmin);
+    final effectiveIsAdmin =
+        isAdmin ??
+        (role != null ? (role.toLowerCase() == 'owner') : this.isAdmin);
 
     return UserAccount(
       id: id ?? this.id,
@@ -106,7 +92,8 @@ class UserAccount extends Equatable {
       sessionExpiresAt: clearSession
           ? null
           : (sessionExpiresAt ?? this.sessionExpiresAt),
-      shifts: shifts ?? this.shifts,
+      shiftCount: shiftCount ?? this.shiftCount,
+      totalWorkingSeconds: totalWorkingSeconds ?? this.totalWorkingSeconds,
     );
   }
 
@@ -126,7 +113,8 @@ class UserAccount extends Equatable {
       'sessionExpiresAt': sessionExpiresAt != null
           ? Timestamp.fromDate(sessionExpiresAt!)
           : null,
-      'shifts': shifts.map((s) => s.toMap()).toList(),
+      'shiftCount': shiftCount,
+      'totalWorkingSeconds': totalWorkingSeconds,
     };
   }
 
@@ -152,8 +140,8 @@ class UserAccount extends Equatable {
 
     final rawIsActive = map['isActive'] as bool?;
     final rawIsDeactivated = map['isDeactivated'] as bool?;
-    final isActive = rawIsActive ??
-        (rawIsDeactivated != null ? !rawIsDeactivated : true);
+    final isActive =
+        rawIsActive ?? (rawIsDeactivated != null ? !rawIsDeactivated : true);
 
     return UserAccount(
       id: id,
@@ -168,31 +156,26 @@ class UserAccount extends Equatable {
       isOnline: map['isOnline'] as bool? ?? false,
       createdAt: parseDate(map['createdAt']),
       sessionExpiresAt: parseOptionalDate(map['sessionExpiresAt']),
-      shifts: (map['shifts'] as List<dynamic>?)
-              ?.map(
-                (e) => UserShiftRecord.fromMap(
-                  Map<String, dynamic>.from(e as Map),
-                ),
-              )
-              .toList() ??
-          const [],
+      shiftCount: map['shiftCount'] as int? ?? 0,
+      totalWorkingSeconds: map['totalWorkingSeconds'] as int? ?? 0,
     );
   }
 
   @override
   List<Object?> get props => [
-        id,
-        companyId,
-        name,
-        number,
-        email,
-        password,
-        role,
-        isAdmin,
-        isActive,
-        isOnline,
-        createdAt,
-        sessionExpiresAt,
-        shifts,
-      ];
+    id,
+    companyId,
+    name,
+    number,
+    email,
+    password,
+    role,
+    isAdmin,
+    isActive,
+    isOnline,
+    createdAt,
+    sessionExpiresAt,
+    shiftCount,
+    totalWorkingSeconds,
+  ];
 }

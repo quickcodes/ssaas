@@ -14,7 +14,7 @@ import '../../../domain/entities/user_account.dart';
 import '../../blocs/auth/auth_bloc.dart';
 import '../../blocs/floor_matrix/floor_matrix_bloc.dart';
 import '../../blocs/expense/expense_bloc.dart';
-import '../auth/account_security_screen.dart';
+import '../profile/profile_screen.dart';
 import '../auth/login_screen.dart';
 import '../canteen/food_canteen_view.dart';
 import '../equipment/equipment_stock_view.dart';
@@ -876,12 +876,12 @@ class _MainDashboardViewState extends State<MainDashboardView> {
                     ),
                   const _DrawerSectionLabel('ACCOUNT & HELP'),
                   _buildCompactDrawerAction(
-                    icon: Icons.lock_reset_rounded,
-                    label: 'Password & security',
-                    subtitle: 'View and change your password',
+                    icon: Icons.person_rounded,
+                    label: 'Profile',
+                    subtitle: 'Profile details, daily shifts & security',
                     onTap: () {
                       setState(() => _isSideMenuVisible = false);
-                      AppNavigation.pushSmooth(context, const AccountSecurityScreen());
+                      AppNavigation.pushSmooth(context, const ProfileScreen());
                     },
                   ),
                   _buildCompactDrawerAction(
@@ -1211,7 +1211,7 @@ class _MainDashboardViewState extends State<MainDashboardView> {
           onTap?.call();
           AppNavigation.pushSmooth(
             context,
-            const AccountSecurityScreen(),
+            const ProfileScreen(),
           );
         },
         borderRadius: BorderRadius.circular(12),
@@ -1227,7 +1227,7 @@ class _MainDashboardViewState extends State<MainDashboardView> {
           child: const Row(
             children: [
               Icon(
-                Icons.lock_reset_rounded,
+                Icons.person_rounded,
                 color: Color(0xFFB388FF),
                 size: 20,
               ),
@@ -1237,7 +1237,7 @@ class _MainDashboardViewState extends State<MainDashboardView> {
                   crossAxisAlignment: CrossAxisAlignment.start,
                   children: [
                     Text(
-                      'Password & Security',
+                      'Profile',
                       style: TextStyle(
                         color: AppColors.primaryText,
                         fontWeight: FontWeight.w700,
@@ -1247,7 +1247,7 @@ class _MainDashboardViewState extends State<MainDashboardView> {
                       overflow: TextOverflow.ellipsis,
                     ),
                     Text(
-                      'View & change password',
+                      'View profile, shifts & security',
                       style: TextStyle(
                         color: AppColors.secondaryText,
                         fontSize: 10,
